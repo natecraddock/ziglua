@@ -61,7 +61,7 @@ const Lua = struct {
         };
     }
 
-    // Deinitialize a Lua state and free all memory
+    /// Deinitialize a Lua state and free all memory
     pub fn deinit(lua: *Lua) void {
         lua.close();
         if (lua.allocator) |a| {
@@ -72,13 +72,45 @@ const Lua = struct {
     }
 
     // Library functions
+    //
+    // Library functions are included in alphabetical order.
+    // Each is kept similar to the original C API function while also making it easy to use from Zig
 
     /// The type of function that Lua uses for all internal allocations and frees
-    /// data is an opaque pointer to any data (the allocator), ptr is a pointer to the block being alloced/realloced/freed
-    /// osize is the original size or a doce, and nsize is the new size
+    /// `data` is an opaque pointer to any data (the allocator), `ptr` is a pointer to the block being alloced/realloced/freed
+    /// `osize` is the original size or a code, and `nsize` is the new size
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_Alloc for more details
     pub const AllocFn = fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque;
+
+    /// Converts the acceptable index `index` into an equivalent absolute index
+    pub fn absIndex(lua: *Lua, index: i32) i32 {
+        return c.lua_absindex(lua.state, index);
+    }
+
+    /// Operations supported by `Lua.arith()`
+    pub const Operator = enum(u4) {
+        add = c.LUA_OPADD,
+        sub = c.LUA_OPSUB,
+        mul = c.LUA_OPMUL,
+        div = c.LUA_OPDIV,
+        idiv = c.LUA_OPIDIV,
+        mod = c.LUA_OPMOD,
+        pow = c.LUA_OPPOW,
+        unm = c.LUA_OPUNM,
+        bnot = c.LUA_OPBNOT,
+        band = c.LUA_OPBAND,
+        bor = c.LUA_OPBOR,
+        bxor = c.LUA_OPBXOR,
+        shl = c.LUA_OPSHL,
+        shr = c.LUA_OPSHR,
+    };
+
+    /// Performs an arithmetic or bitwise operation over the value(s) at the top of the stack
+    /// This function follows the semantics of the corresponding Lua operator
+    pub fn arith(lua: *Lua, op: Operator) void {
+        c.lua_arith(lua.state, @enumToInt(op));
+    }
 
     /// Release all Lua objects in the state and free all dynamic memory
     pub fn close(lua: *Lua) void {
@@ -89,6 +121,57 @@ const Lua = struct {
     pub fn newState(alloc_fn: AllocFn, data: ?*anyopaque) !Lua {
         const state = c.lua_newstate(alloc_fn, data) orelse return error.OutOfMemory;
         return Lua{ .state = state };
+    }
+
+    /// Pops `n` elements from the top of the stack
+    pub fn pop(lua: *Lua, n: i32) void {
+        lua.setTop(-n - 1);
+    }
+
+    /// Pushes a float with value `n` onto the stack
+    pub fn pushNumber(lua: *Lua, n: f64) void {
+        c.lua_pushnumber(lua.state, n);
+    }
+
+    /// Sets the top of the stack to `index`
+    /// If the new top is greater than the old, new elements are filled with nil
+    /// If `index` is 0 all stack elements are removed
+    pub fn setTop(lua: *Lua, index: i32) void {
+        c.lua_settop(lua.state, index);
+    }
+
+    /// Equivalent to toIntegerX with is_num set to null
+    pub fn toInteger(lua: *Lua, index: i32) i64 {
+        return lua.toIntegerX(index, null);
+    }
+
+    /// Converts the Lua value at the given index to a signed integer
+    /// The Lua value must be an integer, or a number, or a string convertible to an integer otherwise toIntegerX returns 0
+    /// If `is_num` is not null, it's referent is assigned a boolean success value
+    pub fn toIntegerX(lua: *Lua, index: i32, is_num: ?*bool) i64 {
+        if (is_num) |is_num_ptr| {
+            var success: c_int = undefined;
+            const result = c.lua_tointegerx(lua.state, index, &success);
+            is_num_ptr.* = success != 0;
+            return result;
+        } else return c.lua_tointegerx(lua.state, index, null);
+    }
+
+    /// Equivalent to toNumberX with is_num set to null
+    pub fn toNumber(lua: *Lua, index: i32) f64 {
+        return lua.toNumberX(index, null);
+    }
+
+    /// Converts the Lua value at the given index to a float
+    /// The Lua value must be a number or a string convertible to a number otherwise toNumberX returns 0
+    /// If `is_num` is not null, it's referent is assigned a boolean success value
+    pub fn toNumberX(lua: *Lua, index: i32, is_num: ?*bool) f64 {
+        if (is_num) |is_num_ptr| {
+            var success: c_int = undefined;
+            const result = c.lua_tonumberx(lua.state, index, &success);
+            is_num_ptr.* = success != 0;
+            return result;
+        } else return c.lua_tonumberx(lua.state, index, null);
     }
 
     // Auxiliary library functions
@@ -188,6 +271,7 @@ const Lua = struct {
 // Tests
 
 const testing = std.testing;
+const expectEqual = testing.expectEqual;
 
 fn failing_alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque {
     _ = data;
@@ -248,4 +332,69 @@ test "standard library loading" {
         lua.openOS();
         lua.openDebug();
     }
+}
+
+test "arithmetic (lua_arith)" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    lua.pushNumber(10);
+    lua.pushNumber(42);
+
+    lua.arith(.add);
+    try expectEqual(@as(f64, 52), lua.toNumber(1));
+
+    lua.pushNumber(12);
+    lua.arith(.sub);
+    try expectEqual(@as(f64, 40), lua.toNumber(1));
+
+    lua.pushNumber(2);
+    lua.arith(.mul);
+    try expectEqual(@as(f64, 80), lua.toNumber(1));
+
+    lua.pushNumber(8);
+    lua.arith(.div);
+    try expectEqual(@as(f64, 10), lua.toNumber(1));
+
+    // prep for idiv
+    lua.pushNumber(1);
+    lua.arith(.add);
+    lua.pushNumber(2);
+    lua.arith(.idiv);
+    try expectEqual(@as(f64, 5), lua.toNumber(1));
+
+    lua.pushNumber(2);
+    lua.arith(.mod);
+    try expectEqual(@as(f64, 1), lua.toNumber(1));
+
+    lua.arith(.unm);
+    try expectEqual(@as(f64, -1), lua.toNumber(1));
+
+    lua.arith(.unm);
+    lua.pushNumber(2);
+    lua.arith(.shl);
+    try expectEqual(@as(i64, 4), lua.toInteger(1));
+
+    lua.pushNumber(1);
+    lua.arith(.shr);
+    try expectEqual(@as(i64, 2), lua.toInteger(1));
+
+    lua.pushNumber(4);
+    lua.arith(.bor);
+    try expectEqual(@as(i64, 6), lua.toInteger(1));
+
+    lua.pushNumber(1);
+    lua.arith(.band);
+    try expectEqual(@as(i64, 0), lua.toInteger(1));
+
+    lua.pushNumber(1);
+    lua.arith(.bxor);
+    try expectEqual(@as(i64, 1), lua.toInteger(1));
+
+    lua.arith(.bnot); // 0xFFFFFFFFFFFFFFFE which is -2
+    try expectEqual(@as(i64, -2), lua.toInteger(1));
+
+    lua.pushNumber(3);
+    lua.arith(.pow);
+    try expectEqual(@as(i64, -8), lua.toInteger(1));
 }
