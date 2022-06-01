@@ -86,7 +86,7 @@ const Lua = struct {
     }
 
     /// Creates a new independent state and returns its main thread
-    pub fn newState(alloc_fn: AllocFn, data: *anyopaque) !Lua {
+    pub fn newState(alloc_fn: AllocFn, data: ?*anyopaque) !Lua {
         const state = c.lua_newstate(alloc_fn, data) orelse return error.OutOfMemory;
         return Lua{ .state = state };
     }
@@ -211,7 +211,7 @@ test "initialization" {
     lua.close();
 
     // use the library with a bad AllocFn
-    try testing.expectError(error.OutOfMemory, Lua.newState(failing_alloc, &allocator));
+    try testing.expectError(error.OutOfMemory, Lua.newState(failing_alloc, null));
 
     // use the auxiliary library
     lua = try Lua.auxNewState();
