@@ -130,7 +130,7 @@ const Lua = struct {
     }
 
     /// Open all standard libraries
-    pub fn openLibs(lua: *Lua) void {
+    pub fn auxOpenLibs(lua: *Lua) void {
         c.luaL_openlibs(lua.state);
     }
 
@@ -230,7 +230,7 @@ test "standard library loading" {
     {
         var lua = try Lua.init(testing.allocator);
         defer lua.deinit();
-        lua.openLibs();
+        lua.auxOpenLibs();
     }
 
     // open all standard libraries with individual functions
