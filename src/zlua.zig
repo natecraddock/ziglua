@@ -134,6 +134,12 @@ const Lua = struct {
         shr = c.LUA_OPSHR,
     };
 
+    /// Index of the regsitry in the stack (pseudo-index)
+    pub const registry_index = c.LUA_REGISTRYINDEX;
+
+    /// Index of globals in the registry
+    pub const ridx_globals = c.LUA_RIDX_GLOBALS;
+
     // Library functions
     //
     // Library functions are included in alphabetical order.
@@ -265,7 +271,10 @@ const Lua = struct {
 
     /// Pushes the global environment onto the stack
     pub fn pushGlobalTable(lua: *Lua) void {
-        c.lua_pushglobaltable(lua.state);
+        // lua_pushglobaltable is a macro and c-translate assumes it returns opaque
+        // so just reimplement the macro here
+        // c.lua_pushglobaltable(lua.state);
+        _ = lua.rawGetI(registry_index, ridx_globals);
     }
 
     /// Pushes an integer with value `n` onto the stack
@@ -316,6 +325,12 @@ const Lua = struct {
     /// Pushes a copy of the element at the given index onto the stack
     pub fn pushValue(lua: *Lua, index: i32) void {
         c.lua_pushvalue(lua.state, index);
+    }
+
+    /// Pushes onto the stack the value t[n], where `t` is the table at the given `index`
+    /// Returns the `LuaType` of the pushed value
+    pub fn rawGetI(lua: *Lua, index: i32, n: i64) LuaType {
+        return @intToEnum(LuaType, c.lua_rawgeti(lua.state, index, n));
     }
 
     // TODO: pub fn pushVFString is that even worth?
@@ -633,6 +648,32 @@ test "arithmetic (lua_arith)" {
     lua.pushNumber(3);
     lua.arith(.pow);
     try expectEqual(@as(i64, -8), lua.toInteger(1));
+}
+
+test "type of" {
+    // TODO: add more tests here after figuring out more type stuff
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    var value: i32 = 0;
+
+    lua.pushBoolean(true);
+    lua.pushGlobalTable();
+    lua.pushInteger(1);
+    lua.pushLightUserdata(&value);
+    lua.pushNil();
+    lua.pushNumber(0.1);
+    _ = lua.pushThread();
+
+    const LuaType = Lua.LuaType;
+    try expectEqual(LuaType.boolean, lua.typeOf(1));
+    try expectEqual(LuaType.table, lua.typeOf(2));
+    try expectEqual(LuaType.number, lua.typeOf(3));
+    try expectEqual(LuaType.light_userdata, lua.typeOf(4));
+    try expectEqual(LuaType.nil, lua.typeOf(5));
+    try expectEqual(LuaType.number, lua.typeOf(6));
+    try expectEqual(LuaType.thread, lua.typeOf(7));
+    try expectEqual(LuaType.none, lua.typeOf(8));
 }
 
 test "typenames" {
