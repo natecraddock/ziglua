@@ -85,7 +85,7 @@ const Lua = struct {
 
     /// Type for C functions
     /// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
-    pub const CFunction = fn (state: c.lua_State) callconv(.C) c_int;
+    pub const CFunction = fn (state: *c.lua_State) callconv(.C) c_int;
 
     /// Bitflag for the Lua standard libraries
     pub const Libs = packed struct {
@@ -312,12 +312,29 @@ const Lua = struct {
         c.lua_settop(lua.state, index);
     }
 
+    /// Converts the Lua value at the given `index` into a boolean
+    /// The Lua value at the index will be considered true unless it is false or nil
+    pub fn toBoolean(lua: *Lua, index: i32) bool {
+        return c.lua_toboolean(lua.state, index) != 0;
+    }
+
+    /// Converts a value at the given `index` into a CFunction
+    /// Returns null if the value is not a CFunction
+    pub fn toCFunction(lua: *Lua, index: i32) ?CFunction {
+        return c.lua_tocfunction(lua.state, index);
+    }
+
+    /// Marks the given index in the stack as a to-be-closed slot
+    pub fn toClose(lua: *Lua, index: i32) void {
+        c.lua_toclose(lua.state, index);
+    }
+
     /// Equivalent to toIntegerX with is_num set to null
     pub fn toInteger(lua: *Lua, index: i32) i64 {
         return lua.toIntegerX(index, null);
     }
 
-    /// Converts the Lua value at the given index to a signed integer
+    /// Converts the Lua value at the given `index` to a signed integer
     /// The Lua value must be an integer, or a number, or a string convertible to an integer otherwise toIntegerX returns 0
     /// If `is_num` is not null, it's referent is assigned a boolean success value
     pub fn toIntegerX(lua: *Lua, index: i32, is_num: ?*bool) i64 {
@@ -329,12 +346,17 @@ const Lua = struct {
         } else return c.lua_tointegerx(lua.state, index, null);
     }
 
+    /// Converts the Lua value at the given `index` to a C string
+    pub fn toLString(lua: *Lua, index: i32, len: ?*usize) [*]const u8 {
+        c.lua_tolstring(lua.state, index, len);
+    }
+
     /// Equivalent to toNumberX with is_num set to null
     pub fn toNumber(lua: *Lua, index: i32) f64 {
         return lua.toNumberX(index, null);
     }
 
-    /// Converts the Lua value at the given index to a float
+    /// Converts the Lua value at the given `index` to a float
     /// The Lua value must be a number or a string convertible to a number otherwise toNumberX returns 0
     /// If `is_num` is not null, it's referent is assigned a boolean success value
     pub fn toNumberX(lua: *Lua, index: i32, is_num: ?*bool) f64 {
@@ -344,6 +366,31 @@ const Lua = struct {
             is_num_ptr.* = success != 0;
             return result;
         } else return c.lua_tonumberx(lua.state, index, null);
+    }
+
+    /// Converts the value at the given `index` to an opaque pointer
+    pub fn toPointer(lua: *Lua, index: i32) ?*anyopaque {
+        return c.lua_topointer(lua.state, index);
+    }
+
+    /// Equivalent to toLString with len equal to null
+    pub fn toString(lua: *Lua, index: i32) [*]const u8 {
+        return lua.toLString(lua, index, null);
+    }
+
+    /// Converts the value at the given `index` to a Lua thread (wrapped with a `Lua` struct)
+    /// The thread does _not_ contain an allocator because it is not the main thread and should therefore not be used with `deinit()`
+    pub fn toThread(lua: *Lua, index: i32) ?Lua {
+        const thread = c.lua_tothread(lua.state, index);
+        if (thread) |thread_ptr| return Lua{ .state = thread_ptr };
+        return null;
+    }
+
+    /// If the value at the given `index` is a full userdata, returns its memory-block address
+    /// If the value is a light userdata, returns its value (a pointer)
+    /// Otherwise returns null
+    pub fn toUserdata(lua: *Lua, index: i32) ?*anyopaque {
+        return c.lua_touserdata(lua.state, index);
     }
 
     // Auxiliary library functions
