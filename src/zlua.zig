@@ -128,10 +128,93 @@ const Lua = struct {
         lua.setTop(-n - 1);
     }
 
+    /// Pushes a boolean value with value `b` onto the stack
+    pub fn pushBoolean(lua: *Lua, b: bool) void {
+        c.lua_pushboolean(lua.state, @boolToInt(b));
+    }
+
+    /// Type for C functions
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
+    const CFunction = fn (state: c.lua_State) callconv(.C) c_int;
+
+    /// Pushes a new C Closure onto the stack
+    /// `n` tells how many upvalues this function will have
+    /// TODO: add a Zig interface to pass Zig functions wrapped
+    pub fn pushCClosure(lua: *Lua, c_fn: CFunction, n: i32) void {
+        _ = lua;
+        _ = c_fn;
+        _ = n;
+    }
+
+    /// Pushes a C function onto the stack.
+    /// Equivalent to pushCClosure with no upvalues
+    pub fn pushCFunction(lua: *Lua, c_fn: CFunction) void {
+        lua.pushCClosure(c_fn, 0);
+    }
+
+    /// Push a formatted string onto the stack and return a pointer to the string
+    /// TODO: check if this works...
+    pub fn pushFString(lua: *Lua, fmt: []const u8, args: anytype) [*]const u8 {
+        const ptr = @call(.{}, c.lua_pushfstring, .{ lua.state, fmt } ++ args);
+        return @ptrCast([*]const u8, ptr);
+    }
+
+    /// Pushes the global environment onto the stack
+    pub fn pushGlobalTable(lua: *Lua) void {
+        c.lua_pushglobaltable(lua.state);
+    }
+
+    /// Pushes an integer with value `n` onto the stack
+    pub fn pushInteger(lua: *Lua, n: i32) void {
+        c.lua_pushinteger(lua.state, n);
+    }
+
+    /// Pushes a light userdata onto the stack
+    pub fn pushLightUserdata(lua: *Lua, ptr: *anyopaque) void {
+        c.lua_pushlightuserdata(lua.state, ptr);
+    }
+
+    pub fn pushLiteral(lua: *Lua, str: []const u8) []const u8 {
+        c.lua_pushliteral(lua.state, str); // TODO
+    }
+
+    pub fn pushLString(lua: *Lua, str: []const u8, len: usize) []const u8 {
+        _ = lua;
+        _ = str;
+        _ = len;
+    }
+
+    /// Pushes a nil value onto the stack
+    pub fn pushNil(lua: *Lua) void {
+        c.lua_pushnil(lua.state);
+    }
+
     /// Pushes a float with value `n` onto the stack
     pub fn pushNumber(lua: *Lua, n: f64) void {
         c.lua_pushnumber(lua.state, n);
     }
+
+    /// Pushes a zero-terminated string onto the stack
+    /// Lua makes a copy of the string so `str` may be freed immediately after return
+    /// Returns a pointer to the internal Lua string
+    /// If `str` is null pushes nil and returns null
+    pub fn pushString(lua: *Lua, str: ?[:0]const u8) ?[*]const u8 {
+        const ptr = c.lua_pushstring(lua.state, str);
+        return @ptrCast(?[*]const u8, ptr);
+    }
+
+    /// Pushes this thread onto the stack
+    /// Returns true if this thread is the main thread of its state
+    pub fn pushThread(lua: *Lua) bool {
+        return c.lua_pushthread(lua.state) == 1;
+    }
+
+    /// Pushes a copy of the element at the given index onto the stack
+    pub fn pushValue(lua: *Lua, index: i32) void {
+        c.lua_pushvalue(lua.state, index);
+    }
+
+    // TODO: pub fn pushVFString is that even worth?
 
     /// Sets the top of the stack to `index`
     /// If the new top is greater than the old, new elements are filled with nil
