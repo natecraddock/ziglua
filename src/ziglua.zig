@@ -1,4 +1,4 @@
-//! zlua.zig
+//! ziglua.zig
 
 const std = @import("std");
 
@@ -11,7 +11,7 @@ const c = @cImport({
 const Allocator = std.mem.Allocator;
 
 /// A Zig wrapper around the Lua C API
-const Lua = struct {
+pub const Lua = struct {
     allocator: ?*Allocator = null,
     state: *c.lua_State,
 
@@ -117,7 +117,7 @@ const Lua = struct {
     };
 
     /// Operations supported by `Lua.arith()`
-    pub const Operator = enum(u4) {
+    pub const ArithOperator = enum(u4) {
         add = c.LUA_OPADD,
         sub = c.LUA_OPSUB,
         mul = c.LUA_OPMUL,
@@ -152,7 +152,7 @@ const Lua = struct {
 
     /// Performs an arithmetic or bitwise operation over the value(s) at the top of the stack
     /// This function follows the semantics of the corresponding Lua operator
-    pub fn arith(lua: *Lua, op: Operator) void {
+    pub fn arith(lua: *Lua, op: ArithOperator) void {
         c.lua_arith(lua.state, @enumToInt(op));
     }
 
@@ -439,6 +439,12 @@ const Lua = struct {
     // Auxiliary library functions are included in alphabetical order.
     // Each is kept similar to the original C API function while also making it easy to use from Zig
 
+    // Ideas of what prefix to start with:
+    // * aux
+    // * a
+    // * x
+    // * l
+
     /// Creates a new Lua state with an allocator using the default libc allocator
     pub fn auxNewState() !Lua {
         const state = c.luaL_newstate() orelse return error.OutOfMemory;
@@ -648,6 +654,16 @@ test "arithmetic (lua_arith)" {
     lua.pushNumber(3);
     lua.arith(.pow);
     try expectEqual(@as(i64, -8), lua.toInteger(1));
+}
+
+test "basic stack usage" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    // test a variety of push*, to*, and is* calls
+    lua.pushBoolean(true);
+
+    try testing.expect(lua.isBoolean(1));
 }
 
 test "type of" {

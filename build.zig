@@ -3,11 +3,11 @@ const std = @import("std");
 pub fn build(b: *std.build.Builder) void {
     const mode = b.standardReleaseOptions();
 
-    const tests = b.addTest("src/zlua.zig");
+    const tests = b.addTest("src/ziglua.zig");
     link(b, tests);
     tests.setBuildMode(mode);
 
-    const test_step = b.step("test", "Run zlua library tests");
+    const test_step = b.step("test", "Run ziglua library tests");
     test_step.dependOn(&tests.step);
 }
 
@@ -24,7 +24,7 @@ pub fn link(b: *std.build.Builder, step: *std.build.LibExeObjStep) void {
 const lib_dir = "lib/lua-5.4.4/src/";
 
 fn buildLua(b: *std.build.Builder, step: *std.build.LibExeObjStep) *std.build.LibExeObjStep {
-    const lib_path = std.fs.path.join(b.allocator, &.{ dir(), "src/zlua.zig" }) catch unreachable;
+    const lib_path = std.fs.path.join(b.allocator, &.{ dir(), "src/ziglua.zig" }) catch unreachable;
     const lib = b.addStaticLibrary("lua", lib_path);
     lib.setBuildMode(step.build_mode);
     lib.setTarget(step.target);
