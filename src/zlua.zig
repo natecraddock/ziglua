@@ -140,6 +140,76 @@ const Lua = struct {
         c.lua_close(lua.state);
     }
 
+    /// Returns true if the value at the given `index` is a boolean
+    pub fn isBoolean(lua: *Lua, index: i32) bool {
+        return c.lua_isboolean(lua.state, index);
+    }
+
+    /// Returns true if the value at the given `index` is a CFunction
+    pub fn isCFunction(lua: *Lua, index: i32) bool {
+        return c.lua_iscfunction(lua.state, index) != 0;
+    }
+
+    /// Returns true if the value at the given `index` is a function (C or Lua)
+    pub fn isFunction(lua: *Lua, index: i32) bool {
+        return c.lua_isfunction(lua.state, index);
+    }
+
+    /// Returns true if the value at the given `index` is an integer
+    pub fn isInteger(lua: *Lua, index: i32) bool {
+        return c.lua_isinteger(lua.state, index) != 0;
+    }
+
+    /// Returns true if the value at the given `index` is a light userdata
+    pub fn isLightUserdata(lua: *Lua, index: i32) bool {
+        return c.lua_islightuserdata(lua.state, index);
+    }
+
+    /// Returns true if the value at the given `index` is nil
+    pub fn isNil(lua: *Lua, index: i32) bool {
+        return c.lua_isnil(lua.state, index);
+    }
+
+    /// Returns true if the given `index` is not valid
+    pub fn isNone(lua: *Lua, index: i32) bool {
+        return c.lua_isnone(lua.state, index);
+    }
+
+    /// Returns true if the given `index` is not valid or if the value at the `index` is nil
+    pub fn isNoneOrNil(lua: *Lua, index: i32) bool {
+        return c.lua_isnoneornil(lua.state, index);
+    }
+
+    /// Returns true if the value at the given `index` is a number
+    pub fn isNumber(lua: *Lua, index: i32) bool {
+        return c.lua_isnumber(lua.state, index) != 0;
+    }
+
+    /// Returns true if the value at the given `index` is a string
+    pub fn isString(lua: *Lua, index: i32) bool {
+        return c.lua_isstring(lua.state, index) != 0;
+    }
+
+    /// Returns true if the value at the given `index` is a table
+    pub fn isTable(lua: *Lua, index: i32) bool {
+        return c.lua_istable(lua.state, index);
+    }
+
+    /// Returns true if the value at the given `index` is a thread
+    pub fn isThread(lua: *Lua, index: i32) bool {
+        return c.lua_isthread(lua.state, index);
+    }
+
+    /// Returns true if the value at the given `index` is a userdata (full or light)
+    pub fn isUserdata(lua: *Lua, index: i32) bool {
+        return c.lua_isuserdata(lua.state, index) != 0;
+    }
+
+    /// Returns true if the given coroutine can yield
+    pub fn isYieldable(lua: *Lua) bool {
+        return c.lua_isyieldable(lua.state) != 0;
+    }
+
     /// Creates a new independent state and returns its main thread
     pub fn newState(alloc_fn: AllocFunction, data: ?*anyopaque) !Lua {
         const state = c.lua_newstate(alloc_fn, data) orelse return error.OutOfMemory;
