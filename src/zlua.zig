@@ -225,7 +225,7 @@ const Lua = struct {
     /// Pushes this thread onto the stack
     /// Returns true if this thread is the main thread of its state
     pub fn pushThread(lua: *Lua) bool {
-        return c.lua_pushthread(lua.state) == 1;
+        return c.lua_pushthread(lua.state) != 0;
     }
 
     /// Pushes a copy of the element at the given index onto the stack
