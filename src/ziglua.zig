@@ -162,6 +162,15 @@ pub const Lua = struct {
         thread = c.LUA_TTHREAD,
     };
 
+    /// The maximum integer value that `Integer` can store
+    pub const max_integer = c.MAXINTEGER;
+
+    /// The minimum integer value that `Integer` can store
+    pub const min_integer = c.MININTEGER;
+
+    /// The minimum Lua stack available to a function
+    pub const min_stack = c.MINSTACK;
+
     /// Type of floats in Lua (typically an f64)
     pub const Number = c.lua_Number;
 
@@ -170,6 +179,9 @@ pub const Lua = struct {
 
     /// Index of globals in the registry
     pub const ridx_globals = c.LUA_RIDX_GLOBALS;
+
+    /// Index of the main thread in the registry
+    pub const ridx_mainthread = c.LUA_RIDX_MAINTHREAD;
 
     /// The type of the writer function used by `Lua.dump()`
     pub const Writer = fn (state: *c.lua_State, buf: *anyopaque, size: usize, data: *anyopaque) callconv(.C) c_int;
@@ -272,15 +284,15 @@ pub const Lua = struct {
         return c.lua_getallocf(lua.state, data);
     }
 
-    /// Pushes onto the stack the value t[key] where t is the value at the given `index`
-    pub fn getField(lua: *Lua, index: i32, key: [:0]const u8) LuaType {
-        return @intToEnum(LuaType, c.lua_getfield(lua.state, index, key));
-    }
-
     /// Returns a pointer to a raw memory area associated with the given Lua state
     /// The application may use this area for any purpose; Lua does not use it for anything
     pub fn getExtraSpace(lua: *Lua) *anyopaque {
         return c.lua_getextraspace(lua.state);
+    }
+
+    /// Pushes onto the stack the value t[key] where t is the value at the given `index`
+    pub fn getField(lua: *Lua, index: i32, key: [:0]const u8) LuaType {
+        return @intToEnum(LuaType, c.lua_getfield(lua.state, index, key));
     }
 
     /// Pushes onto the stack the value of the global `name`. Returns the type of that value
@@ -292,6 +304,12 @@ pub const Lua = struct {
     /// Returns the type of the pushed value
     pub fn getI(lua: *Lua, index: i32, i: Integer) LuaType {
         return @intToEnum(LuaType, c.lua_geti(lua.state, index, i));
+    }
+
+    /// Pushes onto the stack the `n`th user value associated with the full userdata at the given `index`
+    /// Returns the type of the pushed value
+    pub fn getIUserValue(lua: *Lua, index: i32, n: i32) LuaType {
+        return @intToEnum(LuaType, c.lua_getiuservalue(lua.state, index, n));
     }
 
     /// If the value at the given `index` has a metatable, the function pushes that metatable onto the stack and returns true
@@ -310,12 +328,6 @@ pub const Lua = struct {
     /// Because indices start at 1, the result is also equal to the number of elements in the stack
     pub fn getTop(lua: *Lua) i32 {
         return c.lua_gettop(lua.state);
-    }
-
-    /// Pushes onto the stack the `n`th user value associated with the full userdata at the given `index`
-    /// Returns the type of the pushed value
-    pub fn getIUserValue(lua: *Lua, index: i32, n: i32) LuaType {
-        return @intToEnum(LuaType, c.lua_getiuservalue(lua.state, index, n));
     }
 
     /// Moves the top element into the given valid `index` shifting up any elements to make room
