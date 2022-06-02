@@ -71,22 +71,35 @@ const Lua = struct {
         }
     }
 
-    // Library functions
+    // Types
     //
-    // Library functions are included in alphabetical order.
-    // Each is kept similar to the original C API function while also making it easy to use from Zig
+    // Lua constants and types are declared below in alphabetical order
+    // For constants that have a logical grouping (like Operators), Zig enums are used for type safety
 
     /// The type of function that Lua uses for all internal allocations and frees
     /// `data` is an opaque pointer to any data (the allocator), `ptr` is a pointer to the block being alloced/realloced/freed
     /// `osize` is the original size or a code, and `nsize` is the new size
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_Alloc for more details
-    pub const AllocFn = fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque;
+    pub const AllocFunction = fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque;
 
-    /// Converts the acceptable index `index` into an equivalent absolute index
-    pub fn absIndex(lua: *Lua, index: i32) i32 {
-        return c.lua_absindex(lua.state, index);
-    }
+    /// Type for C functions
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
+    pub const CFunction = fn (state: c.lua_State) callconv(.C) c_int;
+
+    /// Bitflag for the Lua standard libraries
+    pub const Libs = packed struct {
+        base: bool = false,
+        coroutine: bool = false,
+        package: bool = false,
+        string: bool = false,
+        utf8: bool = false,
+        table: bool = false,
+        math: bool = false,
+        io: bool = false,
+        os: bool = false,
+        debug: bool = false,
+    };
 
     /// Operations supported by `Lua.arith()`
     pub const Operator = enum(u4) {
@@ -106,6 +119,16 @@ const Lua = struct {
         shr = c.LUA_OPSHR,
     };
 
+    // Library functions
+    //
+    // Library functions are included in alphabetical order.
+    // Each is kept similar to the original C API function while also making it easy to use from Zig
+
+    /// Converts the acceptable index `index` into an equivalent absolute index
+    pub fn absIndex(lua: *Lua, index: i32) i32 {
+        return c.lua_absindex(lua.state, index);
+    }
+
     /// Performs an arithmetic or bitwise operation over the value(s) at the top of the stack
     /// This function follows the semantics of the corresponding Lua operator
     pub fn arith(lua: *Lua, op: Operator) void {
@@ -118,7 +141,7 @@ const Lua = struct {
     }
 
     /// Creates a new independent state and returns its main thread
-    pub fn newState(alloc_fn: AllocFn, data: ?*anyopaque) !Lua {
+    pub fn newState(alloc_fn: AllocFunction, data: ?*anyopaque) !Lua {
         const state = c.lua_newstate(alloc_fn, data) orelse return error.OutOfMemory;
         return Lua{ .state = state };
     }
@@ -132,10 +155,6 @@ const Lua = struct {
     pub fn pushBoolean(lua: *Lua, b: bool) void {
         c.lua_pushboolean(lua.state, @boolToInt(b));
     }
-
-    /// Type for C functions
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
-    const CFunction = fn (state: c.lua_State) callconv(.C) c_int;
 
     /// Pushes a new C Closure onto the stack
     /// `n` tells how many upvalues this function will have
@@ -258,6 +277,9 @@ const Lua = struct {
     }
 
     // Auxiliary library functions
+    //
+    // Auxiliary library functions are included in alphabetical order.
+    // Each is kept similar to the original C API function while also making it easy to use from Zig
 
     /// Creates a new Lua state with an allocator using the default libc allocator
     pub fn auxNewState() !Lua {
@@ -266,20 +288,8 @@ const Lua = struct {
     }
 
     // Standard library loading functions
+    //
     // TODO: opening libs can run arbitrary Lua code and can throw any error
-
-    pub const Libs = packed struct {
-        base: bool = false,
-        coroutine: bool = false,
-        package: bool = false,
-        string: bool = false,
-        utf8: bool = false,
-        table: bool = false,
-        math: bool = false,
-        io: bool = false,
-        os: bool = false,
-        debug: bool = false,
-    };
 
     /// Opens the specified standard library functions
     pub fn open(lua: *Lua, libs: Libs) void {
@@ -377,7 +387,7 @@ test "initialization" {
     lua = try Lua.newState(Lua.alloc, &allocator);
     lua.close();
 
-    // use the library with a bad AllocFn
+    // use the library with a bad AllocFunction
     try testing.expectError(error.OutOfMemory, Lua.newState(failing_alloc, null));
 
     // use the auxiliary library
