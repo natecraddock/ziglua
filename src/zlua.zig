@@ -101,6 +101,21 @@ const Lua = struct {
         debug: bool = false,
     };
 
+    /// Lua types
+    /// Must be a signed integer because LuaType.none is -1
+    pub const LuaType = enum(i5) {
+        none = c.LUA_TNONE,
+        nil = c.LUA_TNIL,
+        boolean = c.LUA_TBOOLEAN,
+        light_userdata = c.LUA_TLIGHTUSERDATA,
+        number = c.LUA_TNUMBER,
+        string = c.LUA_TSTRING,
+        table = c.LUA_TTABLE,
+        function = c.LUA_TFUNCTION,
+        userdata = c.LUA_TUSERDATA,
+        thread = c.LUA_TTHREAD,
+    };
+
     /// Operations supported by `Lua.arith()`
     pub const Operator = enum(u4) {
         add = c.LUA_OPADD,
@@ -393,6 +408,17 @@ const Lua = struct {
         return c.lua_touserdata(lua.state, index);
     }
 
+    /// Returns the `LuaType` of the value at the given index
+    /// Note that this is equivalent to lua_type but because type is a Zig primitive it is renamed to `typeOf`
+    pub fn typeOf(lua: *Lua, index: i32) LuaType {
+        return @intToEnum(LuaType, c.lua_type(lua.state, index));
+    }
+
+    /// Returns the name of the given `LuaType` as a null-terminated slice
+    pub fn typeName(lua: *Lua, t: LuaType) [:0]const u8 {
+        return std.mem.span(c.lua_typename(lua.state, @enumToInt(t)));
+    }
+
     // Auxiliary library functions
     //
     // Auxiliary library functions are included in alphabetical order.
@@ -607,4 +633,20 @@ test "arithmetic (lua_arith)" {
     lua.pushNumber(3);
     lua.arith(.pow);
     try expectEqual(@as(i64, -8), lua.toInteger(1));
+}
+
+test "typenames" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    try testing.expectEqualStrings("no value", lua.typeName(.none));
+    try testing.expectEqualStrings("nil", lua.typeName(.nil));
+    try testing.expectEqualStrings("boolean", lua.typeName(.boolean));
+    try testing.expectEqualStrings("userdata", lua.typeName(.light_userdata));
+    try testing.expectEqualStrings("number", lua.typeName(.number));
+    try testing.expectEqualStrings("string", lua.typeName(.string));
+    try testing.expectEqualStrings("table", lua.typeName(.table));
+    try testing.expectEqualStrings("function", lua.typeName(.function));
+    try testing.expectEqualStrings("userdata", lua.typeName(.userdata));
+    try testing.expectEqualStrings("thread", lua.typeName(.thread));
 }
