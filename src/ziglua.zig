@@ -83,9 +83,52 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_Alloc for more details
     pub const AllocFunction = fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque;
 
+    /// Operations supported by `Lua.arith()`
+    pub const ArithOperator = enum(u4) {
+        add = c.LUA_OPADD,
+        sub = c.LUA_OPSUB,
+        mul = c.LUA_OPMUL,
+        div = c.LUA_OPDIV,
+        idiv = c.LUA_OPIDIV,
+        mod = c.LUA_OPMOD,
+        pow = c.LUA_OPPOW,
+        unm = c.LUA_OPUNM,
+        bnot = c.LUA_OPBNOT,
+        band = c.LUA_OPBAND,
+        bor = c.LUA_OPBOR,
+        bxor = c.LUA_OPBXOR,
+        shl = c.LUA_OPSHL,
+        shr = c.LUA_OPSHR,
+    };
+
     /// Type for C functions
     /// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
     pub const CFunction = fn (state: *c.lua_State) callconv(.C) c_int;
+
+    /// Operations supported by `Lua.compare()`
+    pub const CompareOperator = enum(u2) {
+        eq = c.LUA_OPEQ,
+        lt = c.LUA_OPLT,
+        le = c.LUA_OPLE,
+    };
+
+    /// Actions supported by `Lua.gc()`
+    pub const GCAction = enum(u5) {
+        stop = c.LUA_GCSTOP,
+        restart = c.LUA_GCRESTART,
+        collect = c.LUA_GCCOLLECT,
+        count = c.LUA_GCCOUNT,
+        countb = c.LUA_GCCOUNTB,
+        step = c.LUA_GCSTEP,
+        is_running = c.LUA_GCISRUNNING,
+        inc = c.LUA_GCINC,
+        gen = c.LUA_GCGEN,
+    };
+
+    /// Type for continuation-function contexts (usually isize)
+    pub const KContext = isize;
+
+    pub const KFunction = fn (state: *c.lua_State, status: c_int, ctx: KContext) callconv(.C) c_int;
 
     /// Bitflag for the Lua standard libraries
     pub const Libs = packed struct {
@@ -116,29 +159,14 @@ pub const Lua = struct {
         thread = c.LUA_TTHREAD,
     };
 
-    /// Operations supported by `Lua.arith()`
-    pub const ArithOperator = enum(u4) {
-        add = c.LUA_OPADD,
-        sub = c.LUA_OPSUB,
-        mul = c.LUA_OPMUL,
-        div = c.LUA_OPDIV,
-        idiv = c.LUA_OPIDIV,
-        mod = c.LUA_OPMOD,
-        pow = c.LUA_OPPOW,
-        unm = c.LUA_OPUNM,
-        bnot = c.LUA_OPBNOT,
-        band = c.LUA_OPBAND,
-        bor = c.LUA_OPBOR,
-        bxor = c.LUA_OPBXOR,
-        shl = c.LUA_OPSHL,
-        shr = c.LUA_OPSHR,
-    };
-
     /// Index of the regsitry in the stack (pseudo-index)
     pub const registry_index = c.LUA_REGISTRYINDEX;
 
     /// Index of globals in the registry
     pub const ridx_globals = c.LUA_RIDX_GLOBALS;
+
+    /// The type of the writer function used by `Lua.dump()`
+    pub const Writer = fn (state: *c.lua_State, buf: *anyopaque, size: usize, data: *anyopaque) callconv(.C) c_int;
 
     // Library functions
     //
@@ -156,9 +184,137 @@ pub const Lua = struct {
         c.lua_arith(lua.state, @enumToInt(op));
     }
 
+    /// Sets a new panic function and returns the old one
+    pub fn atPanic(lua: *Lua, panic_fn: CFunction) ?CFunction {
+        return c.lua_atpanic(lua.state, panic_fn);
+    }
+
+    /// Calls a function (or any callable value)
+    pub fn call(lua: *Lua, num_args: i32, num_results: i32) void {
+        c.lua_call(lua.state, num_args, num_results);
+    }
+
+    /// Like `call`, but allows the called function to yield
+    pub fn callK(lua: *Lua, num_args: i32, num_results: i32, ctx: KContext, k: KFunction) void {
+        c.lua_call(lua.state, num_args, num_results, ctx, k);
+    }
+
+    /// Ensures that the stack has space for at least `n` extra arguments
+    /// Returns false if it cannot fulfil the request
+    /// Never shrinks the stack
+    pub fn checkStack(lua: *Lua, n: i32) bool {
+        return c.lua_checkstack(lua.state, n) != 0;
+    }
+
     /// Release all Lua objects in the state and free all dynamic memory
     pub fn close(lua: *Lua) void {
         c.lua_close(lua.state);
+    }
+
+    /// Close the to-be-closed slot at the given `index` and set the value to nil
+    pub fn closeSlot(lua: *Lua, index: i32) void {
+        c.lua_closeslot(lua.state, index);
+    }
+
+    /// Compares two Lua values
+    /// Returns true if the value at `index1` satisfies `op` when compared with the value at `index2`
+    /// Returns false otherwise, or if any index is not valid
+    pub fn compare(lua: *Lua, index1: i32, index2: i32, op: CompareOperator) bool {
+        // TODO: perhaps support gt/ge by swapping args...
+        return c.lua_compare(lua.state, index1, index2, @enumToInt(op)) != 0;
+    }
+
+    /// Concatenates the `n` values at the top of the stack, pops them, and leaves the result at the top
+    /// If `n` is 1, the result is a single value on the stack (nothing changes)
+    /// If `n` is 0, the result is the empty string
+    pub fn concat(lua: *Lua, n: i32) void {
+        c.lua_concat(lua.state, n);
+    }
+
+    /// Copies the element at `from_index` to the valid index `to_index`, replacing the value at that position
+    pub fn copy(lua: *Lua, from_index: i32, to_index: i32) void {
+        c.lua_copy(lua.state, from_index, to_index);
+    }
+
+    /// Creates a new empty table and pushes onto the stack
+    /// `num_arr` is a hint for how many elements the table will have as a sequence
+    /// `num_rec` is a hint for how many other elements the table will have
+    /// Lua may preallocate memory for the table based on the hints
+    pub fn createTable(lua: *Lua, num_arr: i32, num_rec: i32) void {
+        c.lua_createtable(lua.state, num_arr, num_rec);
+    }
+
+    /// Dumps a function as a binary chunk
+    pub fn dump(lua: *Lua, writer: Writer, data: *anyopaque, strip: bool) i32 {
+        return c.lua_dump(lua.state, writer, data, strip);
+    }
+
+    /// Raises a Lua error using the value at the top of the stack as the error object
+    /// Does a longjump and therefore never returns
+    pub fn luaError(lua: *Lua) noreturn {
+        c.lua_error(lua.state);
+    }
+
+    /// Controls the garbage collector
+    pub fn gc(lua: *Lua, action: GCAction, args: anytype) bool {
+        return @call(.{}, c.lua_gc, .{ lua.state, @enumToInt(action) } ++ args) != 0;
+    }
+
+    /// Returns the memory allocation function of a given state
+    /// If `data` is not null, it is set to the opaque pointer given when the allocator function was set
+    pub fn getAllocF(lua: *Lua, data: ?*?*anyopaque) AllocFunction {
+        return c.lua_getallocf(lua.state, data);
+    }
+
+    /// Pushes onto the stack the value t[key] where t is the value at the given `index`
+    pub fn getField(lua: *Lua, index: i32, key: [:0]const u8) LuaType {
+        return @intToEnum(LuaType, c.lua_getfield(lua.state, index, key));
+    }
+
+    /// Returns a pointer to a raw memory area associated with the given Lua state
+    /// The application may use this area for any purpose; Lua does not use it for anything
+    pub fn getExtraSpace(lua: *Lua) *anyopaque {
+        return c.lua_getextraspace(lua.state);
+    }
+
+    /// Pushes onto the stack the value of the global `name`. Returns the type of that value
+    pub fn getGlobal(lua: *Lua, name: [:0]const u8) LuaType {
+        return @intToEnum(LuaType, c.lua_getglobal(lua.state, name));
+    }
+
+    /// Pushes onto the stack the value t[`i`] where t is the value at the given `index`
+    /// Returns the type of the pushed value
+    pub fn getI(lua: *Lua, index: i32, i: i64) LuaType {
+        return @intToEnum(LuaType, c.lua_geti(lua.state, index, i));
+    }
+
+    /// If the value at the given `index` has a metatable, the function pushes that metatable onto the stack and returns true
+    /// Otherwise false is returned
+    pub fn getMetatable(lua: *Lua, index: i32) bool {
+        return c.lua_getmetatable(lua.state, index) != 0;
+    }
+
+    /// Pushes onto the stack the value t[k] where t is the value at the given `index` and k is the value on the top of the stack
+    /// Returns the type of the pushed value
+    pub fn getTable(lua: *Lua, index: i32) LuaType {
+        return @intToEnum(LuaType, c.lua_gettable(lua.state, index));
+    }
+
+    /// Returns the index of the top element in the stack
+    /// Because indices start at 1, the result is also equal to the number of elements in the stack
+    pub fn getTop(lua: *Lua) i32 {
+        return c.lua_gettop(lua.state);
+    }
+
+    /// Pushes onto the stack the `n`th user value associated with the full userdata at the given `index`
+    /// Returns the type of the pushed value
+    pub fn getIUserValue(lua: *Lua, index: i32, n: i32) LuaType {
+        return @intToEnum(LuaType, c.lua_getiuservalue(lua.state, index, n));
+    }
+
+    /// Moves the top element into the given valid `index` shifting up any elements to make room
+    pub fn insert(lua: *Lua, index: i32) void {
+        c.lua_insert(lua.state, index);
     }
 
     /// Returns true if the value at the given `index` is a boolean
