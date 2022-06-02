@@ -162,6 +162,9 @@ pub const Lua = struct {
         thread = c.LUA_TTHREAD,
     };
 
+    /// Type of floats in Lua (typically an f64)
+    pub const Number = c.lua_Number;
+
     /// Index of the regsitry in the stack (pseudo-index)
     pub const registry_index = c.LUA_REGISTRYINDEX;
 
@@ -462,7 +465,7 @@ pub const Lua = struct {
     }
 
     /// Pushes a float with value `n` onto the stack
-    pub fn pushNumber(lua: *Lua, n: f64) void {
+    pub fn pushNumber(lua: *Lua, n: Number) void {
         c.lua_pushnumber(lua.state, n);
     }
 
@@ -541,14 +544,14 @@ pub const Lua = struct {
     }
 
     /// Equivalent to toNumberX with is_num set to null
-    pub fn toNumber(lua: *Lua, index: i32) f64 {
+    pub fn toNumber(lua: *Lua, index: i32) Number {
         return lua.toNumberX(index, null);
     }
 
     /// Converts the Lua value at the given `index` to a float
     /// The Lua value must be a number or a string convertible to a number otherwise toNumberX returns 0
     /// If `is_num` is not null, it's referent is assigned a boolean success value
-    pub fn toNumberX(lua: *Lua, index: i32, is_num: ?*bool) f64 {
+    pub fn toNumberX(lua: *Lua, index: i32, is_num: ?*bool) Number {
         if (is_num) |is_num_ptr| {
             var success: c_int = undefined;
             const result = c.lua_tonumberx(lua.state, index, &success);
