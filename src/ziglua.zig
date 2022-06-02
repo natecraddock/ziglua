@@ -125,6 +125,9 @@ pub const Lua = struct {
         gen = c.LUA_GCGEN,
     };
 
+    /// Type of integers in Lua (typically an i64)
+    pub const Integer = c.lua_Integer;
+
     /// Type for continuation-function contexts (usually isize)
     pub const KContext = isize;
 
@@ -284,7 +287,7 @@ pub const Lua = struct {
 
     /// Pushes onto the stack the value t[`i`] where t is the value at the given `index`
     /// Returns the type of the pushed value
-    pub fn getI(lua: *Lua, index: i32, i: i64) LuaType {
+    pub fn getI(lua: *Lua, index: i32, i: Integer) LuaType {
         return @intToEnum(LuaType, c.lua_geti(lua.state, index, i));
     }
 
@@ -485,7 +488,7 @@ pub const Lua = struct {
 
     /// Pushes onto the stack the value t[n], where `t` is the table at the given `index`
     /// Returns the `LuaType` of the pushed value
-    pub fn rawGetI(lua: *Lua, index: i32, n: i64) LuaType {
+    pub fn rawGetI(lua: *Lua, index: i32, n: Integer) LuaType {
         return @intToEnum(LuaType, c.lua_rawgeti(lua.state, index, n));
     }
 
@@ -516,14 +519,14 @@ pub const Lua = struct {
     }
 
     /// Equivalent to toIntegerX with is_num set to null
-    pub fn toInteger(lua: *Lua, index: i32) i64 {
+    pub fn toInteger(lua: *Lua, index: i32) Integer {
         return lua.toIntegerX(index, null);
     }
 
     /// Converts the Lua value at the given `index` to a signed integer
     /// The Lua value must be an integer, or a number, or a string convertible to an integer otherwise toIntegerX returns 0
     /// If `is_num` is not null, it's referent is assigned a boolean success value
-    pub fn toIntegerX(lua: *Lua, index: i32, is_num: ?*bool) i64 {
+    pub fn toIntegerX(lua: *Lua, index: i32, is_num: ?*bool) Integer {
         if (is_num) |is_num_ptr| {
             var success: c_int = undefined;
             const result = c.lua_tointegerx(lua.state, index, &success);
