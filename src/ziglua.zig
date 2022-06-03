@@ -103,6 +103,7 @@ pub const Lua = struct {
 
     /// Type for C functions
     /// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
+    /// TODO: we really are passing Zig functions, maybe call `Function` and use `func` for params?
     pub const CFunction = fn (state: *c.lua_State) callconv(.C) c_int;
 
     /// Operations supported by `Lua.compare()`
@@ -162,6 +163,9 @@ pub const Lua = struct {
         thread = c.LUA_TTHREAD,
     };
 
+    /// Modes used for `Lua.load()`
+    pub const Mode = enum(u2) { binary, text, binary_text };
+
     /// The maximum integer value that `Integer` can store
     pub const max_integer = c.MAXINTEGER;
 
@@ -174,6 +178,9 @@ pub const Lua = struct {
     /// Type of floats in Lua (typically an f64)
     pub const Number = c.lua_Number;
 
+    /// The type of the reader function used by `Lua.load()`
+    pub const Reader = fn (state: *c.lua_State, data: *anyopaque, size: *usize) callconv(.C) ?[*c]const u8;
+
     /// Index of the regsitry in the stack (pseudo-index)
     pub const registry_index = c.LUA_REGISTRYINDEX;
 
@@ -182,6 +189,9 @@ pub const Lua = struct {
 
     /// Index of the main thread in the registry
     pub const ridx_mainthread = c.LUA_RIDX_MAINTHREAD;
+
+    /// The unsigned version of Integer
+    pub const Unsigned = c.lua_Unsigned;
 
     /// The type of the writer function used by `Lua.dump()`
     pub const Writer = fn (state: *c.lua_State, buf: *anyopaque, size: usize, data: *anyopaque) callconv(.C) c_int;
@@ -405,10 +415,72 @@ pub const Lua = struct {
         return c.lua_isyieldable(lua.state) != 0;
     }
 
+    /// Pushes the length of the value at the given `index` onto the stack
+    /// Equivalent to the `#` operator in Lua
+    pub fn len(lua: *Lua, index: i32) void {
+        c.lua_len(lua.state, index);
+    }
+
+    /// Loads a Lua chunk without running it
+    /// TODO: revisit this wrt return codes & docs
+    pub fn load(lua: *Lua, reader: Reader, data: *anyopaque, chunk_name: [:0]const u8, mode: ?Mode) i32 {
+        const mode_str = blk: {
+            if (mode == null) break :blk "bt";
+
+            break :blk switch (mode) {
+                .binary => "b",
+                .text => "t",
+                .binary_text => "bt",
+            };
+        };
+        return c.lua_load(lua.state, reader, data, chunk_name, mode_str);
+    }
+
     /// Creates a new independent state and returns its main thread
     pub fn newState(alloc_fn: AllocFunction, data: ?*anyopaque) !Lua {
         const state = c.lua_newstate(alloc_fn, data) orelse return error.OutOfMemory;
         return Lua{ .state = state };
+    }
+
+    /// Creates a new empty table and pushes it onto the stack
+    /// Equivalent to `Lua.createTable(lua, 0, 0)`
+    pub fn newTable(lua: *Lua) void {
+        c.lua_newtable(lua.state);
+    }
+
+    /// Creates a new thread, pushes it on the stack, and returns a `Lua` state that represents the new thread
+    /// The new thread shares the global environment but has a separate execution stack
+    pub fn newThread(lua: *Lua) Lua {
+        const state = c.lua_newthread(lua.state);
+        return .{ .state = state };
+    }
+
+    /// This function creates and pushes a new full userdata onto the stack
+    /// with `num_uvalue` associated Lua values, plus an associated block of raw memory with `size` bytes
+    /// Returns the address of the block of memory
+    pub fn newUserdataUV(lua: *Lua, size: usize, new_uvalue: i32) *anyopaque {
+        return c.lua_newuserdatauv(lua.state, size, new_uvalue);
+    }
+
+    /// Pops a key from the stack, and pushes a key-value pair from the table at the given `index`
+    pub fn next(lua: *Lua, index: i32) bool {
+        return c.lua_next(lua.state, index) != 0;
+    }
+
+    /// Tries to convert a Lua float into a Lua integer
+    pub fn numberToInteger(n: Number, i: *Integer) bool {
+        return c.lua_numbertointeger(n, i) != 0;
+    }
+
+    /// Calls a function (or callable object) in protected mode
+    /// TODO: make a PCallResult enum?
+    pub fn pCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) i32 {
+        return c.lua_pcall(lua.state, num_args, num_results, msg_handler);
+    }
+
+    /// Behaves exactly like `Lua.pcall()` except that it allows the called function to yield
+    pub fn pCallK(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: KContext, k: KFunction) i32 {
+        return c.lua_pkallk(lua.state, num_args, num_results, msg_handler, ctx, k);
     }
 
     /// Pops `n` elements from the top of the stack
@@ -465,10 +537,10 @@ pub const Lua = struct {
         c.lua_pushliteral(lua.state, str); // TODO
     }
 
-    pub fn pushLString(lua: *Lua, str: []const u8, len: usize) []const u8 {
+    pub fn pushLString(lua: *Lua, str: []const u8, length: usize) []const u8 {
         _ = lua;
         _ = str;
-        _ = len;
+        _ = length;
     }
 
     /// Pushes a nil value onto the stack
@@ -501,13 +573,63 @@ pub const Lua = struct {
         c.lua_pushvalue(lua.state, index);
     }
 
+    // TODO: pub fn pushVFString is that even worth?
+
+    /// Returns true if the two values in indices `index1` and `index2` are primitively equal
+    /// Bypasses __eq metamethods
+    /// Returns false if not equal, or if any index is invalid
+    pub fn rawEqual(lua: *Lua, index1: i32, index2: i32) bool {
+        return c.lua_rawequal(lua.state, index1, index2) != 0;
+    }
+
+    /// Similar to `Lua.getTable()` but does a raw access (without metamethods)
+    pub fn rawGet(lua: *Lua, index: i32) LuaType {
+        @intToEnum(LuaType, c.lua_rawget(lua.state, index));
+    }
+
     /// Pushes onto the stack the value t[n], where `t` is the table at the given `index`
     /// Returns the `LuaType` of the pushed value
     pub fn rawGetI(lua: *Lua, index: i32, n: Integer) LuaType {
         return @intToEnum(LuaType, c.lua_rawgeti(lua.state, index, n));
     }
 
-    // TODO: pub fn pushVFString is that even worth?
+    /// Pushes onto the stack the value t[k] where t is the table at the given `index` and
+    /// k is the pointer `p` represented as a light userdata
+    pub fn rawGetP(lua: *Lua, index: i32, p: *anyopaque) LuaType {
+        return @intToEnum(LuaType, c.lua_rawgetp(lua.state, index, p));
+    }
+
+    /// Returns the raw length of the value at the given index
+    /// For strings it is the length; for tables it is the result of the `#` operator
+    /// For userdata it is the size of the block of memory
+    /// For other values the call returns 0
+    pub fn rawLen(lua: *Lua, index: i32) Unsigned {
+        return c.lua_rawlen(lua.state, index);
+    }
+
+    /// Similar to `Lua.setTable()` but does a raw assignment (without metamethods)
+    pub fn rawSet(lua: *Lua, index: i32) void {
+        c.lua_rawset(lua.state, index);
+    }
+
+    /// Does the equivalent of t[`i`] = v where t is the table at the given `index`
+    /// and v is the value at the top of the stack
+    /// Pops the value from the stack. Does not use __newindex metavalue
+    pub fn rawSetI(lua: *Lua, index: i32, i: Integer) void {
+        c.lua_rawseti(lua.state, index, i);
+    }
+
+    /// Does the equivalent of t[p] = v where t is the table at the given `index`
+    /// `p` is encoded as a light user data, and v is the value at the top of the stack
+    /// Pops the value from the stack. Does not use __newindex metavalue
+    pub fn rawSetP(lua: *Lua, index: i32, p: *anyopaque) void {
+        c.lua_rawsetp(lua.state, index, p);
+    }
+
+    /// Sets the C function f as the new value of global name
+    pub fn register(lua: *Lua, name: [:0]const u8, c_fn: CFunction) void {
+        c.lua_register(lua.state, name, c_fn);
+    }
 
     /// Sets the top of the stack to `index`
     /// If the new top is greater than the old, new elements are filled with nil
@@ -551,8 +673,8 @@ pub const Lua = struct {
     }
 
     /// Converts the Lua value at the given `index` to a C string
-    pub fn toLString(lua: *Lua, index: i32, len: ?*usize) [*]const u8 {
-        c.lua_tolstring(lua.state, index, len);
+    pub fn toLString(lua: *Lua, index: i32, length: ?*usize) [*]const u8 {
+        c.lua_tolstring(lua.state, index, length);
     }
 
     /// Equivalent to toNumberX with is_num set to null
