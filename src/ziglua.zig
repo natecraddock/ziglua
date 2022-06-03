@@ -11,6 +11,7 @@ const c = @cImport({
 const Allocator = std.mem.Allocator;
 
 /// A Zig wrapper around the Lua C API
+/// Represents a Lua state or thread
 pub const Lua = struct {
     allocator: ?*Allocator = null,
     state: *c.lua_State,
@@ -192,6 +193,9 @@ pub const Lua = struct {
 
     /// The unsigned version of Integer
     pub const Unsigned = c.lua_Unsigned;
+
+    /// The type of warning functions used by Lua to emit warnings
+    pub const WarnFunction = fn (data: ?*anyopaque, msg: [:0]const u8, to_cont: c_int) callconv(.C) void;
 
     /// The type of the writer function used by `Lua.dump()`
     pub const Writer = fn (state: *c.lua_State, buf: *anyopaque, size: usize, data: *anyopaque) callconv(.C) c_int;
@@ -631,11 +635,104 @@ pub const Lua = struct {
         c.lua_register(lua.state, name, c_fn);
     }
 
+    /// Removes the element at the given valid `index` shifting down elements to fill the gap
+    pub fn remove(lua: *Lua, index: i32) void {
+        c.lua_remove(lua.state, index);
+    }
+
+    /// Moves the top element into the given valid `index` without shifting any elements,
+    /// then pops the top element
+    pub fn replace(lua: *Lua, index: i32) void {
+        c.lua_replace(lua.state, index);
+    }
+
+    /// Resets a thread, cleaning its call stack and closing all pending to-be-closed variables
+    /// TODO: look into possible errors
+    pub fn resetThread(lua: *Lua) i32 {
+        return c.lua_resetthread(lua.state);
+    }
+
+    /// Starts and resumes a coroutine in the given thread
+    /// TODO: look into possible errors returned
+    pub fn resumeThread(lua: *Lua, from: ?Lua, num_args: i32, num_results: *i32) i32 {
+        const from_state = if (from) |from_val| from_val.state else null;
+        return c.lua_resume(lua.state, from_state, num_args, num_results);
+    }
+
+    /// Rotates the stack elements between the valid `index` and the top of the stack
+    /// The elements are rotated `n` positions in the direction of the top for positive `n`,
+    /// and `n` positions in the direction of the bottom for negative `n`
+    pub fn rotate(lua: *Lua, index: i32, n: i32) void {
+        c.lua_rotate(lua.state, index, n);
+    }
+
+    /// Changes the allocator function of a given state to `alloc_fn` with userdata `data`
+    pub fn setAllocF(lua: *Lua, alloc_fn: AllocFunction, data: ?*anyopaque) void {
+        c.lua_setallocf(lua.state, alloc_fn, data);
+    }
+
+    /// Does the equivalent to t[`k`] = v where t is the value at the given `index`
+    /// and v is the value on the top of the stack
+    pub fn setField(lua: *Lua, index: i32, k: [:0]const u8) void {
+        c.lua_setfield(lua.state, index, k);
+    }
+
+    /// Pops a value from the stack and sets it as the new value of global `name`
+    pub fn setGlobal(lua: *Lua, name: [:0]const u8) void {
+        c.lua_setglobal(lua.state, name);
+    }
+
+    /// Does the equivalent to t[`n`] = v where t is the value at the given `index`
+    /// and v is the value on the top of the stack. Pops the value from the stack
+    pub fn setI(lua: *Lua, index: i32, n: Integer) void {
+        c.lua_seti(lua.state, index, n);
+    }
+
+    /// Pops a value from the stack and sets it as the new `n`th user value associated to
+    /// the full userdata at the given index
+    /// Returns false if the userdata does not have that value
+    pub fn setIUserValue(lua: *Lua, index: i32, n: i32) i32 {
+        return c.lua_setiuservalue(lua.state, index, n) != 0;
+    }
+
+    /// Pops a table or nil from the stack and sets that value as the new metatable for the
+    /// value at the given `index`
+    pub fn setMetatable(lua: *Lua, index: i32) void {
+        // lua_setmetatable always returns 1 so is safe to ignore
+        _ = c.lua_setmetatable(lua.state, index);
+    }
+
+    /// Does the equivalent to t[k] = v, where t is the value at the given `index`
+    /// v is the value on the top of the stack, and k is the value just below the top
+    pub fn setTable(lua: *Lua, index: i32) void {
+        c.lua_settable(lua.state, index);
+    }
+
     /// Sets the top of the stack to `index`
     /// If the new top is greater than the old, new elements are filled with nil
     /// If `index` is 0 all stack elements are removed
     pub fn setTop(lua: *Lua, index: i32) void {
         c.lua_settop(lua.state, index);
+    }
+
+    /// Sets the warning function to be used by Lua to emit warnings
+    /// The `data` parameter sets the value `data` passed to the warning function
+    pub fn setWarnF(lua: *Lua, warn_fn: WarnFunction, data: ?*anyopaque) void {
+        c.lua_setwarnf(lua.state, warn_fn, data);
+    }
+
+    /// Returns the status of this thread
+    /// TODO: look at status codes
+    pub fn status(lua: *Lua) i32 {
+        return c.lua_status(lua.state);
+    }
+
+    /// Converts the zero-terminated string `str` to a number, pushes that number onto the stack,
+    /// and returns the total size of the string (length + 1)
+    pub fn stringToNumber(lua: *Lua, str: [:0]const u8) !usize {
+        const size = c.lua_stringtonumber(lua.state, str);
+        if (size == 0) return error.InvalidNumeral;
+        return size;
     }
 
     /// Converts the Lua value at the given `index` into a boolean

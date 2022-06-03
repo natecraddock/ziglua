@@ -8,6 +8,7 @@ In a nutshell, ziglua is a simple wrapper around the C API you would get by usin
 
 * Type-checked enums for parameters and return values
 * Compiler-enforced checking of optional pointers
+* Zig error unions to enforce error checking of failure states
 * Functions return `bool` rather than `int` to indicate success
 
 While there are a few helper functions added to complement the C API, luazig aims to remain low-level. If you want something higher-level, perhaps try [zoltan](https://github.com/ranciere/zoltan).
