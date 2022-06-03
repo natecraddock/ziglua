@@ -11,7 +11,7 @@ In a nutshell, ziglua is a simple wrapper around the C API you would get by usin
 * Zig error unions to enforce error checking of failure states
 * Functions return `bool` rather than `int` to indicate success
 
-While there are a few helper functions added to complement the C API, luazig aims to remain low-level. If you want something higher-level, perhaps try [zoltan](https://github.com/ranciere/zoltan).
+While there are a few helper functions added to complement the C API, ziglua aims to remain low-level. If you want something higher-level, perhaps try [zoltan](https://github.com/ranciere/zoltan).
 
 ## Getting Started
 
@@ -52,7 +52,11 @@ See [docs.md](https://github.com/natecraddock/ziglua/blob/master/docs.md) for do
 
 ## Status
 
-Currently adding functions, types, and constants as fast as possible. Current API coverage: **205/268 (76.5%)**.
+All functions, types, and constants in the public Lua API have been wrapped in Zig **(268/268 identifiers)**.
+
+However, only a small portion of the bindings have been tested. Many bugs likely lurk in the bindings at the moment. But having all of the functions exposed makes testing much easier.
+
+So the current status is using the bindings, both in tests in this repo and in other projects that depend on ziglua. This will expose any bugs and show where things could be improved.
 
 ## Acknowledgements
 
