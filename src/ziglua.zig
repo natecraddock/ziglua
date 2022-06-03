@@ -190,6 +190,9 @@ pub const Lua = struct {
         debug: bool = false,
     };
 
+    /// Type for a string buffer
+    pub const LuaBuffer = c.luaL_Buffer;
+
     /// The type of the opaque structure that points to a thread and the state of a Lua interpreter
     pub const LuaState = c.lua_State;
 
@@ -983,6 +986,96 @@ pub const Lua = struct {
     // Auxiliary library functions are included in alphabetical order.
     // Each is kept similar to the original C API function while also making it easy to use from Zig
 
+    /// All LuaBuffer functions are wrapped in this struct to make the API more convenient to use
+    pub const Buffer = struct {
+        b: LuaBuffer = undefined,
+
+        pub const buffer_size = c.LUAL_BUFFERSIZE;
+
+        /// Adds `byte` to the buffer
+        pub fn addChar(buf: *Buffer, byte: u8) void {
+            c.luaL_addchar(&buf.b, byte);
+        }
+
+        /// Adds a copy of the string `str` to the buffer
+        pub fn addGSub(buf: *Buffer, str: [:0]const u8, pat: [:0]const u8, rep: [:0]const u8) void {
+            c.luaL_addgsub(&buf.b, str, pat, rep);
+        }
+
+        /// Adds the string pointed to by `str` with length `length` to the buffer
+        /// TODO: just use a Zig slice?
+        pub fn addLString(buf: *Buffer, str: [*]const u8, length: usize) void {
+            c.luaL_addlstring(&buf.b, str, length);
+        }
+
+        /// Adds to the buffer a string of `length` previously copied to the buffer area
+        pub fn addSize(buf: *Buffer, length: usize) void {
+            c.luaL_addsize(&buf.b, length);
+        }
+
+        /// Adds the zero-terminated string ponted to by `str` to the buffer
+        pub fn addString(buf: *Buffer, str: [:0]const u8) void {
+            c.luaL_addstring(&buf.b, str);
+        }
+
+        /// Adds the value on the top of the stack to the buffer
+        /// Pops the value
+        pub fn addValue(buf: *Buffer) void {
+            c.luaL_addvalue(&buf.b);
+        }
+
+        /// Returns the address of the current content of the buffer
+        /// Any changes to the buffer may invalidate this address
+        /// TODO: return a slice or a pointer?
+        pub fn addr(buf: *Buffer) [*]u8 {
+            return c.luaL_buffaddr(&buf.b);
+        }
+
+        /// Initialize a Lua string buffer
+        /// All data is stored in the Lua vm, so no need to deinit, will be garbage collected
+        pub fn init(lua: Lua) Buffer {
+            var buf: Buffer = undefined;
+            c.luaL_buffinit(lua.state, &buf.b);
+            return buf;
+        }
+
+        /// Initialize a Lua string buffer with an initial size
+        /// Must pre-declare a buffer variable to be returned through the pointer
+        /// All data is stored in the Lua vm, so no need to deinit, will be garbage collected
+        pub fn initSize(lua: Lua, buf: *Buffer, size: usize) []u8 {
+            c.luaL_buffinit(lua.state, &buf.b);
+            return buf.prepSize(size);
+        }
+
+        /// Returns the length of the buffer
+        pub fn len(buf: *Buffer) usize {
+            return c.luaL_bufflen(&buf.b);
+        }
+
+        /// Removes `num` bytes from the buffer
+        pub fn sub(buf: *Buffer, num: i32) void {
+            c.luaL_buffsub(&buf.b, num);
+        }
+
+        /// Returns an address to a space of `size` where you can copy a string
+        /// to be added to the buffer
+        /// you must call `Buffer.addSize` to actually add it to the buffer
+        pub fn prepSize(buf: *Buffer, size: ?usize) []u8 {
+            const sz = if (size) |s| s else buffer_size;
+            return c.luaL_prepbuffsize(&buf.b, size)[0..sz];
+        }
+
+        /// Finishes the use of the buffer leaving the final string on the top of the stack
+        pub fn pushResult(buf: *Buffer) void {
+            c.luaL_pushresult(&buf.b);
+        }
+
+        /// Equivalent to `Buffer.addSize()` followed by `Buffer.pushResult()`
+        pub fn pushResultSize(buf: *Buffer, size: usize) void {
+            c.luaL_pushresultsize(&buf.b, size);
+        }
+    };
+
     /// Creates a new Lua state with an allocator using the default libc allocator
     pub fn auxNewState() !Lua {
         const state = c.luaL_newstate() orelse return error.OutOfMemory;
@@ -1008,7 +1101,7 @@ pub const Lua = struct {
     }
 
     /// Open all standard libraries
-    pub fn auxOpenLibs(lua: *Lua) void {
+    pub fn openLibs(lua: *Lua) void {
         c.luaL_openlibs(lua.state);
     }
 
@@ -1109,7 +1202,7 @@ test "standard library loading" {
     {
         var lua = try Lua.init(testing.allocator);
         defer lua.deinit();
-        lua.auxOpenLibs();
+        lua.openLibs();
     }
 
     // open all standard libraries with individual functions
