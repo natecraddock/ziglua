@@ -14,7 +14,7 @@ const Allocator = std.mem.Allocator;
 /// Represents a Lua state or thread
 pub const Lua = struct {
     allocator: ?*Allocator = null,
-    state: *c.lua_State,
+    state: *LuaState,
 
     /// Allows Lua to allocate memory using a Zig allocator passed in via data.
     /// See https://www.lua.org/manual/5.4/manual.html#lua_Alloc for more details
@@ -105,7 +105,7 @@ pub const Lua = struct {
     /// Type for C functions
     /// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
     /// TODO: we really are passing Zig functions, maybe call `Function` and use `func` for params?
-    pub const CFunction = fn (state: *c.lua_State) callconv(.C) c_int;
+    pub const CFunction = fn (state: *LuaState) callconv(.C) c_int;
 
     /// Operations supported by `Lua.compare()`
     pub const CompareOperator = enum(u2) {
@@ -133,7 +133,7 @@ pub const Lua = struct {
     /// Type for continuation-function contexts (usually isize)
     pub const KContext = isize;
 
-    pub const KFunction = fn (state: *c.lua_State, status: c_int, ctx: KContext) callconv(.C) c_int;
+    pub const KFunction = fn (state: *LuaState, status: c_int, ctx: KContext) callconv(.C) c_int;
 
     /// Bitflag for the Lua standard libraries
     pub const Libs = packed struct {
@@ -148,6 +148,9 @@ pub const Lua = struct {
         os: bool = false,
         debug: bool = false,
     };
+
+    /// The type of the opaque structure that points to a thread and the state of a Lua interpreter
+    pub const LuaState = c.lua_State;
 
     /// Lua types
     /// Must be a signed integer because LuaType.none is -1
@@ -180,7 +183,7 @@ pub const Lua = struct {
     pub const Number = c.lua_Number;
 
     /// The type of the reader function used by `Lua.load()`
-    pub const Reader = fn (state: *c.lua_State, data: *anyopaque, size: *usize) callconv(.C) ?[*c]const u8;
+    pub const Reader = fn (state: *LuaState, data: *anyopaque, size: *usize) callconv(.C) ?[*c]const u8;
 
     /// Index of the regsitry in the stack (pseudo-index)
     pub const registry_index = c.LUA_REGISTRYINDEX;
@@ -199,7 +202,7 @@ pub const Lua = struct {
     pub const WarnFunction = fn (data: ?*anyopaque, msg: [:0]const u8, to_cont: c_int) callconv(.C) void;
 
     /// The type of the writer function used by `Lua.dump()`
-    pub const Writer = fn (state: *c.lua_State, buf: *anyopaque, size: usize, data: *anyopaque) callconv(.C) c_int;
+    pub const Writer = fn (state: *LuaState, buf: *anyopaque, size: usize, data: *anyopaque) callconv(.C) c_int;
 
     // Library functions
     //
@@ -860,16 +863,17 @@ pub const Lua = struct {
         return c.lua_yieldk(lua.state, num_results, ctx, k);
     }
 
+    // Debug library functions
+    //
+    // The debug interface functions are included in alphabetical order
+    // Each is kept similar to the original C API function while also making it easy to use from Zig
+
+
+
     // Auxiliary library functions
     //
     // Auxiliary library functions are included in alphabetical order.
     // Each is kept similar to the original C API function while also making it easy to use from Zig
-
-    // Ideas of what prefix to start with:
-    // * aux
-    // * a
-    // * x
-    // * l
 
     /// Creates a new Lua state with an allocator using the default libc allocator
     pub fn auxNewState() !Lua {
@@ -980,7 +984,7 @@ test "initialization" {
     // use the library with a bad AllocFunction
     try testing.expectError(error.OutOfMemory, Lua.newState(failing_alloc, null));
 
-    // use the auxiliary library
+    // use the auxiliary library (uses libc realloc and cannot be checked for leaks!)
     lua = try Lua.auxNewState();
     lua.close();
 }
