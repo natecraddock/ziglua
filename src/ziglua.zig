@@ -241,11 +241,9 @@ pub const Lua = struct {
     /// The type of the reader function used by `Lua.load()`
     pub const Reader = fn (state: *LuaState, data: *anyopaque, size: *usize) callconv(.C) ?[*c]const u8;
 
-    /// The type of references
-    pub const Reference = enum(u1) {
-        no = c.LUA_NOREF,
-        nil = c.LUA_REFNIL,
-    };
+    /// Reference constants
+    pub const ref_nil = c.LUA_REFNIL;
+    pub const ref_no = c.LUA_NOREF;
 
     /// Index of the regsitry in the stack (pseudo-index)
     pub const registry_index = c.LUA_REGISTRYINDEX;
@@ -266,6 +264,9 @@ pub const Lua = struct {
         err_error = c.LUA_ERRERR,
         err_file = c.LUA_ERRFILE, // TODO: probably move this out of here as it is only used once
     };
+
+    /// The standard representation for file handles used by the standard IO library
+    pub const Stream = c.luaL_Stream;
 
     /// The unsigned version of Integer
     pub const Unsigned = c.lua_Unsigned;
@@ -1134,9 +1135,9 @@ pub const Lua = struct {
 
     /// Checks whether the function argument `arg` is a string and returns the string
     pub fn checkLString(lua: *Lua, arg: i32) ?[]const u8 {
-        var length: usize;
+        var length: i32 = 0;
         if (c.luaL_checklstring(lua.state, arg, &length)) |str| {
-            return str[0..length];
+            return str[0..@intCast(usize, length)];
         } else return null;
     }
 
@@ -1177,7 +1178,7 @@ pub const Lua = struct {
 
     /// Checks whether the code making the call and the Lua library being called are using
     /// the same version of Lua and the same numeric types.
-    pub fn checkVersion(lua: *Lua, arg: i32) void {
+    pub fn checkVersion(lua: *Lua) void {
         return c.luaL_checkversion(lua.state);
     }
 
@@ -1196,7 +1197,7 @@ pub const Lua = struct {
     /// Raises an error
     /// TODO: rename luaError to raiseError
     pub fn auxRaiseError(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
-        @call(.{}, c.luaL_error, .{lua.state, fmt} ++ args);
+        @call(.{}, c.luaL_error, .{ lua.state, fmt } ++ args);
     }
 
     /// This function produces the return values for process-related functions in the standard library
@@ -1205,7 +1206,7 @@ pub const Lua = struct {
     }
 
     /// This function produces the return values for file-related functions in the standard library
-    pub fn fileResult(lua: *Lua, stat: i3w, file_name: [:0]const u8) i32 {
+    pub fn fileResult(lua: *Lua, stat: i32, file_name: [:0]const u8) i32 {
         return c.luaL_fileresult(lua.state, stat, file_name);
     }
 
@@ -1240,7 +1241,7 @@ pub const Lua = struct {
     }
 
     /// The same as `Lua.loadBufferX` with `mode` set to null
-    pub fn loadBuffer(lua: *Lua, buf: [:0]const u8, size: usize, name: [:0]const u8) {
+    pub fn loadBuffer(lua: *Lua, buf: [:0]const u8, size: usize, name: [:0]const u8) i32 {
         return c.luaL_loadbuffer(lua.state, buf, size, name);
     }
 
@@ -1266,7 +1267,7 @@ pub const Lua = struct {
 
     /// Loads a file as a Lua chunk
     /// TODO: error codes
-    pub fn loadFileX(lua: *lua, file_name: [:0]const u8, mode: Mode) i32 {
+    pub fn loadFileX(lua: *Lua, file_name: [:0]const u8, mode: Mode) i32 {
         const mode_str = blk: {
             if (mode == null) break :blk "bt";
 
@@ -1308,9 +1309,106 @@ pub const Lua = struct {
         return Lua{ .state = state };
     }
 
+    // luaL_opt (a macro) really isn't that useful, so not going to implement for now
+
+    /// If the function argument `arg` is an integer, returns the integer
+    /// If the argument is absent or nil returns `default`
+    pub fn optInteger(lua: *Lua, arg: i32, default: Integer) Integer {
+        return c.luaL_optinteger(lua.state, arg, default);
+    }
+
+    /// If the function argument `arg` is a string, returns the string
+    /// If the argument is absent or nil returns `default`
+    pub fn optLString(lua: *Lua, arg: i32, default: [:0]const u8) []const u8 {
+        var length: i32 = 0;
+        // will never return null because default cannot be null
+        const ret: [*]const u8 = c.luaL_optlstring(lua.state, arg, default, &length);
+        if (ret.ptr == default.ptr) return default;
+        return ret[0..@intCast(usize, length)];
+    }
+
+    /// If the function argument `arg` is a number, returns the number
+    /// If the argument is absent or nil returns `default`
+    pub fn optNumber(lua: *Lua, arg: i32, default: Number) Number {
+        return c.luaL_optnumber(lua.state, arg, default);
+    }
+
+    /// If the function argument `arg` is a string, returns the string
+    /// If the argment is absent or nil returns `default`
+    pub fn optString(lua: *Lua, arg: i32, default: [:0]const u8) [*:0]const u8 {
+        return c.luaL_optstring(lua.state, arg, default);
+    }
+
+    /// Pushes the fail value onto the stack
+    pub fn pushFail(lua: *Lua) void {
+        c.luaL_pushfail(lua.state);
+    }
+
+    /// Creates and returns a reference in the table at index `index` for the object on the top of the stack
+    /// Pops the object
+    pub fn ref(lua: *Lua, index: i32) ?i32 {
+        const ret = c.luaL_ref(lua.state, index);
+        return if (ret == ref_nil) null else ret;
+    }
+
+    /// If package.loaded[`mod_name`] is not true, calls the function `open_fn` with `mod_name`
+    /// as an argument and sets the call result to package.loaded[`mod_name`]
+    pub fn requireF(lua: *Lua, mod_name: [:0]const u8, open_fn: CFunction, global: bool) void {
+        c.luaL_requiref(lua.state, mod_name, open_fn, global);
+    }
+
+    /// Registers all functions in the array `list` into the table on the top of the stack
+    /// When `num_up` is not null, all functions are created with `num_up` upvalues
+    /// `num_up` == 0 has the same effect as null
+    /// TODO: expects an array
+    pub fn setFuncs(lua: *Lua, list: []FunctionReg, num_up: ?i32) void {
+        const num = if (num_up) |n| n else 0;
+        c.luaL_setfuncs(lua.state, list, num);
+    }
+
+    /// Sets the metatable of the object on the top of the stack as the metatable associated
+    /// with `table_name` in the registry
+    pub fn auxSetMetatable(lua: *Lua, table_name: [:0]const u8) void {
+        c.luaL_setmetatable(lua.state, table_name);
+    }
+
+    /// This function works like `Lua.checkUserdata()` except it returns null instead of raising an error on fail
+    pub fn testUserdata(lua: *Lua, arg: i32, type_name: [:0]const u8) ?*anyopaque {
+        return c.luaL_testudata(lua.state, arg, type_name);
+    }
+
+    /// Converts any Lua value at the given index into a string in a reasonable format
+    pub fn auxToLString(lua: *Lua, index: i32) []const u8 {
+        var length: i32 = undefined;
+        const ptr = c.luaL_tolstring(lua.state, index, &length);
+        return ptr[0..length];
+    }
+
+    /// Creates and pushes a traceback of the stack of `other`
+    pub fn traceback(lua: *Lua, other: Lua, msg: [:0]const u8, level: i32) void {
+        c.luaL_traceback(lua.state, other.state, msg, level);
+    }
+
     /// Raises a type error for the argument `arg` of the C function that called it
     pub fn typeError(lua: *Lua, arg: i32, type_name: [:0]const u8) noreturn {
         c.luaL_typeerror(lua.state, arg, type_name);
+    }
+
+    /// Returns the name of the type of the value at the given `index`
+    /// TODO: maybe typeNameIndex?
+    pub fn auxTypeName(lua: *Lua, index: i32) [:0]const u8 {
+        return c.luaL_typename(lua.state, index);
+    }
+
+    /// Releases the reference `r` from the table at index `index`
+    pub fn unref(lua: *Lua, index: i32, r: i32) void {
+        c.luaL_unref(lua.state, index, r);
+    }
+
+    /// Pushes onto the stack a string identifying the current position of the control
+    /// at the call stack `level`
+    pub fn where(lua: *Lua, level: i32) void {
+        c.luaL_where(lua.state, level);
     }
 
     // Standard library loading functions
