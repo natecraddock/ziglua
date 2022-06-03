@@ -114,6 +114,9 @@ pub const Lua = struct {
         le = c.LUA_OPLE,
     };
 
+    /// The Lua debug interface structure
+    pub const DebugInfo = c.lua_Debug;
+
     /// Actions supported by `Lua.gc()`
     pub const GCAction = enum(u5) {
         stop = c.LUA_GCSTOP,
@@ -126,6 +129,44 @@ pub const Lua = struct {
         inc = c.LUA_GCINC,
         gen = c.LUA_GCGEN,
     };
+
+    /// Type for debugging hook functions
+    pub const HookFunction = fn (state: *LuaState, ar: *DebugInfo) callconv(.C) void;
+
+    /// Specifies on which events the hook will be called
+    pub const HookMask = packed struct {
+        call: bool = false,
+        ret: bool = false,
+        line: bool = false,
+        count: bool = false,
+
+        /// Converts a HookMask to an integer bitmask
+        pub fn toInt(mask: HookMask) i32 {
+            var bitmask: i8 = 0;
+            if (mask.call) bitmask |= mask_call;
+            if (mask.ret) bitmask |= mask_ret;
+            if (mask.line) bitmask |= mask_line;
+            if (mask.count) bitmask |= mask_count;
+            return bitmask;
+        }
+
+        /// Converts an integer bitmask into a HookMask
+        pub fn fromInt(mask: i32) HookMask {
+            return .{
+                .call = (mask & mask_call) != 0,
+                .ret = (mask & mask_ret) != 0,
+                .line = (mask & mask_line) != 0,
+                .count = (mask & mask_count) != 0,
+            };
+        }
+    };
+
+    /// Hook event codes
+    pub const hook_call = c.LUA_HOOKCALL;
+    pub const hook_count = c.LUA_HOOKCOUNT;
+    pub const hook_line = c.LUA_HOOKLINE;
+    pub const hook_ret = c.LUA_HOOKRET;
+    pub const hook_tail_call = c.LUA_HOOKTAILCALL;
 
     /// Type of integers in Lua (typically an i64)
     pub const Integer = c.lua_Integer;
@@ -166,6 +207,12 @@ pub const Lua = struct {
         userdata = c.LUA_TUSERDATA,
         thread = c.LUA_TTHREAD,
     };
+
+    /// Event masks
+    pub const mask_call = c.LUA_MASKCALL;
+    pub const mask_count = c.LUA_MASKCOUNT;
+    pub const mask_line = c.LUA_MASKLINE;
+    pub const mask_ret = c.LUA_MASKRET;
 
     /// Modes used for `Lua.load()`
     pub const Mode = enum(u2) { binary, text, binary_text };
@@ -868,7 +915,68 @@ pub const Lua = struct {
     // The debug interface functions are included in alphabetical order
     // Each is kept similar to the original C API function while also making it easy to use from Zig
 
+    /// Returns the current hook function
+    pub fn getHook(lua: *Lua) ?HookFunction {
+        return c.lua_gethook(lua.state);
+    }
 
+    /// Returns the current hook count
+    pub fn getHookCount(lua: *Lua) i32 {
+        return c.lua_gethookcount(lua.state);
+    }
+
+    /// Returns the current hook mask
+    pub fn getHookMask(lua: *Lua) HookMask {
+        return HookMask.fromInt(c.lua_gethookmask(lua.state));
+    }
+
+    /// Gets information about a specific function or function invocation
+    /// TODO: look at possible types for what
+    pub fn getInfo(lua: *Lua, what: [:0]const u8, ar: *DebugInfo) bool {
+        return c.lua_getinfo(lua.state, what, ar) != 0;
+    }
+
+    /// Gets information about a local variable
+    pub fn getLocal(lua: *Lua, ar: *DebugInfo, n: i32) ?[:0]const u8 {
+        return c.lua_getlocal(lua.state, ar, n);
+    }
+
+    /// Gets information about the interpreter runtime stack
+    pub fn getStack(lua: *Lua, level: i32, ar: *DebugInfo) bool {
+        return c.lua_getstack(lua.state, level, ar) != 0;
+    }
+
+    /// Gets information about the `n`th upvalue of the closure at index `func_index`
+    pub fn getUpvalue(lua: *Lua, func_index: i32, ar: *DebugInfo) ?[:0]const u8 {
+        return c.lua_getupvalue(lua.state, func_index, ar);
+    }
+
+    /// Sets the debugging hook function
+    pub fn setHook(lua: *Lua, hook_fn: HookFunction, mask: HookMask, count: i32) void {
+        const hook_mask = HookMask.toInt(mask);
+        c.lua_sethook(lua.state, hook_fn, hook_mask, count);
+    }
+
+    /// Sets the value of a local variable
+    pub fn setLocal(lua: *Lua, ar: *DebugInfo, n: i32) ?[:0]const u8 {
+        return c.lua_setlocal(lua.state, ar, n);
+    }
+
+    /// Sets the value of a closure's upvalue
+    pub fn setUpvalue(lua: *Lua, func_index: i32, n: i32) ?[:0]const u8 {
+        return c.lua_setupvalue(lua.state, func_index, n);
+    }
+
+    /// Returns a unique identifier for the upvalue numbered `n` from the closure index `func_index`
+    pub fn upvalueId(lua: *Lua, func_index: i32, n: i32) *anyopaque {
+        return c.lua_upvalueid(lua.state, func_index, n);
+    }
+
+    /// Make the `n1`th upvalue of the Lua closure at index `func_index1` refer to the `n2`th upvalue
+    /// of the Lua closure at index `func_index2`
+    pub fn upvalueJoin(lua: *Lua, func_index1: i32, n1: i32, func_index2: i32, n2: i32) void {
+        c.lua_upvaluejoin(lua.state, func_index1, n1, func_index2, n2);
+    }
 
     // Auxiliary library functions
     //
