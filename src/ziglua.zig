@@ -195,6 +195,7 @@ pub const Lua = struct {
     pub const Unsigned = c.lua_Unsigned;
 
     /// The type of warning functions used by Lua to emit warnings
+    /// TODO: will zig allow us to use a bool instead of c_int here?
     pub const WarnFunction = fn (data: ?*anyopaque, msg: [:0]const u8, to_cont: c_int) callconv(.C) void;
 
     /// The type of the writer function used by `Lua.dump()`
@@ -825,6 +826,38 @@ pub const Lua = struct {
     /// Returns the name of the given `LuaType` as a null-terminated slice
     pub fn typeName(lua: *Lua, t: LuaType) [:0]const u8 {
         return std.mem.span(c.lua_typename(lua.state, @enumToInt(t)));
+    }
+
+    /// Returns the pseudo-index that represents the `i`th upvalue of the running function
+    pub fn upvalueIndex(i: i32) i32 {
+        return c.lua_upvalueindex(i);
+    }
+
+    /// Returns the version number of this core
+    pub fn version(lua: *Lua) Number {
+        return c.lua_version(lua.state);
+    }
+
+    /// Emits a warning with the given `msg`
+    /// A message with `to_cont` as true should be continued in a subsequent call to the function
+    pub fn warning(lua: *Lua, msg: [:0]const u8, to_cont: bool) void {
+        c.lua_warning(lua.state, msg, @boolToInt(to_cont));
+    }
+
+    /// Pops `num` values from the current stack and pushes onto the stack of `to`
+    pub fn xMove(lua: *Lua, to: Lua, num: i32) void {
+        c.lua_xmove(lua.state, to.state, num);
+    }
+
+    /// This function is equivalent to `Lua.yieldK()` but has no continuation
+    /// TODO: return values?
+    pub fn yield(lua: *Lua, num_results: i32) i32 {
+        return c.lua_yield(lua.state, num_results);
+    }
+
+    /// Yields this coroutine (thread)
+    pub fn yieldK(lua: *Lua, num_results: i32, ctx: KContext, k: KFunction) i32 {
+        return c.lua_yieldk(lua.state, num_results, ctx, k);
     }
 
     // Auxiliary library functions
