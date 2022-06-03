@@ -6,5 +6,5 @@ This documentation provides
 
 * An overview of ziglua's structure
 * Safety considerations
-* API exceptions
+* API Differences
 * Example code

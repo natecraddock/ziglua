@@ -52,7 +52,7 @@ See [docs.md](https://github.com/natecraddock/ziglua/blob/master/docs.md) for do
 
 ## Status
 
-Currently adding functions, types, and constants as fast as possible. Current API coverage: **167/268 (62.3)**.
+Currently adding functions, types, and constants as fast as possible. Current API coverage: **205/268 (76.5%)**.
 
 ## Acknowledgements
 
