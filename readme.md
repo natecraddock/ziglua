@@ -22,7 +22,7 @@ const ziglua = @import("lib/ziglua/build.zig");
 pub fn build(b: *Builder) void {
     ...
     exe.addPackagePath("ziglua", "lib/ziglua/src/ziglua.zig");
-    ziglua.link(b, exe);
+    ziglua.link(b, exe, .{});
 }
 ```
 
@@ -51,7 +51,7 @@ See [docs.md](https://github.com/natecraddock/ziglua/blob/master/docs.md) for do
 
 ## Status
 
-Currently adding functions, types, and constants as fast as possible. Current API coverage: **123/268 (44.6%)**.
+Currently adding functions, types, and constants as fast as possible. Current API coverage: **143/268 (51.81%)**.
 
 ## Acknowledgements
 
