@@ -852,7 +852,7 @@ pub const Lua = struct {
 
     /// Converts the Lua value at the given `index` to a C string
     pub fn toLString(lua: *Lua, index: i32, length: ?*usize) [*]const u8 {
-        c.lua_tolstring(lua.state, index, length);
+        return c.lua_tolstring(lua.state, index, length);
     }
 
     /// Equivalent to toNumberX with is_num set to null
@@ -879,7 +879,7 @@ pub const Lua = struct {
 
     /// Equivalent to toLString with len equal to null
     pub fn toString(lua: *Lua, index: i32) [*]const u8 {
-        return lua.toLString(lua, index, null);
+        return lua.toLString(index, null);
     }
 
     /// Converts the value at the given `index` to a Lua thread (wrapped with a `Lua` struct)
