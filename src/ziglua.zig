@@ -859,10 +859,8 @@ pub const Lua = struct {
         } else return c.lua_tointegerx(lua.state, index, null);
     }
 
-    /// Converts the Lua value at the given `index` to a C string
-    pub fn toLString(lua: *Lua, index: i32, length: ?*usize) [*]const u8 {
-        return c.lua_tolstring(lua.state, index, length);
-    }
+    // No need to have both toLString and toString for a Zig API
+    // pub fn toLString(lua: *Lua, index: i32) []const u8 { ... }
 
     /// Equivalent to toNumberX with is_num set to null
     pub fn toNumber(lua: *Lua, index: i32) Number {
@@ -886,9 +884,14 @@ pub const Lua = struct {
         return c.lua_topointer(lua.state, index);
     }
 
-    /// Equivalent to toLString with len equal to null
-    pub fn toString(lua: *Lua, index: i32) [*]const u8 {
-        return lua.toLString(index, null);
+    /// Converts the Lua value at the given `index` to a zero-terminated slice (string)
+    /// Returns null if the value was not a string or number
+    /// If the value was a number the actual value in the stack will be changed to a string
+    pub fn toString(lua: *Lua, index: i32) ?[:0]const u8 {
+        var length: usize = undefined;
+        if (c.lua_tolstring(lua.state, index, &length)) |str| {
+            return str[0..length :0];
+        } else return null;
     }
 
     /// Converts the value at the given `index` to a Lua thread (wrapped with a `Lua` struct)
