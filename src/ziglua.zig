@@ -179,7 +179,9 @@ pub const Lua = struct {
     /// Type for continuation-function contexts (usually isize)
     pub const KContext = isize;
 
-    pub const KFunction = fn (state: *LuaState, status: c_int, ctx: KContext) callconv(.C) c_int;
+    /// Type for continuation functions
+    /// TODO: there isn't a reason to make state nullable, perhaps a wrapper can fix this
+    pub const KFunction = fn (state: ?*LuaState, status: c_int, ctx: KContext) callconv(.C) c_int;
 
     /// Bitflag for the Lua standard libraries
     pub const Libs = packed struct {
@@ -556,12 +558,14 @@ pub const Lua = struct {
     /// Calls a function (or callable object) in protected mode
     /// TODO: make a PCallResult enum?
     pub fn pCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) i32 {
-        return c.lua_pcall(lua.state, num_args, num_results, msg_handler);
+        // The translate-c version of lua_pcall does not type-check so we must use this one
+        // (macros don't translate well in translate-c always)
+        return lua.pCallK(num_args, num_results, msg_handler, 0, null);
     }
 
     /// Behaves exactly like `Lua.pcall()` except that it allows the called function to yield
-    pub fn pCallK(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: KContext, k: KFunction) i32 {
-        return c.lua_pkallk(lua.state, num_args, num_results, msg_handler, ctx, k);
+    pub fn pCallK(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: KContext, k: ?KFunction) i32 {
+        return c.lua_pcallk(lua.state, num_args, num_results, msg_handler, ctx, k);
     }
 
     /// Pops `n` elements from the top of the stack
