@@ -9,6 +9,8 @@ const c = @cImport({
     @cInclude("lauxlib.h");
 });
 
+const panic = std.debug.panic;
+
 const Allocator = std.mem.Allocator;
 
 /// A Zig wrapper around the Lua C API
@@ -256,14 +258,14 @@ pub const Lua = struct {
     pub const ridx_mainthread = c.LUA_RIDX_MAINTHREAD;
 
     /// Status codes
-    pub const Status = enum(u4) {
-        ok = c.LUA_OK,
-        yield = c.LUA_YIELD,
-        err_runtime = c.LUA_ERRRUN,
-        err_syntax = c.LUA_ERRSYNTAX,
-        err_memory = c.LUA_ERRMEM,
-        err_error = c.LUA_ERRERR,
-        err_file = c.LUA_ERRFILE, // TODO: probably move this out of here as it is only used once
+    pub const Status = struct {
+        pub const ok = c.LUA_OK;
+        pub const yield = c.LUA_YIELD;
+        pub const err_runtime = c.LUA_ERRRUN;
+        pub const err_syntax = c.LUA_ERRSYNTAX;
+        pub const err_memory = c.LUA_ERRMEM;
+        pub const err_error = c.LUA_ERRERR;
+        pub const err_file = c.LUA_ERRFILE; // TODO: probably move this out of here as it is only used once
     };
 
     /// The standard representation for file handles used by the standard IO library
@@ -557,15 +559,22 @@ pub const Lua = struct {
 
     /// Calls a function (or callable object) in protected mode
     /// TODO: make a PCallResult enum?
-    pub fn pCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) i32 {
+    pub fn pCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) !void {
         // The translate-c version of lua_pcall does not type-check so we must use this one
-        // (macros don't translate well in translate-c always)
-        return lua.pCallK(num_args, num_results, msg_handler, 0, null);
+        // (macros don't always translate well with translate-c)
+        try lua.pCallK(num_args, num_results, msg_handler, 0, null);
     }
 
     /// Behaves exactly like `Lua.pcall()` except that it allows the called function to yield
-    pub fn pCallK(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: KContext, k: ?KFunction) i32 {
-        return c.lua_pcallk(lua.state, num_args, num_results, msg_handler, ctx, k);
+    pub fn pCallK(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: KContext, k: ?KFunction) !void {
+        const ret = c.lua_pcallk(lua.state, num_args, num_results, msg_handler, ctx, k);
+        switch (ret) {
+            Status.ok => return,
+            Status.err_runtime => return error.Runtime,
+            Status.err_memory => return error.Memory,
+            Status.err_error => return error.MsgHandlerError,
+            else => panic("pCall returned an unexpected status: `{d}`", .{ret}),
+        }
     }
 
     /// Pops `n` elements from the top of the stack
