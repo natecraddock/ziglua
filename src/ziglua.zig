@@ -1514,6 +1514,7 @@ pub const Buffer = struct {
 
 const testing = std.testing;
 const expectEqual = testing.expectEqual;
+const expectError = testing.expectError;
 
 fn failing_alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque {
     _ = data;
@@ -1529,7 +1530,7 @@ test "initialization" {
     lua.deinit();
 
     // attempt to initialize the Zig wrapper with no memory
-    try testing.expectError(error.OutOfMemory, Lua.init(testing.failing_allocator));
+    try expectError(error.OutOfMemory, Lua.init(testing.failing_allocator));
 
     // use the library directly
     var allocator = testing.allocator_instance.allocator();
@@ -1537,7 +1538,7 @@ test "initialization" {
     lua.close();
 
     // use the library with a bad AllocFunction
-    try testing.expectError(error.OutOfMemory, Lua.newState(failing_alloc, null));
+    try expectError(error.OutOfMemory, Lua.newState(failing_alloc, null));
 
     // use the auxiliary library (uses libc realloc and cannot be checked for leaks!)
     lua = try Lua.auxNewState();
@@ -1641,16 +1642,6 @@ test "arithmetic (lua_arith)" {
     try expectEqual(@as(i64, -8), lua.toInteger(1));
 }
 
-test "basic stack usage" {
-    var lua = try Lua.init(testing.allocator);
-    defer lua.deinit();
-
-    // test a variety of push*, to*, and is* calls
-    lua.pushBoolean(true);
-
-    try testing.expect(lua.isBoolean(1));
-}
-
 test "type of" {
     // TODO: add more tests here after figuring out more type stuff
     var lua = try Lua.init(testing.allocator);
@@ -1691,4 +1682,24 @@ test "typenames" {
     try testing.expectEqualStrings("function", lua.typeName(.function));
     try testing.expectEqualStrings("userdata", lua.typeName(.userdata));
     try testing.expectEqualStrings("thread", lua.typeName(.thread));
+}
+
+test "executing string contents" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+    lua.openLibs();
+
+    lua.loadString("f = function(x) return x + 10 end") catch unreachable;
+    lua.pCall(0, 0, 0) catch unreachable;
+    lua.loadString("a = f(2)") catch unreachable;
+    lua.pCall(0, 0, 0) catch unreachable;
+
+    try expectEqual(Lua.LuaType.function, lua.getGlobal("f"));
+    lua.pop(1);
+    try expectEqual(Lua.LuaType.number, lua.getGlobal("a"));
+    try expectEqual(@as(i64, 12), lua.toInteger(1));
+
+    try expectError(error.Syntax, lua.loadString("bad syntax"));
+    lua.loadString("a = g()") catch unreachable;
+    try expectError(error.Runtime, lua.pCall(0, 0, 0));
 }
