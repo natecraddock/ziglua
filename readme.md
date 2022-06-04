@@ -48,7 +48,7 @@ pub fn main() anyerror!void {
 }
 ```
 
-See [docs.md](https://github.com/natecraddock/ziglua/blob/master/docs.md) for documentation and detailed examples of using ziglua.
+See [docs.md](https://github.com/natecraddock/ziglua/blob/master/docs.md) for documentation and detailed [examples](https://github.com/natecraddock/ziglua/blob/master/docs.md#examples) of using ziglua.
 
 ## Status
 
