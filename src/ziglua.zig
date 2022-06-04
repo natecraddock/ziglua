@@ -1202,8 +1202,15 @@ pub const Lua = struct {
     }
 
     /// Loads a string as a Lua chunk
-    pub fn loadString(lua: *Lua, str: [:0]const u8) i32 {
-        return c.luaL_loadstring(lua.state, str);
+    pub fn loadString(lua: *Lua, str: [:0]const u8) !void {
+        const ret = c.luaL_loadstring(lua.state, str);
+        switch (ret) {
+            Status.ok => return,
+            Status.err_syntax => return error.Syntax,
+            Status.err_memory => return error.Memory,
+            // TODO: loadstring calls lua_load which can return more status codes than this?
+            else => panic("loadString returned an unexpected status: `{d}`", .{ret}),
+        }
     }
 
     /// Creates a new table and registers there the functions in `list`
