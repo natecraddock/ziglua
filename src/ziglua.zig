@@ -313,10 +313,10 @@ pub const Lua = struct {
     }
 
     /// Ensures that the stack has space for at least `n` extra arguments
-    /// Returns false if it cannot fulfil the request
+    /// Returns an error if it cannot fulfil the request
     /// Never shrinks the stack
-    pub fn checkStack(lua: *Lua, n: i32) bool {
-        return c.lua_checkstack(lua.state, n) != 0;
+    pub fn checkStack(lua: *Lua, n: i32) !void {
+        if (c.lua_checkstack(lua.state, n) == 0) return error.Fail;
     }
 
     /// Release all Lua objects in the state and free all dynamic memory
@@ -1079,7 +1079,7 @@ pub const Lua = struct {
 
     /// Grows the stack size to top + `size` elements, raising an error if the stack cannot grow to that size
     /// `msg` is an additional text to go into the error message
-    pub fn auxCheckStac(lua: *Lua, size: i32, msg: ?[:0]const u8) void {
+    pub fn auxCheckStack(lua: *Lua, size: i32, msg: ?[*:0]const u8) void {
         c.luaL_checkstack(lua.state, size, msg);
     }
 
@@ -1702,4 +1702,33 @@ test "executing string contents" {
     try expectError(error.Syntax, lua.loadString("bad syntax"));
     lua.loadString("a = g()") catch unreachable;
     try expectError(error.Runtime, lua.pCall(0, 0, 0));
+}
+
+test "filling and checking the stack" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    try expectEqual(@as(i32, 0), lua.getTop());
+
+    // We want to push 30 values onto the stack
+    // this should work without fail
+    try lua.checkStack(30);
+
+    var count: i32 = 0;
+    while (count < 30) : (count += 1) {
+        lua.pushNil();
+    }
+
+    try expectEqual(@as(i32, 30), lua.getTop());
+
+    // this should fail (beyond max stack size)
+    try expectError(error.Fail, lua.checkStack(1_000_000));
+
+    // this is small enough it won't fail (would raise an error if it did)
+    lua.auxCheckStack(40, null);
+    while (count < 40) : (count += 1) {
+        lua.pushNil();
+    }
+
+    try expectEqual(@as(i32, 40), lua.getTop());
 }
