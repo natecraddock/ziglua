@@ -44,6 +44,10 @@ These functions have been combined into `Lua.toString()`. The function `lua_tost
 
 The length of the returned string is almost always needed, so `Lua.toString() returns a zero-terminated Zig slice of the bytes with the correct length.
 
+### `lua_tointegerx` and `lua_tonumberx`
+
+Both of these functions accept an `isnum` return parameter to indicate if the conversion to number was successful. In the Zig version, both functions return either the number, or an error indicating the conversion was unsuccessful, and the `isnum` parameter is omitted.
+
 ## Examples
 
 Here are more thorough examples that show off the ziglua bindings in context. All examples use previously documented [`build.zig`](#build-documentation) setup.
