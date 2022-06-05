@@ -109,7 +109,7 @@ pub const Lua = struct {
     /// Type for C functions
     /// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
     /// TODO: we really are passing Zig functions, maybe call `Function` and use `func` for params?
-    pub const CFunction = fn (state: *LuaState) callconv(.C) c_int;
+    pub const CFunction = fn (state: ?*LuaState) callconv(.C) c_int;
 
     /// Operations supported by `Lua.compare()`
     pub const CompareOperator = enum(u2) {
@@ -304,12 +304,12 @@ pub const Lua = struct {
 
     /// Calls a function (or any callable value)
     pub fn call(lua: *Lua, num_args: i32, num_results: i32) void {
-        c.lua_call(lua.state, num_args, num_results);
+        lua.callK(num_args, num_results, 0, null);
     }
 
     /// Like `call`, but allows the called function to yield
-    pub fn callK(lua: *Lua, num_args: i32, num_results: i32, ctx: KContext, k: KFunction) void {
-        c.lua_call(lua.state, num_args, num_results, ctx, k);
+    pub fn callK(lua: *Lua, num_args: i32, num_results: i32, ctx: KContext, k: ?KFunction) void {
+        c.lua_callk(lua.state, num_args, num_results, ctx, k);
     }
 
     /// Ensures that the stack has space for at least `n` extra arguments
@@ -560,7 +560,6 @@ pub const Lua = struct {
     }
 
     /// Calls a function (or callable object) in protected mode
-    /// TODO: make a PCallResult enum?
     pub fn pCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) !void {
         // The translate-c version of lua_pcall does not type-check so we must use this one
         // (macros don't always translate well with translate-c)
@@ -1517,6 +1516,42 @@ pub const Buffer = struct {
     }
 };
 
+
+// Helper functions to make the ziglua API easier to use
+
+pub const ZigFunction = fn (lua: *Lua) i32;
+
+fn TypeOfWrap(comptime T: type) type {
+    return switch (T) {
+        Lua.LuaState => Lua,
+        ZigFunction => Lua.CFunction,
+        else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
+    };
+}
+
+/// Wraps the given value for use in the Lua API
+/// Supports the following:
+/// * `Lua.LuaState` => `Lua`
+pub fn wrap(comptime value: anytype) TypeOfWrap(@TypeOf(value)) {
+    const T = @TypeOf(value);
+    return switch (T) {
+        Lua.LuaState => Lua{ .state = value },
+        ZigFunction => wrapZigFunction(value),
+        else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
+    };
+}
+
+/// Wrap a ZigFunction in a CFunction for passing to the API
+fn wrapZigFunction(comptime f: ZigFunction) Lua.CFunction {
+    return struct {
+        fn inner(state: ?*Lua.LuaState) callconv(.C) c_int {
+            // this is called by Lua, state should never be null
+            var lua: Lua = .{ .state = state.? };
+            return @call(.{ .modifier = .always_inline }, f, .{&lua});
+        }
+    }.inner;
+}
+
 // Tests
 
 const testing = std.testing;
@@ -1781,4 +1816,30 @@ test "stack manipulation" {
 
     lua.setTop(0);
     try expectEqual(@as(i32, 0), lua.getTop());
+}
+
+test "calling a function" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    // until issue #1717 we need to use the struct workaround
+    const add = struct {
+        fn addInner(l: *Lua) i32 {
+            const a = l.toInteger(1);
+            const b = l.toInteger(2);
+            l.pushInteger(a + b);
+            return 1;
+        }
+    }.addInner;
+
+    lua.register("zigadd", wrap(add));
+    _ = lua.getGlobal("zigadd");
+    lua.pushInteger(10);
+    lua.pushInteger(32);
+
+    // pCall is safer, but we might as well exercise call when
+    // we know it should be safe
+    lua.call(2, 1);
+
+    try expectEqual(@as(i64, 42), lua.toInteger(1));
 }
