@@ -1689,10 +1689,10 @@ test "executing string contents" {
     defer lua.deinit();
     lua.openLibs();
 
-    lua.loadString("f = function(x) return x + 10 end") catch unreachable;
-    lua.pCall(0, 0, 0) catch unreachable;
-    lua.loadString("a = f(2)") catch unreachable;
-    lua.pCall(0, 0, 0) catch unreachable;
+    try lua.loadString("f = function(x) return x + 10 end");
+    try lua.pCall(0, 0, 0);
+    try lua.loadString("a = f(2)");
+    try lua.pCall(0, 0, 0);
 
     try expectEqual(Lua.LuaType.function, lua.getGlobal("f"));
     lua.pop(1);
@@ -1700,7 +1700,7 @@ test "executing string contents" {
     try expectEqual(@as(i64, 12), lua.toInteger(1));
 
     try expectError(error.Syntax, lua.loadString("bad syntax"));
-    lua.loadString("a = g()") catch unreachable;
+    try lua.loadString("a = g()");
     try expectError(error.Runtime, lua.pCall(0, 0, 0));
 }
 
