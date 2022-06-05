@@ -427,7 +427,9 @@ pub const Lua = struct {
 
     /// Moves the top element into the given valid `index` shifting up any elements to make room
     pub fn insert(lua: *Lua, index: i32) void {
-        c.lua_insert(lua.state, index);
+        // translate-c cannot translate this macro correctly
+        // c.lua_insert(lua.state, index);
+        lua.rotate(index, 1);
     }
 
     /// Returns true if the value at the given `index` is a boolean
@@ -727,13 +729,19 @@ pub const Lua = struct {
 
     /// Removes the element at the given valid `index` shifting down elements to fill the gap
     pub fn remove(lua: *Lua, index: i32) void {
-        c.lua_remove(lua.state, index);
+        // translate-c cannot translate this macro correctly
+        // c.lua_remove(lua.state, index);
+        lua.rotate(index, -1);
+        lua.pop(1);
     }
 
     /// Moves the top element into the given valid `index` without shifting any elements,
     /// then pops the top element
     pub fn replace(lua: *Lua, index: i32) void {
-        c.lua_replace(lua.state, index);
+        // translate-c cannot translate this macro correctly
+        // c.lua_replace(lua.state, index);
+        lua.copy(-1, index);
+        lua.pop(1);
     }
 
     /// Resets a thread, cleaning its call stack and closing all pending to-be-closed variables
@@ -1512,6 +1520,7 @@ pub const Buffer = struct {
 // Tests
 
 const testing = std.testing;
+const expect = testing.expect;
 const expectEqual = testing.expectEqual;
 const expectError = testing.expectError;
 
@@ -1730,4 +1739,46 @@ test "filling and checking the stack" {
     }
 
     try expectEqual(@as(i32, 40), lua.getTop());
+}
+
+test "stack manipulation" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    // add some numbers to manipulate
+    var num: i32 = 1;
+    while (num <= 10) : (num += 1) {
+        lua.pushInteger(num);
+    }
+    try expectEqual(@as(i32, 10), lua.getTop());
+
+    lua.setTop(12);
+    try expectEqual(@as(i32, 12), lua.getTop());
+    try expect(lua.isNil(-1));
+
+    // rotate the two nils to the bottom of the stack
+    lua.rotate(1, 2);
+    try expect(lua.isNil(1));
+    try expect(lua.isNil(2));
+
+    lua.remove(2);
+    try expect(lua.isNil(1));
+    try expect(lua.isInteger(2));
+
+    lua.insert(1);
+    try expect(lua.isInteger(1));
+    try expect(lua.isNil(2));
+
+    lua.replace(2);
+    try expect(lua.isInteger(2));
+    try expectEqual(@as(i32, 10), lua.getTop());
+
+    lua.copy(1, 2);
+    try expectEqual(@as(i64, 10), lua.toInteger(1));
+    try expectEqual(@as(i64, 10), lua.toInteger(2));
+    try expectEqual(@as(i64, 1), lua.toInteger(3));
+    try expectEqual(@as(i64, 8), lua.toInteger(-1));
+
+    lua.setTop(0);
+    try expectEqual(@as(i32, 0), lua.getTop());
 }
