@@ -620,7 +620,7 @@ pub const Lua = struct {
     }
 
     /// Pushes an integer with value `n` onto the stack
-    pub fn pushInteger(lua: *Lua, n: i32) void {
+    pub fn pushInteger(lua: *Lua, n: Integer) void {
         c.lua_pushinteger(lua.state, n);
     }
 
