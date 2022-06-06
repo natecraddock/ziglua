@@ -10,6 +10,16 @@ This documentation provides
 * API Differences
 * Example code
 
+## Moving from the C API to Zig
+
+While efforts have been made to keep the ziglua API similar to the C API, many changes have been made including:
+
+* Renaming or omitting functions
+* Modifying parameters (names and types) and return values
+* Additional helper functions have been added
+
+With this in mind, here are some general guidelines to help guide when moving from the C to Zig APIs
+
 ## Build Documentation
 
 When integrating ziglua into your projects, the following three statements are required:

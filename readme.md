@@ -2,6 +2,11 @@
 
 A Zig library that provides a lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4) to embed the Lua virtual machine into your Zig programs. Currently tracks the latest Lua version (5.4.4).
 
+Like the Lua C API, the ziglua API "emphasizes flexibility and simplicity... common tasks may involve several API calls. This may be boring, but it gives us full control over all the details" (_Programming In Lua 4th Edition_). However, ziglua takes advantage of Zig's features to make it easier and safer to interact with the Lua API.
+
+* [Docs](https://github.com/natecraddock/ziglua/blob/master/docs.md)
+* [Examples](https://github.com/natecraddock/ziglua/blob/master/docs.md#examples)
+
 ## Why use ziglua?
 
 In a nutshell, ziglua is a simple wrapper around the C API you would get by using `@cImport()` to bind Lua. ziglua aims to mirror the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4) as closely as possible, while improving ergonomics using Zig's features. For example:
@@ -12,7 +17,7 @@ In a nutshell, ziglua is a simple wrapper around the C API you would get by usin
 * Compiler-enforced checking of optional pointers
 * Functions return `bool` rather than `int` to indicate success
 
-While there are a few helper functions added to complement the C API, ziglua aims to remain low-level. If you want something higher-level, perhaps try [zoltan](https://github.com/ranciere/zoltan).
+While there are some helper functions added to complement the C API, ziglua aims to remain low-level. If you want something higher-level, perhaps try [zoltan](https://github.com/ranciere/zoltan).
 
 ## Getting Started
 
