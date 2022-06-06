@@ -1085,7 +1085,7 @@ pub const Lua = struct {
 
     /// Grows the stack size to top + `size` elements, raising an error if the stack cannot grow to that size
     /// `msg` is an additional text to go into the error message
-    pub fn auxCheckStack(lua: *Lua, size: i32, msg: ?[*:0]const u8) void {
+    pub fn checkStackAux(lua: *Lua, size: i32, msg: ?[*:0]const u8) void {
         c.luaL_checkstack(lua.state, size, msg);
     }
 
@@ -1125,8 +1125,7 @@ pub const Lua = struct {
     }
 
     /// Raises an error
-    /// TODO: rename luaError to raiseError
-    pub fn auxRaiseError(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
+    pub fn raiseErrorAux(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
         @call(.{}, c.luaL_error, .{ lua.state, fmt } ++ args);
     }
 
@@ -1149,7 +1148,7 @@ pub const Lua = struct {
 
     /// Pushes onto the stack the metatable associated with the name `type_name` in the registry
     /// or nil if there is no metatable associated with that name. Returns the type of the pushed value
-    pub fn auxGetMetatable(lua: *Lua, type_name: [:0]const u8) LuaType {
+    pub fn getMetatableAux(lua: *Lua, type_name: [:0]const u8) LuaType {
         return @intToEnum(LuaType, c.luaL_getmetatable(lua.state, type_name));
     }
 
@@ -1166,7 +1165,7 @@ pub const Lua = struct {
 
     /// Returns the "length" of the value at the given index as a number
     /// it is equivalent to the '#' operator in Lua
-    pub fn auxLen(lua: *Lua, index: i32) i64 {
+    pub fn lenAux(lua: *Lua, index: i32) i64 {
         return c.luaL_len(lua.state, index);
     }
 
@@ -1241,7 +1240,7 @@ pub const Lua = struct {
     }
 
     /// Creates a new Lua state with an allocator using the default libc allocator
-    pub fn auxNewState() !Lua {
+    pub fn newStateAux() !Lua {
         const state = c.luaL_newstate() orelse return error.OutOfMemory;
         return Lua{ .state = state };
     }
@@ -1305,7 +1304,7 @@ pub const Lua = struct {
 
     /// Sets the metatable of the object on the top of the stack as the metatable associated
     /// with `table_name` in the registry
-    pub fn auxSetMetatable(lua: *Lua, table_name: [:0]const u8) void {
+    pub fn setMetatableAux(lua: *Lua, table_name: [:0]const u8) void {
         c.luaL_setmetatable(lua.state, table_name);
     }
 
@@ -1315,7 +1314,7 @@ pub const Lua = struct {
     }
 
     /// Converts any Lua value at the given index into a string in a reasonable format
-    pub fn auxToLString(lua: *Lua, index: i32) []const u8 {
+    pub fn toLStringAux(lua: *Lua, index: i32) []const u8 {
         var length: i32 = undefined;
         const ptr = c.luaL_tolstring(lua.state, index, &length);
         return ptr[0..length];
@@ -1333,7 +1332,7 @@ pub const Lua = struct {
 
     /// Returns the name of the type of the value at the given `index`
     /// TODO: maybe typeNameIndex?
-    pub fn auxTypeName(lua: *Lua, index: i32) [:0]const u8 {
+    pub fn typeNameAux(lua: *Lua, index: i32) [:0]const u8 {
         return c.luaL_typename(lua.state, index);
     }
 
@@ -1584,7 +1583,7 @@ test "initialization" {
     try expectError(error.OutOfMemory, Lua.newState(failing_alloc, null));
 
     // use the auxiliary library (uses libc realloc and cannot be checked for leaks!)
-    lua = try Lua.auxNewState();
+    lua = try Lua.newStateAux();
     lua.close();
 }
 
@@ -1768,7 +1767,7 @@ test "filling and checking the stack" {
     try expectError(error.Fail, lua.checkStack(1_000_000));
 
     // this is small enough it won't fail (would raise an error if it did)
-    lua.auxCheckStack(40, null);
+    lua.checkStackAux(40, null);
     while (count < 40) : (count += 1) {
         lua.pushNil();
     }
