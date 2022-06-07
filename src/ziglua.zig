@@ -684,7 +684,7 @@ pub const Lua = struct {
     /// Lua makes a copy of the string so `str` may be freed immediately after return
     /// Returns a pointer to the internal Lua string
     /// If `str` is null pushes nil and returns null
-    pub fn pushString(lua: *Lua, str: ?[:0]const u8) ?[*]const u8 {
+    pub fn pushString(lua: *Lua, str: ?[*:0]const u8) ?[*]const u8 {
         const ptr = c.lua_pushstring(lua.state, str);
         return @ptrCast(?[*]const u8, ptr);
     }
@@ -1758,6 +1758,8 @@ test "type of" {
     lua.pushNil();
     lua.pushNumber(0.1);
     _ = lua.pushThread();
+    _ = lua.pushString("all your codebase are belong to us");
+    try expectEqual(@as(?[*]const u8, null), lua.pushString(null));
 
     const LuaType = Lua.LuaType;
     try expectEqual(LuaType.boolean, lua.typeOf(1));
@@ -1767,7 +1769,8 @@ test "type of" {
     try expectEqual(LuaType.nil, lua.typeOf(5));
     try expectEqual(LuaType.number, lua.typeOf(6));
     try expectEqual(LuaType.thread, lua.typeOf(7));
-    try expectEqual(LuaType.none, lua.typeOf(8));
+    try expectEqual(LuaType.string, lua.typeOf(8));
+    try expectEqual(LuaType.nil, lua.typeOf(9));
 }
 
 test "typenames" {
