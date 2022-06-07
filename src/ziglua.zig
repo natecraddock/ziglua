@@ -511,8 +511,7 @@ pub const Lua = struct {
     }
 
     /// Loads a Lua chunk without running it
-    /// TODO: revisit this wrt return codes & docs
-    pub fn load(lua: *Lua, reader: Reader, data: *anyopaque, chunk_name: [:0]const u8, mode: ?Mode) i32 {
+    pub fn load(lua: *Lua, reader: Reader, data: *anyopaque, chunk_name: [:0]const u8, mode: ?Mode) !void {
         const mode_str = blk: {
             if (mode == null) break :blk "bt";
 
@@ -522,7 +521,14 @@ pub const Lua = struct {
                 .binary_text => "bt",
             };
         };
-        return c.lua_load(lua.state, reader, data, chunk_name, mode_str);
+        const ret = c.lua_load(lua.state, reader, data, chunk_name, mode_str);
+        switch (ret) {
+            Status.ok => return,
+            Status.err_syntax => return error.Syntax,
+            Status.err_memory => return error.Memory,
+            // NOTE: the docs mention possible other return types, but I couldn't figure them out
+            else => panic("load returned an unexpected status: `{d}`", .{ret}),
+        }
     }
 
     /// Creates a new independent state and returns its main thread
@@ -1516,7 +1522,6 @@ pub const Buffer = struct {
         c.luaL_pushresultsize(&buf.b, size);
     }
 };
-
 
 // Helper functions to make the ziglua API easier to use
 
