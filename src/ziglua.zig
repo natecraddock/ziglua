@@ -1842,3 +1842,10 @@ test "calling a function" {
 
     try expectEqual(@as(i64, 42), lua.toInteger(1));
 }
+
+test "version" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    try expectEqual(@as(f64, 504), lua.version());
+}
