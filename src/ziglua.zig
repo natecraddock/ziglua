@@ -1214,7 +1214,15 @@ pub const Lua = struct {
                 .binary_text => "bt",
             };
         };
-        return c.luaL_loadfilex(lua.state, file_name, mode_str);
+        const ret = c.luaL_loadfilex(lua.state, file_name, mode_str);
+        switch (ret) {
+            Status.ok => return,
+            Status.err_syntax => return error.Syntax,
+            Status.err_memory => return error.Memory,
+            Status.err_file => return error.File,
+            // NOTE: the docs mention possible other return types, but I couldn't figure them out
+            else => panic("load returned an unexpected status: `{d}`", .{ret}),
+        }
     }
 
     /// Loads a string as a Lua chunk
