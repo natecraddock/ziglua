@@ -659,9 +659,10 @@ pub const Lua = struct {
         c.lua_pushlightuserdata(lua.state, ptr);
     }
 
-    pub fn pushLiteral(lua: *Lua, str: []const u8) []const u8 {
-        c.lua_pushliteral(lua.state, str); // TODO
-    }
+    /// There is no reason to have a pushLiteral function...
+    // pub fn pushLiteral(lua: *Lua, str: []const u8) []const u8 {
+    //     c.lua_pushliteral(lua.state, str); // TODO
+    // }
 
     pub fn pushLString(lua: *Lua, str: []const u8, length: usize) []const u8 {
         _ = lua;
