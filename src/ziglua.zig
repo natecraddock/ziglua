@@ -13,6 +13,22 @@ const panic = std.debug.panic;
 
 const Allocator = std.mem.Allocator;
 
+/// The superset of all errors returned from ziglua
+pub const Error = error{
+    /// A generic failure (used when a function can only fail in one way)
+    Fail,
+    /// A runtime error
+    Runtime,
+    /// A syntax error during precompilation
+    Syntax,
+    /// A memory allocation error
+    Memory,
+    /// An error while running the message handler
+    MsgHandler,
+    /// A file-releated error
+    File,
+};
+
 /// A Zig wrapper around the Lua C API
 /// Represents a Lua state or thread and contains the entire state of the Lua interpreter
 pub const Lua = struct {
@@ -55,10 +71,10 @@ pub const Lua = struct {
     pub fn init(allocator: Allocator) !Lua {
         // the userdata passed to alloc needs to be a pointer with a consistent address
         // so we allocate an Allocator struct to hold a copy of the allocator's data
-        var allocator_ptr = try allocator.create(Allocator);
+        var allocator_ptr = allocator.create(Allocator) catch return Error.Memory;
         allocator_ptr.* = allocator;
 
-        const state = c.lua_newstate(alloc, allocator_ptr) orelse return error.OutOfMemory;
+        const state = c.lua_newstate(alloc, allocator_ptr) orelse return Error.Memory;
         return Lua{
             .allocator = allocator_ptr,
             .state = state,
@@ -258,14 +274,19 @@ pub const Lua = struct {
     pub const ridx_mainthread = c.LUA_RIDX_MAINTHREAD;
 
     /// Status codes
-    pub const Status = struct {
+    /// Not public, because typically Status.ok is returned from a function implicitly;
+    /// Any function that returns an error usually returns a Zig error, and a void return
+    /// is an implicit Status.ok.
+    /// In the rare case that the status code is required from a function, an enum is
+    /// used for that specific function's return type
+    const Status = struct {
         pub const ok = c.LUA_OK;
         pub const yield = c.LUA_YIELD;
         pub const err_runtime = c.LUA_ERRRUN;
         pub const err_syntax = c.LUA_ERRSYNTAX;
         pub const err_memory = c.LUA_ERRMEM;
         pub const err_error = c.LUA_ERRERR;
-        pub const err_file = c.LUA_ERRFILE; // TODO: probably move this out of here as it is only used once
+        pub const err_file = c.LUA_ERRFILE;
     };
 
     /// The standard representation for file handles used by the standard IO library
@@ -316,7 +337,7 @@ pub const Lua = struct {
     /// Returns an error if it cannot fulfil the request
     /// Never shrinks the stack
     pub fn checkStack(lua: *Lua, n: i32) !void {
-        if (c.lua_checkstack(lua.state, n) == 0) return error.Fail;
+        if (c.lua_checkstack(lua.state, n) == 0) return Error.Fail;
     }
 
     /// Release all Lua objects in the state and free all dynamic memory
@@ -524,8 +545,8 @@ pub const Lua = struct {
         const ret = c.lua_load(lua.state, reader, data, chunk_name, mode_str);
         switch (ret) {
             Status.ok => return,
-            Status.err_syntax => return error.Syntax,
-            Status.err_memory => return error.Memory,
+            Status.err_syntax => return Error.Syntax,
+            Status.err_memory => return Error.Memory,
             // NOTE: the docs mention possible other return types, but I couldn't figure them out
             else => panic("load returned an unexpected status: `{d}`", .{ret}),
         }
@@ -533,7 +554,7 @@ pub const Lua = struct {
 
     /// Creates a new independent state and returns its main thread
     pub fn newState(alloc_fn: AllocFunction, data: ?*anyopaque) !Lua {
-        const state = c.lua_newstate(alloc_fn, data) orelse return error.OutOfMemory;
+        const state = c.lua_newstate(alloc_fn, data) orelse return Error.Memory;
         return Lua{ .state = state };
     }
 
@@ -579,9 +600,9 @@ pub const Lua = struct {
         const ret = c.lua_pcallk(lua.state, num_args, num_results, msg_handler, ctx, k);
         switch (ret) {
             Status.ok => return,
-            Status.err_runtime => return error.Runtime,
-            Status.err_memory => return error.Memory,
-            Status.err_error => return error.MsgHandlerError,
+            Status.err_runtime => return Error.Runtime,
+            Status.err_memory => return Error.Memory,
+            Status.err_error => return Error.MsgHandler,
             else => panic("pCall returned an unexpected status: `{d}`", .{ret}),
         }
     }
@@ -836,7 +857,7 @@ pub const Lua = struct {
     /// and returns the total size of the string (length + 1)
     pub fn stringToNumber(lua: *Lua, str: [:0]const u8) !usize {
         const size = c.lua_stringtonumber(lua.state, str);
-        if (size == 0) return error.InvalidNumeral;
+        if (size == 0) return Error.Fail;
         return size;
     }
 
@@ -871,7 +892,7 @@ pub const Lua = struct {
     pub fn toIntegerX(lua: *Lua, index: i32) !Integer {
         var success: c_int = undefined;
         const result = c.lua_tointegerx(lua.state, index, &success);
-        if (success == 0) return error.Fail;
+        if (success == 0) return Error.Fail;
         return result;
     }
 
@@ -889,7 +910,7 @@ pub const Lua = struct {
     pub fn toNumberX(lua: *Lua, index: i32) !Number {
         var success: c_int = undefined;
         const result = c.lua_tonumberx(lua.state, index, &success);
-        if (success == 0) return error.Fail;
+        if (success == 0) return Error.Fail;
         return result;
     }
 
@@ -1217,9 +1238,9 @@ pub const Lua = struct {
         const ret = c.luaL_loadfilex(lua.state, file_name, mode_str);
         switch (ret) {
             Status.ok => return,
-            Status.err_syntax => return error.Syntax,
-            Status.err_memory => return error.Memory,
-            Status.err_file => return error.File,
+            Status.err_syntax => return Error.Syntax,
+            Status.err_memory => return Error.Memory,
+            Status.err_file => return Error.File,
             // NOTE: the docs mention possible other return types, but I couldn't figure them out
             else => panic("load returned an unexpected status: `{d}`", .{ret}),
         }
@@ -1230,8 +1251,8 @@ pub const Lua = struct {
         const ret = c.luaL_loadstring(lua.state, str);
         switch (ret) {
             Status.ok => return,
-            Status.err_syntax => return error.Syntax,
-            Status.err_memory => return error.Memory,
+            Status.err_syntax => return Error.Syntax,
+            Status.err_memory => return Error.Memory,
             // TODO: loadstring calls lua_load which can return more status codes than this?
             else => panic("loadString returned an unexpected status: `{d}`", .{ret}),
         }
@@ -1257,7 +1278,7 @@ pub const Lua = struct {
 
     /// Creates a new Lua state with an allocator using the default libc allocator
     pub fn newStateAux() !Lua {
-        const state = c.luaL_newstate() orelse return error.OutOfMemory;
+        const state = c.luaL_newstate() orelse return Error.Memory;
         return Lua{ .state = state };
     }
 
@@ -1587,7 +1608,7 @@ test "initialization" {
     lua.deinit();
 
     // attempt to initialize the Zig wrapper with no memory
-    try expectError(error.OutOfMemory, Lua.init(testing.failing_allocator));
+    try expectError(Error.Memory, Lua.init(testing.failing_allocator));
 
     // use the library directly
     var allocator = testing.allocator_instance.allocator();
@@ -1595,7 +1616,7 @@ test "initialization" {
     lua.close();
 
     // use the library with a bad AllocFunction
-    try expectError(error.OutOfMemory, Lua.newState(failing_alloc, null));
+    try expectError(Error.Memory, Lua.newState(failing_alloc, null));
 
     // use the auxiliary library (uses libc realloc and cannot be checked for leaks!)
     lua = try Lua.newStateAux();
@@ -1756,9 +1777,9 @@ test "executing string contents" {
     try expectEqual(Lua.LuaType.number, lua.getGlobal("a"));
     try expectEqual(@as(i64, 12), lua.toInteger(1));
 
-    try expectError(error.Syntax, lua.loadString("bad syntax"));
+    try expectError(Error.Syntax, lua.loadString("bad syntax"));
     try lua.loadString("a = g()");
-    try expectError(error.Runtime, lua.pCall(0, 0, 0));
+    try expectError(Error.Runtime, lua.pCall(0, 0, 0));
 }
 
 test "filling and checking the stack" {
@@ -1779,7 +1800,7 @@ test "filling and checking the stack" {
     try expectEqual(@as(i32, 30), lua.getTop());
 
     // this should fail (beyond max stack size)
-    try expectError(error.Fail, lua.checkStack(1_000_000));
+    try expectError(Error.Fail, lua.checkStack(1_000_000));
 
     // this is small enough it won't fail (would raise an error if it did)
     lua.checkStackAux(40, null);
