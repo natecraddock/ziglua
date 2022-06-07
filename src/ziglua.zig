@@ -286,6 +286,8 @@ pub const Lua = struct {
         pub const err_syntax = c.LUA_ERRSYNTAX;
         pub const err_memory = c.LUA_ERRMEM;
         pub const err_error = c.LUA_ERRERR;
+
+        // Only used in loadFileX
         pub const err_file = c.LUA_ERRFILE;
     };
 
@@ -847,10 +849,18 @@ pub const Lua = struct {
         c.lua_setwarnf(lua.state, warn_fn, data);
     }
 
+    pub const StatusType = enum(u3) {
+        ok = Status.ok,
+        yield = Status.yield,
+        err_runtime = Status.err_runtime,
+        err_syntax = Status.err_syntax,
+        err_memory = Status.err_memory,
+        err_error = Status.err_error,
+    };
+
     /// Returns the status of this thread
-    /// TODO: look at status codes
-    pub fn status(lua: *Lua) i32 {
-        return c.lua_status(lua.state);
+    pub fn status(lua: *Lua) StatusType {
+        return @intToEnum(StatusType, c.lua_status(lua.state));
     }
 
     /// Converts the zero-terminated string `str` to a number, pushes that number onto the stack,
