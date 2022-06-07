@@ -605,7 +605,7 @@ pub const Lua = struct {
             Status.err_runtime => return Error.Runtime,
             Status.err_memory => return Error.Memory,
             Status.err_error => return Error.MsgHandler,
-            else => panic("pCall returned an unexpected status: `{d}`", .{ret}),
+            else => unreachable,
         }
     }
 
@@ -1152,15 +1152,29 @@ pub const Lua = struct {
     }
 
     /// Loads and runs the given file
-    /// TODO: error codes
-    pub fn doFile(lua: *Lua, file_name: [:0]const u8) i32 {
-        return c.luaL_dofile(lua.state, file_name);
+    pub fn doFile(lua: *Lua, file_name: [:0]const u8) !void {
+        switch (c.luaL_dofile(lua.state, file_name)) {
+            Status.ok => return,
+            Status.err_runtime => return Error.Runtime,
+            Status.err_syntax => return Error.Syntax,
+            Status.err_memory => return Error.Memory,
+            Status.err_error => return Error.MsgHandler,
+            else => unreachable,
+        }
     }
 
     /// Loads and runs the given string
-    /// TODO: error codes
-    pub fn doString(lua: *Lua, str: [:0]const u8) i32 {
-        return c.luaL_dostring(lua.state, str);
+    pub fn doString(lua: *Lua, str: [:0]const u8) !void {
+        const ret = c.luaL_dostring(lua.state, str);
+        switch (ret) {
+            Status.ok => return,
+            Status.err_runtime => return Error.Runtime,
+            Status.err_syntax => return Error.Syntax,
+            Status.err_memory => return Error.Memory,
+            Status.err_error => return Error.MsgHandler,
+            // NOTE: doString calls loadString which can return more status codes than this?
+            else => panic("doString returned an unexpected status: `{d}`", .{ret}),
+        }
     }
 
     /// Raises an error
@@ -1180,9 +1194,9 @@ pub const Lua = struct {
 
     /// Pushes onto the stack the field `e` from the metatable of the object at index `obj`
     /// and returns the type of the pushed value
-    /// TODO: error codes
-    pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) i32 {
-        return c.luaL_getmetafield(lua.state, obj, field);
+    /// TODO: possibly return an error if nil
+    pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) LuaType {
+        return @intToEnum(LuaType, c.luaL_getmetafield(lua.state, obj, field));
     }
 
     /// Pushes onto the stack the metatable associated with the name `type_name` in the registry
@@ -1228,14 +1242,12 @@ pub const Lua = struct {
     }
 
     /// Equivalent to `Lua.loadFileX()` with mode equal to null
-    /// TODO: error codes
-    pub fn loadFile(lua: *Lua, file_name: [:0]const u8) i32 {
-        return c.luaL_loadfile(lua.state, file_name);
+    pub fn loadFile(lua: *Lua, file_name: [:0]const u8) !void {
+        return loadFileX(lua, file_name, null);
     }
 
     /// Loads a file as a Lua chunk
-    /// TODO: error codes
-    pub fn loadFileX(lua: *Lua, file_name: [:0]const u8, mode: Mode) i32 {
+    pub fn loadFileX(lua: *Lua, file_name: [:0]const u8, mode: ?Mode) !void {
         const mode_str = blk: {
             if (mode == null) break :blk "bt";
 
@@ -1257,13 +1269,14 @@ pub const Lua = struct {
     }
 
     /// Loads a string as a Lua chunk
+    /// TODO: investigate what kind of return codes this really can return
     pub fn loadString(lua: *Lua, str: [:0]const u8) !void {
         const ret = c.luaL_loadstring(lua.state, str);
         switch (ret) {
             Status.ok => return,
             Status.err_syntax => return Error.Syntax,
             Status.err_memory => return Error.Memory,
-            // TODO: loadstring calls lua_load which can return more status codes than this?
+            // NOTE: loadstring calls lua_load which can return more status codes than this?
             else => panic("loadString returned an unexpected status: `{d}`", .{ret}),
         }
     }
