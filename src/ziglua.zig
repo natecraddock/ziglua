@@ -369,8 +369,10 @@ pub const Lua = struct {
     }
 
     /// Controls the garbage collector
-    pub fn gc(lua: *Lua, action: GCAction, args: anytype) bool {
-        return @call(.{}, c.lua_gc, .{ lua.state, @enumToInt(action) } ++ args) != 0;
+    /// The purpose of the return value is dependent on the given action
+    /// TODO: perhaps `action` could be comptime known to enforce specific return types
+    pub fn gc(lua: *Lua, action: GCAction, args: anytype) i32 {
+        return @call(.{}, c.lua_gc, .{ lua.state, @enumToInt(action) } ++ args);
     }
 
     /// Returns the memory allocation function of a given state
