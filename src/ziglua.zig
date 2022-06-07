@@ -251,7 +251,7 @@ pub const Lua = struct {
     /// The minimum Lua stack available to a function
     pub const min_stack = c.MINSTACK;
 
-    /// Option for multiple returns in `Lua.pCall()` and `Lua.call()`
+    /// Option for multiple returns in `Lua.protectedCall()` and `Lua.call()`
     pub const mult_return = c.LUA_MULTRET;
 
     /// Type of floats in Lua (typically an f64)
@@ -591,14 +591,14 @@ pub const Lua = struct {
     }
 
     /// Calls a function (or callable object) in protected mode
-    pub fn pCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) !void {
+    pub fn protectedCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) !void {
         // The translate-c version of lua_pcall does not type-check so we must use this one
         // (macros don't always translate well with translate-c)
-        try lua.pCallK(num_args, num_results, msg_handler, 0, null);
+        try lua.protectedCallK(num_args, num_results, msg_handler, 0, null);
     }
 
-    /// Behaves exactly like `Lua.pcall()` except that it allows the called function to yield
-    pub fn pCallK(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: KContext, k: ?KFunction) !void {
+    /// Behaves exactly like `Lua.protectedCall()` except that it allows the called function to yield
+    pub fn protectedCallK(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: KContext, k: ?KFunction) !void {
         const ret = c.lua_pcallk(lua.state, num_args, num_results, msg_handler, ctx, k);
         switch (ret) {
             Status.ok => return,
@@ -1795,9 +1795,9 @@ test "executing string contents" {
     lua.openLibs();
 
     try lua.loadString("f = function(x) return x + 10 end");
-    try lua.pCall(0, 0, 0);
+    try lua.protectedCall(0, 0, 0);
     try lua.loadString("a = f(2)");
-    try lua.pCall(0, 0, 0);
+    try lua.protectedCall(0, 0, 0);
 
     try expectEqual(Lua.LuaType.function, lua.getGlobal("f"));
     lua.pop(1);
@@ -1806,7 +1806,7 @@ test "executing string contents" {
 
     try expectError(Error.Syntax, lua.loadString("bad syntax"));
     try lua.loadString("a = g()");
-    try expectError(Error.Runtime, lua.pCall(0, 0, 0));
+    try expectError(Error.Runtime, lua.protectedCall(0, 0, 0));
 }
 
 test "filling and checking the stack" {
@@ -1899,7 +1899,7 @@ test "calling a function" {
     lua.pushInteger(10);
     lua.pushInteger(32);
 
-    // pCall is safer, but we might as well exercise call when
+    // protectedCall is safer, but we might as well exercise call when
     // we know it should be safe
     lua.call(2, 1);
 

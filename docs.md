@@ -128,7 +128,7 @@ pub fn main() anyerror!void {
         };
 
         // Execute a line of Lua code
-        lua.pCall(0, 0, 0) catch {
+        lua.protectedCall(0, 0, 0) catch {
             try stdout.print("{s}\n", .{lua.toString(-1)});
             lua.pop(1);
         };
@@ -138,4 +138,4 @@ pub fn main() anyerror!void {
 
 This shows a basic interpreter that reads a string from stdin. That string is parsed and compiled as Lua code and then executed.
 
-Notice that the functions `lua.loadString()` and `lua.pCall()` return errors that must be handled, here printing the error message that was placed on the stack.
+Notice that the functions `lua.loadString()` and `lua.protectedCall()` return errors that must be handled, here printing the error message that was placed on the stack.
