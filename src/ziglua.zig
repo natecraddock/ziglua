@@ -13,6 +13,52 @@ const panic = std.debug.panic;
 
 const Allocator = std.mem.Allocator;
 
+// Types
+//
+// Lua constants and types are declared below in alphabetical order
+// For constants that have a logical grouping (like Operators), Zig enums are used for type safety
+
+/// The type of function that Lua uses for all internal allocations and frees
+/// `data` is an opaque pointer to any data (the allocator), `ptr` is a pointer to the block being alloced/realloced/freed
+/// `osize` is the original size or a code, and `nsize` is the new size
+///
+/// See https://www.lua.org/manual/5.4/manual.html#lua_Alloc for more details
+pub const AllocFunction = fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque;
+
+/// Operations supported by `Lua.arith()`
+/// TODO: use longer names
+pub const ArithOperator = enum(u4) {
+    add = c.LUA_OPADD,
+    sub = c.LUA_OPSUB,
+    mul = c.LUA_OPMUL,
+    div = c.LUA_OPDIV,
+    idiv = c.LUA_OPIDIV,
+    mod = c.LUA_OPMOD,
+    pow = c.LUA_OPPOW,
+    unm = c.LUA_OPUNM,
+    bnot = c.LUA_OPBNOT,
+    band = c.LUA_OPBAND,
+    bor = c.LUA_OPBOR,
+    bxor = c.LUA_OPBXOR,
+    shl = c.LUA_OPSHL,
+    shr = c.LUA_OPSHR,
+};
+
+/// Type for C functions
+/// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
+/// TODO: we really are passing Zig functions, maybe call `Function` and use `func` for params?
+pub const CFunction = fn (state: ?*LuaState) callconv(.C) c_int;
+
+/// Operations supported by `Lua.compare()`
+pub const CompareOperator = enum(u2) {
+    eq = c.LUA_OPEQ,
+    lt = c.LUA_OPLT,
+    le = c.LUA_OPLE,
+};
+
+/// The Lua debug interface structure
+pub const DebugInfo = c.lua_Debug;
+
 /// The superset of all errors returned from ziglua
 pub const Error = error{
     /// A generic failure (used when a function can only fail in one way)
@@ -28,6 +74,173 @@ pub const Error = error{
     /// A file-releated error
     File,
 };
+
+/// Type for arrays of functions to be registered
+pub const FunctionReg = c.luaL_Reg;
+
+/// Actions supported by `Lua.gc()`
+pub const GCAction = enum(u5) {
+    stop = c.LUA_GCSTOP,
+    restart = c.LUA_GCRESTART,
+    collect = c.LUA_GCCOLLECT,
+    count = c.LUA_GCCOUNT,
+    countb = c.LUA_GCCOUNTB,
+    step = c.LUA_GCSTEP,
+    is_running = c.LUA_GCISRUNNING,
+    inc = c.LUA_GCINC,
+    gen = c.LUA_GCGEN,
+};
+
+/// Type for debugging hook functions
+pub const HookFunction = fn (state: *LuaState, ar: *DebugInfo) callconv(.C) void;
+
+/// Specifies on which events the hook will be called
+pub const HookMask = packed struct {
+    call: bool = false,
+    ret: bool = false,
+    line: bool = false,
+    count: bool = false,
+
+    /// Converts a HookMask to an integer bitmask
+    pub fn toInt(mask: HookMask) i32 {
+        var bitmask: i8 = 0;
+        if (mask.call) bitmask |= mask_call;
+        if (mask.ret) bitmask |= mask_ret;
+        if (mask.line) bitmask |= mask_line;
+        if (mask.count) bitmask |= mask_count;
+        return bitmask;
+    }
+
+    /// Converts an integer bitmask into a HookMask
+    pub fn fromInt(mask: i32) HookMask {
+        return .{
+            .call = (mask & mask_call) != 0,
+            .ret = (mask & mask_ret) != 0,
+            .line = (mask & mask_line) != 0,
+            .count = (mask & mask_count) != 0,
+        };
+    }
+};
+
+/// Hook event codes
+pub const hook_call = c.LUA_HOOKCALL;
+pub const hook_count = c.LUA_HOOKCOUNT;
+pub const hook_line = c.LUA_HOOKLINE;
+pub const hook_ret = c.LUA_HOOKRET;
+pub const hook_tail_call = c.LUA_HOOKTAILCALL;
+
+/// Type of integers in Lua (typically an i64)
+pub const Integer = c.lua_Integer;
+
+/// Type for continuation-function contexts (usually isize)
+pub const KContext = isize;
+
+/// Type for continuation functions
+/// TODO: there isn't a reason to make state nullable, perhaps a wrapper can fix this
+pub const KFunction = fn (state: ?*LuaState, status: c_int, ctx: KContext) callconv(.C) c_int;
+
+/// Bitflag for the Lua standard libraries
+pub const Libs = packed struct {
+    base: bool = false,
+    coroutine: bool = false,
+    package: bool = false,
+    string: bool = false,
+    utf8: bool = false,
+    table: bool = false,
+    math: bool = false,
+    io: bool = false,
+    os: bool = false,
+    debug: bool = false,
+};
+
+/// The type of the opaque structure that points to a thread and the state of a Lua interpreter
+pub const LuaState = c.lua_State;
+
+/// Lua types
+/// Must be a signed integer because LuaType.none is -1
+pub const LuaType = enum(i5) {
+    none = c.LUA_TNONE,
+    nil = c.LUA_TNIL,
+    boolean = c.LUA_TBOOLEAN,
+    light_userdata = c.LUA_TLIGHTUSERDATA,
+    number = c.LUA_TNUMBER,
+    string = c.LUA_TSTRING,
+    table = c.LUA_TTABLE,
+    function = c.LUA_TFUNCTION,
+    userdata = c.LUA_TUSERDATA,
+    thread = c.LUA_TTHREAD,
+};
+
+/// Modes used for `Lua.load()`
+pub const Mode = enum(u2) { binary, text, binary_text };
+
+/// Event masks
+pub const mask_call = c.LUA_MASKCALL;
+pub const mask_count = c.LUA_MASKCOUNT;
+pub const mask_line = c.LUA_MASKLINE;
+pub const mask_ret = c.LUA_MASKRET;
+
+/// The maximum integer value that `Integer` can store
+pub const max_integer = c.MAXINTEGER;
+
+/// The minimum integer value that `Integer` can store
+pub const min_integer = c.MININTEGER;
+
+/// The minimum Lua stack available to a function
+pub const min_stack = c.MINSTACK;
+
+/// Option for multiple returns in `Lua.protectedCall()` and `Lua.call()`
+pub const mult_return = c.LUA_MULTRET;
+
+/// Type of floats in Lua (typically an f64)
+pub const Number = c.lua_Number;
+
+/// The type of the reader function used by `Lua.load()`
+pub const Reader = fn (state: *LuaState, data: *anyopaque, size: *usize) callconv(.C) ?[*c]const u8;
+
+/// Reference constants
+pub const ref_nil = c.LUA_REFNIL;
+pub const ref_no = c.LUA_NOREF;
+
+/// Index of the regsitry in the stack (pseudo-index)
+pub const registry_index = c.LUA_REGISTRYINDEX;
+
+/// Index of globals in the registry
+pub const ridx_globals = c.LUA_RIDX_GLOBALS;
+
+/// Index of the main thread in the registry
+pub const ridx_mainthread = c.LUA_RIDX_MAINTHREAD;
+
+/// Status codes
+/// Not public, because typically Status.ok is returned from a function implicitly;
+/// Any function that returns an error usually returns a Zig error, and a void return
+/// is an implicit Status.ok.
+/// In the rare case that the status code is required from a function, an enum is
+/// used for that specific function's return type
+const Status = struct {
+    pub const ok = c.LUA_OK;
+    pub const yield = c.LUA_YIELD;
+    pub const err_runtime = c.LUA_ERRRUN;
+    pub const err_syntax = c.LUA_ERRSYNTAX;
+    pub const err_memory = c.LUA_ERRMEM;
+    pub const err_error = c.LUA_ERRERR;
+
+    // Only used in loadFileX
+    pub const err_file = c.LUA_ERRFILE;
+};
+
+/// The standard representation for file handles used by the standard IO library
+pub const Stream = c.luaL_Stream;
+
+/// The unsigned version of Integer
+pub const Unsigned = c.lua_Unsigned;
+
+/// The type of warning functions used by Lua to emit warnings
+/// TODO: will zig allow us to use a bool instead of c_int here?
+pub const WarnFunction = fn (data: ?*anyopaque, msg: [:0]const u8, to_cont: c_int) callconv(.C) void;
+
+/// The type of the writer function used by `Lua.dump()`
+pub const Writer = fn (state: *LuaState, buf: *anyopaque, size: usize, data: *anyopaque) callconv(.C) c_int;
 
 /// A Zig wrapper around the Lua C API
 /// Represents a Lua state or thread and contains the entire state of the Lua interpreter
@@ -90,219 +303,6 @@ pub const Lua = struct {
             lua.allocator = null;
         }
     }
-
-    // Types
-    //
-    // Lua constants and types are declared below in alphabetical order
-    // For constants that have a logical grouping (like Operators), Zig enums are used for type safety
-
-    /// The type of function that Lua uses for all internal allocations and frees
-    /// `data` is an opaque pointer to any data (the allocator), `ptr` is a pointer to the block being alloced/realloced/freed
-    /// `osize` is the original size or a code, and `nsize` is the new size
-    ///
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_Alloc for more details
-    pub const AllocFunction = fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque;
-
-    /// Operations supported by `Lua.arith()`
-    /// TODO: use longer names
-    pub const ArithOperator = enum(u4) {
-        add = c.LUA_OPADD,
-        sub = c.LUA_OPSUB,
-        mul = c.LUA_OPMUL,
-        div = c.LUA_OPDIV,
-        idiv = c.LUA_OPIDIV,
-        mod = c.LUA_OPMOD,
-        pow = c.LUA_OPPOW,
-        unm = c.LUA_OPUNM,
-        bnot = c.LUA_OPBNOT,
-        band = c.LUA_OPBAND,
-        bor = c.LUA_OPBOR,
-        bxor = c.LUA_OPBXOR,
-        shl = c.LUA_OPSHL,
-        shr = c.LUA_OPSHR,
-    };
-
-    /// Type for C functions
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
-    /// TODO: we really are passing Zig functions, maybe call `Function` and use `func` for params?
-    pub const CFunction = fn (state: ?*LuaState) callconv(.C) c_int;
-
-    /// Operations supported by `Lua.compare()`
-    pub const CompareOperator = enum(u2) {
-        eq = c.LUA_OPEQ,
-        lt = c.LUA_OPLT,
-        le = c.LUA_OPLE,
-    };
-
-    /// The Lua debug interface structure
-    pub const DebugInfo = c.lua_Debug;
-
-    /// Type for arrays of functions to be registered
-    pub const FunctionReg = c.luaL_Reg;
-
-    /// Actions supported by `Lua.gc()`
-    pub const GCAction = enum(u5) {
-        stop = c.LUA_GCSTOP,
-        restart = c.LUA_GCRESTART,
-        collect = c.LUA_GCCOLLECT,
-        count = c.LUA_GCCOUNT,
-        countb = c.LUA_GCCOUNTB,
-        step = c.LUA_GCSTEP,
-        is_running = c.LUA_GCISRUNNING,
-        inc = c.LUA_GCINC,
-        gen = c.LUA_GCGEN,
-    };
-
-    /// Type for debugging hook functions
-    pub const HookFunction = fn (state: *LuaState, ar: *DebugInfo) callconv(.C) void;
-
-    /// Specifies on which events the hook will be called
-    pub const HookMask = packed struct {
-        call: bool = false,
-        ret: bool = false,
-        line: bool = false,
-        count: bool = false,
-
-        /// Converts a HookMask to an integer bitmask
-        pub fn toInt(mask: HookMask) i32 {
-            var bitmask: i8 = 0;
-            if (mask.call) bitmask |= mask_call;
-            if (mask.ret) bitmask |= mask_ret;
-            if (mask.line) bitmask |= mask_line;
-            if (mask.count) bitmask |= mask_count;
-            return bitmask;
-        }
-
-        /// Converts an integer bitmask into a HookMask
-        pub fn fromInt(mask: i32) HookMask {
-            return .{
-                .call = (mask & mask_call) != 0,
-                .ret = (mask & mask_ret) != 0,
-                .line = (mask & mask_line) != 0,
-                .count = (mask & mask_count) != 0,
-            };
-        }
-    };
-
-    /// Hook event codes
-    pub const hook_call = c.LUA_HOOKCALL;
-    pub const hook_count = c.LUA_HOOKCOUNT;
-    pub const hook_line = c.LUA_HOOKLINE;
-    pub const hook_ret = c.LUA_HOOKRET;
-    pub const hook_tail_call = c.LUA_HOOKTAILCALL;
-
-    /// Type of integers in Lua (typically an i64)
-    pub const Integer = c.lua_Integer;
-
-    /// Type for continuation-function contexts (usually isize)
-    pub const KContext = isize;
-
-    /// Type for continuation functions
-    /// TODO: there isn't a reason to make state nullable, perhaps a wrapper can fix this
-    pub const KFunction = fn (state: ?*LuaState, status: c_int, ctx: KContext) callconv(.C) c_int;
-
-    /// Bitflag for the Lua standard libraries
-    pub const Libs = packed struct {
-        base: bool = false,
-        coroutine: bool = false,
-        package: bool = false,
-        string: bool = false,
-        utf8: bool = false,
-        table: bool = false,
-        math: bool = false,
-        io: bool = false,
-        os: bool = false,
-        debug: bool = false,
-    };
-
-    /// The type of the opaque structure that points to a thread and the state of a Lua interpreter
-    pub const LuaState = c.lua_State;
-
-    /// Lua types
-    /// Must be a signed integer because LuaType.none is -1
-    pub const LuaType = enum(i5) {
-        none = c.LUA_TNONE,
-        nil = c.LUA_TNIL,
-        boolean = c.LUA_TBOOLEAN,
-        light_userdata = c.LUA_TLIGHTUSERDATA,
-        number = c.LUA_TNUMBER,
-        string = c.LUA_TSTRING,
-        table = c.LUA_TTABLE,
-        function = c.LUA_TFUNCTION,
-        userdata = c.LUA_TUSERDATA,
-        thread = c.LUA_TTHREAD,
-    };
-
-    /// Modes used for `Lua.load()`
-    pub const Mode = enum(u2) { binary, text, binary_text };
-
-    /// Event masks
-    pub const mask_call = c.LUA_MASKCALL;
-    pub const mask_count = c.LUA_MASKCOUNT;
-    pub const mask_line = c.LUA_MASKLINE;
-    pub const mask_ret = c.LUA_MASKRET;
-
-    /// The maximum integer value that `Integer` can store
-    pub const max_integer = c.MAXINTEGER;
-
-    /// The minimum integer value that `Integer` can store
-    pub const min_integer = c.MININTEGER;
-
-    /// The minimum Lua stack available to a function
-    pub const min_stack = c.MINSTACK;
-
-    /// Option for multiple returns in `Lua.protectedCall()` and `Lua.call()`
-    pub const mult_return = c.LUA_MULTRET;
-
-    /// Type of floats in Lua (typically an f64)
-    pub const Number = c.lua_Number;
-
-    /// The type of the reader function used by `Lua.load()`
-    pub const Reader = fn (state: *LuaState, data: *anyopaque, size: *usize) callconv(.C) ?[*c]const u8;
-
-    /// Reference constants
-    pub const ref_nil = c.LUA_REFNIL;
-    pub const ref_no = c.LUA_NOREF;
-
-    /// Index of the regsitry in the stack (pseudo-index)
-    pub const registry_index = c.LUA_REGISTRYINDEX;
-
-    /// Index of globals in the registry
-    pub const ridx_globals = c.LUA_RIDX_GLOBALS;
-
-    /// Index of the main thread in the registry
-    pub const ridx_mainthread = c.LUA_RIDX_MAINTHREAD;
-
-    /// Status codes
-    /// Not public, because typically Status.ok is returned from a function implicitly;
-    /// Any function that returns an error usually returns a Zig error, and a void return
-    /// is an implicit Status.ok.
-    /// In the rare case that the status code is required from a function, an enum is
-    /// used for that specific function's return type
-    const Status = struct {
-        pub const ok = c.LUA_OK;
-        pub const yield = c.LUA_YIELD;
-        pub const err_runtime = c.LUA_ERRRUN;
-        pub const err_syntax = c.LUA_ERRSYNTAX;
-        pub const err_memory = c.LUA_ERRMEM;
-        pub const err_error = c.LUA_ERRERR;
-
-        // Only used in loadFileX
-        pub const err_file = c.LUA_ERRFILE;
-    };
-
-    /// The standard representation for file handles used by the standard IO library
-    pub const Stream = c.luaL_Stream;
-
-    /// The unsigned version of Integer
-    pub const Unsigned = c.lua_Unsigned;
-
-    /// The type of warning functions used by Lua to emit warnings
-    /// TODO: will zig allow us to use a bool instead of c_int here?
-    pub const WarnFunction = fn (data: ?*anyopaque, msg: [:0]const u8, to_cont: c_int) callconv(.C) void;
-
-    /// The type of the writer function used by `Lua.dump()`
-    pub const Writer = fn (state: *LuaState, buf: *anyopaque, size: usize, data: *anyopaque) callconv(.C) c_int;
 
     // Library functions
     //
@@ -1582,28 +1582,28 @@ pub const ZigFunction = fn (lua: *Lua) i32;
 
 fn TypeOfWrap(comptime T: type) type {
     return switch (T) {
-        Lua.LuaState => Lua,
-        ZigFunction => Lua.CFunction,
+        LuaState => Lua,
+        ZigFunction => CFunction,
         else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
     };
 }
 
 /// Wraps the given value for use in the Lua API
 /// Supports the following:
-/// * `Lua.LuaState` => `Lua`
+/// * `LuaState` => `Lua`
 pub fn wrap(comptime value: anytype) TypeOfWrap(@TypeOf(value)) {
     const T = @TypeOf(value);
     return switch (T) {
-        Lua.LuaState => Lua{ .state = value },
+        LuaState => Lua{ .state = value },
         ZigFunction => wrapZigFunction(value),
         else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
     };
 }
 
 /// Wrap a ZigFunction in a CFunction for passing to the API
-fn wrapZigFunction(comptime f: ZigFunction) Lua.CFunction {
+fn wrapZigFunction(comptime f: ZigFunction) CFunction {
     return struct {
-        fn inner(state: ?*Lua.LuaState) callconv(.C) c_int {
+        fn inner(state: ?*LuaState) callconv(.C) c_int {
             // this is called by Lua, state should never be null
             var lua: Lua = .{ .state = state.? };
             return @call(.{ .modifier = .always_inline }, f, .{&lua});
@@ -1761,7 +1761,6 @@ test "type of" {
     _ = lua.pushString("all your codebase are belong to us");
     try expectEqual(@as(?[*]const u8, null), lua.pushString(null));
 
-    const LuaType = Lua.LuaType;
     try expectEqual(LuaType.boolean, lua.typeOf(1));
     try expectEqual(LuaType.table, lua.typeOf(2));
     try expectEqual(LuaType.number, lua.typeOf(3));
@@ -1799,9 +1798,9 @@ test "executing string contents" {
     try lua.loadString("a = f(2)");
     try lua.protectedCall(0, 0, 0);
 
-    try expectEqual(Lua.LuaType.function, lua.getGlobal("f"));
+    try expectEqual(LuaType.function, lua.getGlobal("f"));
     lua.pop(1);
-    try expectEqual(Lua.LuaType.number, lua.getGlobal("a"));
+    try expectEqual(LuaType.number, lua.getGlobal("a"));
     try expectEqual(@as(i64, 12), lua.toInteger(1));
 
     try expectError(Error.Syntax, lua.loadString("bad syntax"));
