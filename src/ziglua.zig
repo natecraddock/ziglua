@@ -325,11 +325,11 @@ pub const Lua = struct {
 
     /// Calls a function (or any callable value)
     pub fn call(lua: *Lua, num_args: i32, num_results: i32) void {
-        lua.callK(num_args, num_results, 0, null);
+        lua.callCont(num_args, num_results, 0, null);
     }
 
     /// Like `call`, but allows the called function to yield
-    pub fn callK(lua: *Lua, num_args: i32, num_results: i32, ctx: KContext, k: ?CContFn) void {
+    pub fn callCont(lua: *Lua, num_args: i32, num_results: i32, ctx: KContext, k: ?CContFn) void {
         c.lua_callk(lua.state, num_args, num_results, ctx, k);
     }
 
@@ -603,11 +603,11 @@ pub const Lua = struct {
     pub fn protectedCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) !void {
         // The translate-c version of lua_pcall does not type-check so we must use this one
         // (macros don't always translate well with translate-c)
-        try lua.protectedCallK(num_args, num_results, msg_handler, 0, null);
+        try lua.protectedCallCont(num_args, num_results, msg_handler, 0, null);
     }
 
     /// Behaves exactly like `Lua.protectedCall()` except that it allows the called function to yield
-    pub fn protectedCallK(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: KContext, k: ?CContFn) !void {
+    pub fn protectedCallCont(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: KContext, k: ?CContFn) !void {
         const ret = c.lua_pcallk(lua.state, num_args, num_results, msg_handler, ctx, k);
         switch (ret) {
             Status.ok => return,
@@ -1003,7 +1003,7 @@ pub const Lua = struct {
     }
 
     /// Yields this coroutine (thread)
-    pub fn yieldK(lua: *Lua, num_results: i32, ctx: KContext, k: CContFn) i32 {
+    pub fn yieldCont(lua: *Lua, num_results: i32, ctx: KContext, k: CContFn) i32 {
         return c.lua_yieldk(lua.state, num_results, ctx, k);
     }
 
@@ -2214,7 +2214,7 @@ test "refs" {
     _ = Lua.warning;
     _ = Lua.xMove;
     _ = Lua.yield;
-    _ = Lua.yieldK;
+    _ = Lua.yieldCont;
 
     // debug
     _ = Lua.getHook;
