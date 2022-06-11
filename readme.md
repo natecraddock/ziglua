@@ -60,9 +60,11 @@ See [docs.md](https://github.com/natecraddock/ziglua/blob/master/docs.md) for do
 
 All functions, types, and constants in the public Lua API have been wrapped in Zig **(268/268 identifiers)**.
 
-However, only a small portion of the bindings have been tested. Many bugs likely lurk in the bindings at the moment. But having all of the functions exposed makes testing much easier.
+All of the functions have been referenced in tests, so the parameters are correctly typed.
 
-So the current status is using the bindings, both in tests in this repo and in other projects that depend on ziglua. This will expose any bugs and show where things could be improved.
+But I am still going through each function to decide the correct return types, errors, parameters, naming, etc.
+
+ziglua should be relatively stable and safe to use now, but is still rapidly changing.
 
 ## Acknowledgements
 

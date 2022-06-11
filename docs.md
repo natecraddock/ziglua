@@ -5,9 +5,9 @@
 This documentation provides
 
 * An overview of ziglua's structure
-* `build.zig` documentation
 * Safety considerations
 * API Differences
+* `build.zig` documentation
 * Example code
 
 ## Moving from the C API to Zig
@@ -28,15 +28,53 @@ In the few cases when the [auxiliary library](https://www.lua.org/manual/5.4/man
 
 For example, the functions `lua_newstate` and `luaL_newstate` are translated to `Lua.newState` and `Lua.newStateAux` respectively.
 
+Because Zig optimizes for readability, some abbreviations are expanded to make names more clear, like renaming `pcall` to `protectedCall`.
+
 ### Lua Initialization
 
 In the C API, there are two functions provided to initialize the main Lua state: `lua_newstate` and `luaL_newstate`. The former requires passing an allocator function to be used by Lua for all memory allocations, while the latter uses the default libc allocator.
 
 Ziglua provides a third option with the `Lua.init(Allocator)` function, which accepts a traditional Zig allocator. All three functions are available depending on your needs, but most likely you will want to use the `init` function. If you have special requirements for allocation, then `Lua.newState` would be useful. `Lua.newStateAux` is available, but Zig cannot track allocations made by libc so this is less safe.
 
+## Safety
+
+The ziglua API aims to be safer than the traditional C API. That said, the way that Lua operates means that Zig cannot protect you from all errors due to the use of `longjmp` in C.
+
+Here is a list of the types of features ziglua uses to ensure greater safety:
+
+### Errors
+
+Many functions now return Zig errors rather than an integer code. The compiler will then ensure that the error is handled, or ignored. There are specific error types like `ziglua.Error.Runtime` for errors that have a specific meaning.
+
+On the other hand, many functions either succeed or return an error. Rather than returning a boolean success code, these functions return the generic `ziglua.Error.Fail` to indicate failure. The type of failure can be determined in the context of the function called.
+
+### Booleans
+
+Functions that return or accept C boolean integers now use the Zig `bool` type to increase type safety.
+
+### Slices
+
+In cases where C functions use separate pointers and ints to keep track of strings, ziglua uses a Zig slice to keep the data together.
+
+The slices are typed to indicate the contents (zero-terminated, raw bytes, etc)
+
+### Enums
+
+ziglua uses enums instead of enumerated integer codes to ensure all cases are handled, and to prevent passing an invalid integer type to a function.
+
+### Optionals
+
+Any value that can be `NULL` in the C API is marked as optional in Zig to enforce null checking.
+
 ## API Differences
 
 The major differences between the C and Zig Lua APIs are described below. This includes identifier renaming and omissions.
+
+### Continuations
+
+All functions and types that deal with continuations have been renamed. For example, `KFunction` is now `LuaContFn`, and `lua_yieldk` is now `yieldCont`.
+
+In general, just replace the "k" with the word "cont". This is just to make the API more clear and Zig-like.
 
 ### `lua_tostring` and `lua_tolstring`
 
@@ -51,6 +89,10 @@ Both of these functions accept an `isnum` return parameter to indicate if the co
 ### `lua_pushliteral`
 
 This is just a macro for `lua_pushstring`, so just use `Lua.pushString()` instead.
+
+### `pcall`
+
+Both `lua_pcall` and `lua_pcallk` are expanded to `protectedCall` and `protectedCallCont` for readability.
 
 ## Build Documentation
 
@@ -139,3 +181,38 @@ pub fn main() anyerror!void {
 This shows a basic interpreter that reads a string from stdin. That string is parsed and compiled as Lua code and then executed.
 
 Notice that the functions `lua.loadString()` and `lua.protectedCall()` return errors that must be handled, here printing the error message that was placed on the stack.
+
+### Calling a Zig function
+
+Registering a Zig function to be called from Lua is simple
+
+```zig
+fn adder(lua: *Lua) i32 {
+    const a = lua.toInteger(1);
+    const b = lua.toInteger(2);
+    lua.pushInteger(a + b);
+    return 1;
+}
+
+pub fn main() anyerror!void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
+    var lua = try Lua.init(allocator);
+    defer lua.deinit();
+
+    lua.pushCFunction(ziglua.wrap(adder));
+    lua.pushInteger(10);
+    lua.pushInteger(32);
+
+    // assert that this function call will not error
+    lua.protectedCall(2, 1, 0) catch unreachable;
+
+    std.debug.print("the result: {}\n", .{lua.toInteger(1)});
+}
+```
+
+Notice the use of `ziglua.wrap`. This is because the function `fn adder(*Lua) i32` is a `ziglua.ZigFn`, when the `lua.register` call expects a `ziglua.CFn` type.
+
+The `ziglua.wrap` function generates a new function at compile time that wraps the Zig function in a function compatible with the Lua C API. This could be done automatically by the register function, but that would require the parameter to be comptime-known. The call to `ziglua.wrap` is slightly more verbose, but has the benefit of being more flexible.
