@@ -1487,6 +1487,16 @@ pub const Lua = struct {
 pub const Buffer = struct {
     b: LuaBuffer = undefined,
 
+    /// Initialize a Lua string buffer
+    pub fn init(buf: *Buffer, lua: Lua) void {
+        c.luaL_buffinit(lua.state, &buf.b);
+    }
+
+    /// Initialize a Lua string buffer with an initial size
+    pub fn initSize(buf: *Buffer, lua: Lua, size: usize) []u8 {
+        return c.luaL_buffinitsize(lua.state, &buf.b, size)[0..size];
+    }
+
     /// Internal Lua type for a string buffer
     pub const LuaBuffer = c.luaL_Buffer;
 
@@ -1494,7 +1504,13 @@ pub const Buffer = struct {
 
     /// Adds `byte` to the buffer
     pub fn addChar(buf: *Buffer, byte: u8) void {
-        c.luaL_addchar(&buf.b, byte);
+        // the postfix inc/dec expression is not yet supported by translate-c
+        // c.luaL_addchar(&buf.b, byte);
+        // TODO: revisit this once Zig bug is fixed (perhaps fix bug?)
+        var lua_buf = &buf.b;
+        if (lua_buf.n >= lua_buf.size) _ = buf.prepSize(1);
+        lua_buf.b[lua_buf.n] = byte;
+        lua_buf.n += 1;
     }
 
     /// Adds a copy of the string `str` to the buffer
@@ -1502,18 +1518,20 @@ pub const Buffer = struct {
         c.luaL_addgsub(&buf.b, str, pat, rep);
     }
 
-    /// Adds the string pointed to by `str` with length `length` to the buffer
-    /// TODO: just use a Zig slice?
-    pub fn addLString(buf: *Buffer, str: [*]const u8, length: usize) void {
-        c.luaL_addlstring(&buf.b, str, length);
+    /// Adds the string to the buffer
+    pub fn addLString(buf: *Buffer, str: []const u8) void {
+        c.luaL_addlstring(&buf.b, @ptrCast([*c]const u8, str), str.len);
     }
 
     /// Adds to the buffer a string of `length` previously copied to the buffer area
     pub fn addSize(buf: *Buffer, length: usize) void {
-        c.luaL_addsize(&buf.b, length);
+        // another function translate-c couldn't handle
+        // c.luaL_addsize(&buf.b, length);
+        var lua_buf = &buf.b;
+        lua_buf.n += length;
     }
 
-    /// Adds the zero-terminated string ponted to by `str` to the buffer
+    /// Adds the zero-terminated string pointed to by `str` to the buffer
     pub fn addString(buf: *Buffer, str: [:0]const u8) void {
         c.luaL_addstring(&buf.b, str);
     }
@@ -1521,30 +1539,14 @@ pub const Buffer = struct {
     /// Adds the value on the top of the stack to the buffer
     /// Pops the value
     pub fn addValue(buf: *Buffer) void {
-        c.luaL_addvalue(&buf.b);
+        c.luaL_addvalue(&buf.b) ;
     }
 
-    /// Returns the address of the current content of the buffer
-    /// Any changes to the buffer may invalidate this address
-    /// TODO: return a slice or a pointer?
-    pub fn addr(buf: *Buffer) [*]u8 {
-        return c.luaL_buffaddr(&buf.b);
-    }
-
-    /// Initialize a Lua string buffer
-    /// All data is stored in the Lua vm, so no need to deinit, will be garbage collected
-    pub fn init(lua: Lua) Buffer {
-        var buf: Buffer = undefined;
-        c.luaL_buffinit(lua.state, &buf.b);
-        return buf;
-    }
-
-    /// Initialize a Lua string buffer with an initial size
-    /// Must pre-declare a buffer variable to be returned through the pointer
-    /// All data is stored in the Lua vm, so no need to deinit, will be garbage collected
-    pub fn initSize(lua: Lua, buf: *Buffer, size: usize) []u8 {
-        c.luaL_buffinit(lua.state, &buf.b);
-        return buf.prepSize(size);
+    /// Returns a slice of the current content of the buffer
+    /// Any changes to the buffer may invalidate this slice
+    pub fn addr(buf: *Buffer) []u8 {
+        const length = buf.b.n;
+        return c.luaL_buffaddr(&buf.b)[0..length];
     }
 
     /// Returns the length of the buffer
@@ -1553,16 +1555,24 @@ pub const Buffer = struct {
     }
 
     /// Removes `num` bytes from the buffer
-    pub fn sub(buf: *Buffer, num: i32) void {
-        c.luaL_buffsub(&buf.b, num);
+    /// TODO: perhaps error check?
+    pub fn sub(buf: *Buffer, num: usize) void {
+        // Another bug with translate-c
+        // c.luaL_buffsub(&buf.b, num);
+        var lua_buf = &buf.b;
+        lua_buf.n -= num;
+    }
+
+    /// Equivalent to prepSize with a buffer size of Buffer.buffer_size
+    pub fn prep(buf: *Buffer) []u8 {
+        return buf.prepSize(buffer_size)[0..buffer_size];
     }
 
     /// Returns an address to a space of `size` where you can copy a string
     /// to be added to the buffer
     /// you must call `Buffer.addSize` to actually add it to the buffer
-    pub fn prepSize(buf: *Buffer, size: ?usize) []u8 {
-        const sz = if (size) |s| s else buffer_size;
-        return c.luaL_prepbuffsize(&buf.b, size)[0..sz];
+    pub fn prepSize(buf: *Buffer, size: usize) []u8 {
+        return c.luaL_prepbuffsize(&buf.b, size)[0..size];
     }
 
     /// Finishes the use of the buffer leaving the final string on the top of the stack
@@ -1910,4 +1920,60 @@ test "version" {
     defer lua.deinit();
 
     try expectEqual(@as(f64, 504), lua.version());
+}
+
+test "string buffers" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    var buffer: Buffer = undefined;
+    buffer.init(lua);
+    try expectEqual(@as(usize, 0), buffer.len());
+
+    buffer.addChar('z');
+    buffer.addChar('i');
+    buffer.addChar('g');
+    buffer.addString("lua");
+    try expectEqual(@as(usize, 6), buffer.len());
+
+    buffer.sub(3);
+    try expectEqual(@as(usize, 3), buffer.len());
+
+    var str = buffer.prepSize(3);
+    str[0] = 'l';
+    str[1] = 'u';
+    str[2] = 'a';
+    try expectEqual(@as(usize, 3), buffer.len());
+    buffer.addSize(3);
+    try expectEqual(@as(usize, 6), buffer.len());
+    try testing.expectEqualStrings("ziglua", buffer.addr());
+
+    buffer.addLString(" api ");
+    try testing.expectEqualStrings("ziglua api ", buffer.addr());
+
+    lua.pushNumber(5.4);
+    buffer.addValue();
+    try expectEqual(@as(usize, 14), buffer.len());
+    try testing.expectEqualStrings("ziglua api 5.4", buffer.addr());
+
+    buffer.sub(4);
+    try testing.expectEqualStrings("ziglua api", buffer.addr());
+
+    buffer.addGSub(" some string here", "string", "text");
+    try testing.expectEqualStrings("ziglua api some text here", buffer.addr());
+
+    buffer.pushResult();
+    try testing.expectEqualStrings("ziglua api some text here", lua.toString(-1).?);
+
+    // now test a small buffer
+    buffer = undefined;
+    var b = buffer.initSize(lua, 3);
+    b[0] = 'a';
+    b[1] = 'b';
+    b[2] = 'c';
+    buffer.addSize(3);
+    b = buffer.prep();
+    std.mem.copy(u8, b, "defghijklmnopqrstuvwxyz");
+    buffer.pushResultSize(23);
+    try testing.expectEqualStrings("abcdefghijklmnopqrstuvwxyz", lua.toString(-1).?);
 }
