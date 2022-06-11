@@ -1539,7 +1539,7 @@ pub const Buffer = struct {
     /// Adds the value on the top of the stack to the buffer
     /// Pops the value
     pub fn addValue(buf: *Buffer) void {
-        c.luaL_addvalue(&buf.b) ;
+        c.luaL_addvalue(&buf.b);
     }
 
     /// Returns a slice of the current content of the buffer
