@@ -187,6 +187,11 @@ Notice that the functions `lua.loadString()` and `lua.protectedCall()` return er
 Registering a Zig function to be called from Lua is simple
 
 ```zig
+const std = @import("std");
+const ziglua = @import("ziglua");
+
+const Lua = ziglua.Lua;
+
 fn adder(lua: *Lua) i32 {
     const a = lua.toInteger(1);
     const b = lua.toInteger(2);
