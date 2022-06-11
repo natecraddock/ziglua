@@ -1353,7 +1353,7 @@ pub const Lua = struct {
     /// If package.loaded[`mod_name`] is not true, calls the function `open_fn` with `mod_name`
     /// as an argument and sets the call result to package.loaded[`mod_name`]
     pub fn requireF(lua: *Lua, mod_name: [:0]const u8, open_fn: CFunction, global: bool) void {
-        c.luaL_requiref(lua.state, mod_name, open_fn, global);
+        c.luaL_requiref(lua.state, mod_name, open_fn, @boolToInt(global));
     }
 
     /// Registers all functions in the array `list` into the table on the top of the stack
@@ -1415,17 +1415,19 @@ pub const Lua = struct {
     // TODO: opening libs can run arbitrary Lua code and can throw any error
 
     /// Opens the specified standard library functions
+    /// Behaves like openLibs, but allows specifying which libraries
+    /// to expose to the global table rather than all of them
     pub fn open(lua: *Lua, libs: Libs) void {
-        if (libs.base) lua.openBase();
-        if (libs.coroutine) lua.openCoroutine();
-        if (libs.package) lua.openPackage();
-        if (libs.string) lua.openString();
-        if (libs.utf8) lua.openUtf8();
-        if (libs.table) lua.openTable();
-        if (libs.math) lua.openMath();
-        if (libs.io) lua.openIO();
-        if (libs.os) lua.openOS();
-        if (libs.debug) lua.openDebug();
+        if (libs.base) lua.requireF(c.LUA_GNAME, c.luaopen_base, true);
+        if (libs.coroutine) lua.requireF(c.LUA_COLIBNAME, c.luaopen_coroutine, true);
+        if (libs.package) lua.requireF(c.LUA_LOADLIBNAME, c.luaopen_package, true);
+        if (libs.string) lua.requireF(c.LUA_STRLIBNAME, c.luaopen_string, true);
+        if (libs.utf8) lua.requireF(c.LUA_UTF8LIBNAME, c.luaopen_utf8, true);
+        if (libs.table) lua.requireF(c.LUA_TABLIBNAME, c.luaopen_table, true);
+        if (libs.math) lua.requireF(c.LUA_MATHLIBNAME, c.luaopen_math, true);
+        if (libs.io) lua.requireF(c.LUA_IOLIBNAME, c.luaopen_io, true);
+        if (libs.os) lua.requireF(c.LUA_OSLIBNAME, c.luaopen_os, true);
+        if (libs.debug) lua.requireF(c.LUA_DBLIBNAME, c.luaopen_debug, true);
     }
 
     /// Open all standard libraries
@@ -1680,7 +1682,18 @@ test "standard library loading" {
     {
         var lua = try Lua.init(testing.allocator);
         defer lua.deinit();
-        lua.open(.{ .base = true, .utf8 = true, .string = true });
+        lua.open(.{
+            .base = true,
+            .coroutine = true,
+            .package = true,
+            .string = true,
+            .utf8 = true,
+            .table = true,
+            .math = true,
+            .io = true,
+            .os = true,
+            .debug = true,
+        });
     }
 
     // open all standard libraries
@@ -1691,6 +1704,8 @@ test "standard library loading" {
     }
 
     // open all standard libraries with individual functions
+    // NOTE: these functions are only useful if you want to load the standard
+    // packages into a non-standard table
     {
         var lua = try Lua.init(testing.allocator);
         defer lua.deinit();
@@ -1994,4 +2009,29 @@ test "string buffers" {
     std.mem.copy(u8, b, "defghijklmnopqrstuvwxyz");
     buffer.pushResultSize(23);
     try testing.expectEqualStrings("abcdefghijklmnopqrstuvwxyz", lua.toString(-1).?);
+}
+
+test "global table" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    // open some libs so we can inspect them
+    lua.open(.{ .math = true, .base = true });
+    lua.openMath();
+    lua.pushGlobalTable();
+
+    // find the print function
+    _ = lua.pushString("print");
+    try expectEqual(LuaType.function, lua.getTable(-2));
+
+    // index the global table in the global table
+    try expectEqual(LuaType.table, lua.getField(-2, "_G"));
+
+    // find pi in the math table
+    try expectEqual(LuaType.table, lua.getField(-1, "math"));
+    try expectEqual(LuaType.number, lua.getField(-1, "pi"));
+
+    // but the string table should be nil
+    lua.pop(2);
+    try expectEqual(LuaType.nil, lua.getField(-1, "string"));
 }
