@@ -645,8 +645,7 @@ pub const Lua = struct {
     }
 
     /// Push a formatted string onto the stack and return a pointer to the string
-    /// TODO: check if this works...
-    pub fn pushFString(lua: *Lua, fmt: []const u8, args: anytype) [*]const u8 {
+    pub fn pushFString(lua: *Lua, fmt: [:0]const u8, args: anytype) [*]const u8 {
         const ptr = @call(.{}, c.lua_pushfstring, .{ lua.state, fmt } ++ args);
         return @ptrCast([*]const u8, ptr);
     }
@@ -1743,6 +1742,7 @@ fn wrapZigWriterFn(comptime f: ZigWriterFn) CWriterFn {
 const testing = std.testing;
 const expect = testing.expect;
 const expectEqual = testing.expectEqual;
+const expectEqualStrings = testing.expectEqualStrings;
 const expectError = testing.expectError;
 
 // until issue #1717 we need to use the struct workaround
@@ -1920,11 +1920,17 @@ test "arithmetic (lua_arith)" {
 }
 
 test "type of" {
-    // TODO: add more tests here after figuring out more type stuff
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
     var value: i32 = 0;
+
+    lua.pushNil();
+    try expect(lua.isNil(1));
+    try expect(lua.isNoneOrNil(1));
+    try expect(lua.isNoneOrNil(2));
+    try expect(lua.isNone(2));
+    lua.pop(1);
 
     lua.pushBoolean(true);
     lua.pushGlobalTable();
@@ -1935,7 +1941,12 @@ test "type of" {
     _ = lua.pushThread();
     _ = lua.pushString("all your codebase are belong to us");
     try expectEqual(@as(?[*]const u8, null), lua.pushString(null));
+    lua.pushCFunction(wrap(add));
+    _ = lua.pushLString("hello world");
+    _ = lua.pushFString("%s %s %d", .{ "hello", "world", @as(i32, 10) });
+    lua.pushValue(1);
 
+    // test both typeof and is functions
     try expectEqual(LuaType.boolean, lua.typeOf(1));
     try expectEqual(LuaType.table, lua.typeOf(2));
     try expectEqual(LuaType.number, lua.typeOf(3));
@@ -1945,22 +1956,43 @@ test "type of" {
     try expectEqual(LuaType.thread, lua.typeOf(7));
     try expectEqual(LuaType.string, lua.typeOf(8));
     try expectEqual(LuaType.nil, lua.typeOf(9));
+    try expectEqual(LuaType.function, lua.typeOf(10));
+    try expectEqual(LuaType.string, lua.typeOf(11));
+    try expectEqual(LuaType.string, lua.typeOf(12));
+    try expectEqual(LuaType.boolean, lua.typeOf(13));
+
+    try expect(lua.isBoolean(1));
+    try expect(lua.isTable(2));
+    try expect(lua.isNumber(3));
+    try expect(lua.isLightUserdata(4));
+    try expect(lua.isNil(5));
+    try expect(lua.isNumber(6));
+    try expect(lua.isThread(7));
+    try expect(lua.isString(8));
+    try expect(lua.isNil(9));
+    try expect(lua.isCFunction(10));
+    try expect(lua.isFunction(10));
+    try expect(lua.isString(11));
+    try expect(lua.isString(12));
+    try expect(lua.isBoolean(13));
+
+    try expectEqualStrings("hello world 10", lua.toString(12).?);
 }
 
 test "typenames" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    try testing.expectEqualStrings("no value", lua.typeName(.none));
-    try testing.expectEqualStrings("nil", lua.typeName(.nil));
-    try testing.expectEqualStrings("boolean", lua.typeName(.boolean));
-    try testing.expectEqualStrings("userdata", lua.typeName(.light_userdata));
-    try testing.expectEqualStrings("number", lua.typeName(.number));
-    try testing.expectEqualStrings("string", lua.typeName(.string));
-    try testing.expectEqualStrings("table", lua.typeName(.table));
-    try testing.expectEqualStrings("function", lua.typeName(.function));
-    try testing.expectEqualStrings("userdata", lua.typeName(.userdata));
-    try testing.expectEqualStrings("thread", lua.typeName(.thread));
+    try expectEqualStrings("no value", lua.typeName(.none));
+    try expectEqualStrings("nil", lua.typeName(.nil));
+    try expectEqualStrings("boolean", lua.typeName(.boolean));
+    try expectEqualStrings("userdata", lua.typeName(.light_userdata));
+    try expectEqualStrings("number", lua.typeName(.number));
+    try expectEqualStrings("string", lua.typeName(.string));
+    try expectEqualStrings("table", lua.typeName(.table));
+    try expectEqualStrings("function", lua.typeName(.function));
+    try expectEqualStrings("userdata", lua.typeName(.userdata));
+    try expectEqualStrings("thread", lua.typeName(.thread));
 }
 
 test "executing string contents" {
@@ -2101,24 +2133,24 @@ test "string buffers" {
     try expectEqual(@as(usize, 3), buffer.len());
     buffer.addSize(3);
     try expectEqual(@as(usize, 6), buffer.len());
-    try testing.expectEqualStrings("ziglua", buffer.addr());
+    try expectEqualStrings("ziglua", buffer.addr());
 
     buffer.addLString(" api ");
-    try testing.expectEqualStrings("ziglua api ", buffer.addr());
+    try expectEqualStrings("ziglua api ", buffer.addr());
 
     lua.pushNumber(5.4);
     buffer.addValue();
     try expectEqual(@as(usize, 14), buffer.len());
-    try testing.expectEqualStrings("ziglua api 5.4", buffer.addr());
+    try expectEqualStrings("ziglua api 5.4", buffer.addr());
 
     buffer.sub(4);
-    try testing.expectEqualStrings("ziglua api", buffer.addr());
+    try expectEqualStrings("ziglua api", buffer.addr());
 
     buffer.addGSub(" some string here", "string", "text");
-    try testing.expectEqualStrings("ziglua api some text here", buffer.addr());
+    try expectEqualStrings("ziglua api some text here", buffer.addr());
 
     buffer.pushResult();
-    try testing.expectEqualStrings("ziglua api some text here", lua.toString(-1).?);
+    try expectEqualStrings("ziglua api some text here", lua.toString(-1).?);
 
     // now test a small buffer
     buffer = undefined;
@@ -2130,7 +2162,7 @@ test "string buffers" {
     b = buffer.prep();
     std.mem.copy(u8, b, "defghijklmnopqrstuvwxyz");
     buffer.pushResultSize(23);
-    try testing.expectEqualStrings("abcdefghijklmnopqrstuvwxyz", lua.toString(-1).?);
+    try expectEqualStrings("abcdefghijklmnopqrstuvwxyz", lua.toString(-1).?);
 }
 
 test "global table" {
@@ -2212,16 +2244,6 @@ test "refs" {
     _ = Lua.getI;
     _ = Lua.getIUserValue;
     _ = Lua.getMetatable;
-    _ = Lua.isBoolean;
-    _ = Lua.isCFunction;
-    _ = Lua.isFunction;
-    _ = Lua.isLightUserdata;
-    _ = Lua.isNone;
-    _ = Lua.isNoneOrNil;
-    _ = Lua.isNumber;
-    _ = Lua.isString;
-    _ = Lua.isTable;
-    _ = Lua.isThread;
     _ = Lua.isUserdata;
     _ = Lua.isYieldable;
     _ = Lua.len;
@@ -2230,10 +2252,6 @@ test "refs" {
     _ = Lua.newUserdataUV;
     _ = Lua.next;
     _ = Lua.numberToInteger;
-    _ = Lua.pushCFunction;
-    _ = Lua.pushFString;
-    _ = Lua.pushLString;
-    _ = Lua.pushValue;
     _ = Lua.rawEqual;
     _ = Lua.rawGet;
     _ = Lua.rawGetP;
