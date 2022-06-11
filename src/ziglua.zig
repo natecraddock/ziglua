@@ -400,8 +400,10 @@ pub const Lua = struct {
 
     /// Returns the memory allocation function of a given state
     /// If `data` is not null, it is set to the opaque pointer given when the allocator function was set
-    pub fn getAllocF(lua: *Lua, data: ?*?*anyopaque) AllocFunction {
-        return c.lua_getallocf(lua.state, data);
+    pub fn getAllocF(lua: *Lua, data: ?**anyopaque) AllocFunction {
+        // Assert cannot be null because it is impossible (and not useful) to pass null
+        // to the functions that set the allocator (setallocf and newstate)
+        return c.lua_getallocf(lua.state, @ptrCast([*c]?*anyopaque, data)).?;
     }
 
     /// Returns a pointer to a raw memory area associated with the given Lua state
@@ -1655,6 +1657,22 @@ test "initialization" {
     // use the auxiliary library (uses libc realloc and cannot be checked for leaks!)
     lua = try Lua.newStateAux();
     lua.close();
+}
+
+test "alloc functions" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    // get default allocator
+    var data: *anyopaque = undefined;
+    try expectEqual(Lua.alloc, lua.getAllocF(&data));
+
+    // set a bad allocator
+    lua.setAllocF(failing_alloc, null);
+    try expectEqual(failing_alloc, lua.getAllocF(&data));
+
+    // reset the good one
+    lua.setAllocF(Lua.alloc, lua.allocator);
 }
 
 test "standard library loading" {
