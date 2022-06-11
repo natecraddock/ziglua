@@ -23,7 +23,7 @@ const Allocator = std.mem.Allocator;
 /// `osize` is the original size or a code, and `nsize` is the new size
 ///
 /// See https://www.lua.org/manual/5.4/manual.html#lua_Alloc for more details
-pub const AllocFunction = fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque;
+pub const AllocFn = fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque;
 
 /// Operations supported by `Lua.arith()`
 /// TODO: use longer names
@@ -47,7 +47,7 @@ pub const ArithOperator = enum(u4) {
 /// Type for C functions
 /// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
 /// TODO: we really are passing Zig functions, maybe call `Function` and use `func` for params?
-pub const CFunction = fn (state: ?*LuaState) callconv(.C) c_int;
+pub const CFn = fn (state: ?*LuaState) callconv(.C) c_int;
 
 /// Operations supported by `Lua.compare()`
 pub const CompareOperator = enum(u2) {
@@ -92,7 +92,7 @@ pub const GCAction = enum(u5) {
 };
 
 /// Type for debugging hook functions
-pub const CHookFunction = fn (state: ?*LuaState, ar: ?*DebugInfo) callconv(.C) void;
+pub const CHookFn = fn (state: ?*LuaState, ar: ?*DebugInfo) callconv(.C) void;
 
 /// Specifies on which events the hook will be called
 pub const HookMask = packed struct {
@@ -136,7 +136,7 @@ pub const Integer = c.lua_Integer;
 pub const KContext = isize;
 
 /// Type for continuation functions
-pub const CKFunction = fn (state: ?*LuaState, status: c_int, ctx: KContext) callconv(.C) c_int;
+pub const CContFn = fn (state: ?*LuaState, status: c_int, ctx: KContext) callconv(.C) c_int;
 
 /// Bitflag for the Lua standard libraries
 pub const Libs = packed struct {
@@ -195,7 +195,7 @@ pub const mult_return = c.LUA_MULTRET;
 pub const Number = c.lua_Number;
 
 /// The type of the reader function used by `Lua.load()`
-pub const CReader = fn (state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.C) [*c]const u8;
+pub const CReaderFn = fn (state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.C) [*c]const u8;
 
 /// Reference constants
 pub const ref_nil = c.LUA_REFNIL;
@@ -235,10 +235,10 @@ pub const Stream = c.luaL_Stream;
 pub const Unsigned = c.lua_Unsigned;
 
 /// The type of warning functions used by Lua to emit warnings
-pub const CWarnFunction = fn (data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.C) void;
+pub const CWarnFn = fn (data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.C) void;
 
 /// The type of the writer function used by `Lua.dump()`
-pub const CWriter = fn (state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int;
+pub const CWriterFn = fn (state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int;
 
 /// A Zig wrapper around the Lua C API
 /// Represents a Lua state or thread and contains the entire state of the Lua interpreter
@@ -319,7 +319,7 @@ pub const Lua = struct {
     }
 
     /// Sets a new panic function and returns the old one
-    pub fn atPanic(lua: *Lua, panic_fn: CFunction) ?CFunction {
+    pub fn atPanic(lua: *Lua, panic_fn: CFn) ?CFn {
         return c.lua_atpanic(lua.state, panic_fn);
     }
 
@@ -329,7 +329,7 @@ pub const Lua = struct {
     }
 
     /// Like `call`, but allows the called function to yield
-    pub fn callK(lua: *Lua, num_args: i32, num_results: i32, ctx: KContext, k: ?CKFunction) void {
+    pub fn callK(lua: *Lua, num_args: i32, num_results: i32, ctx: KContext, k: ?CContFn) void {
         c.lua_callk(lua.state, num_args, num_results, ctx, k);
     }
 
@@ -379,7 +379,7 @@ pub const Lua = struct {
     }
 
     /// Dumps a function as a binary chunk
-    pub fn dump(lua: *Lua, writer: CWriter, data: *anyopaque, strip: bool) i32 {
+    pub fn dump(lua: *Lua, writer: CWriterFn, data: *anyopaque, strip: bool) i32 {
         return c.lua_dump(lua.state, writer, data, @boolToInt(strip));
     }
 
@@ -399,7 +399,7 @@ pub const Lua = struct {
 
     /// Returns the memory allocation function of a given state
     /// If `data` is not null, it is set to the opaque pointer given when the allocator function was set
-    pub fn getAllocF(lua: *Lua, data: ?**anyopaque) AllocFunction {
+    pub fn getAllocF(lua: *Lua, data: ?**anyopaque) AllocFn {
         // Assert cannot be null because it is impossible (and not useful) to pass null
         // to the functions that set the allocator (setallocf and newstate)
         return c.lua_getallocf(lua.state, @ptrCast([*c]?*anyopaque, data)).?;
@@ -464,7 +464,7 @@ pub const Lua = struct {
         return c.lua_isboolean(lua.state, index);
     }
 
-    /// Returns true if the value at the given `index` is a CFunction
+    /// Returns true if the value at the given `index` is a CFn
     pub fn isCFunction(lua: *Lua, index: i32) bool {
         return c.lua_iscfunction(lua.state, index) != 0;
     }
@@ -536,7 +536,7 @@ pub const Lua = struct {
     }
 
     /// Loads a Lua chunk without running it
-    pub fn load(lua: *Lua, reader: CReader, data: *anyopaque, chunk_name: [:0]const u8, mode: ?Mode) !void {
+    pub fn load(lua: *Lua, reader: CReaderFn, data: *anyopaque, chunk_name: [:0]const u8, mode: ?Mode) !void {
         const mode_str = blk: {
             if (mode == null) break :blk "bt";
 
@@ -557,7 +557,7 @@ pub const Lua = struct {
     }
 
     /// Creates a new independent state and returns its main thread
-    pub fn newState(alloc_fn: AllocFunction, data: ?*anyopaque) !Lua {
+    pub fn newState(alloc_fn: AllocFn, data: ?*anyopaque) !Lua {
         const state = c.lua_newstate(alloc_fn, data) orelse return Error.Memory;
         return Lua{ .state = state };
     }
@@ -607,7 +607,7 @@ pub const Lua = struct {
     }
 
     /// Behaves exactly like `Lua.protectedCall()` except that it allows the called function to yield
-    pub fn protectedCallK(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: KContext, k: ?CKFunction) !void {
+    pub fn protectedCallK(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: KContext, k: ?CContFn) !void {
         const ret = c.lua_pcallk(lua.state, num_args, num_results, msg_handler, ctx, k);
         switch (ret) {
             Status.ok => return,
@@ -631,7 +631,7 @@ pub const Lua = struct {
     /// Pushes a new C Closure onto the stack
     /// `n` tells how many upvalues this function will have
     /// TODO: add a Zig interface to pass Zig functions wrapped
-    pub fn pushCClosure(lua: *Lua, c_fn: CFunction, n: i32) void {
+    pub fn pushCClosure(lua: *Lua, c_fn: CFn, n: i32) void {
         _ = lua;
         _ = c_fn;
         _ = n;
@@ -639,7 +639,7 @@ pub const Lua = struct {
 
     /// Pushes a C function onto the stack.
     /// Equivalent to pushCClosure with no upvalues
-    pub fn pushCFunction(lua: *Lua, c_fn: CFunction) void {
+    pub fn pushCFunction(lua: *Lua, c_fn: CFn) void {
         lua.pushCClosure(c_fn, 0);
     }
 
@@ -762,7 +762,7 @@ pub const Lua = struct {
     }
 
     /// Sets the C function f as the new value of global name
-    pub fn register(lua: *Lua, name: [:0]const u8, c_fn: CFunction) void {
+    pub fn register(lua: *Lua, name: [:0]const u8, c_fn: CFn) void {
         c.lua_register(lua.state, name, c_fn);
     }
 
@@ -804,7 +804,7 @@ pub const Lua = struct {
     }
 
     /// Changes the allocator function of a given state to `alloc_fn` with userdata `data`
-    pub fn setAllocF(lua: *Lua, alloc_fn: AllocFunction, data: ?*anyopaque) void {
+    pub fn setAllocF(lua: *Lua, alloc_fn: AllocFn, data: ?*anyopaque) void {
         c.lua_setallocf(lua.state, alloc_fn, data);
     }
 
@@ -854,7 +854,7 @@ pub const Lua = struct {
 
     /// Sets the warning function to be used by Lua to emit warnings
     /// The `data` parameter sets the value `data` passed to the warning function
-    pub fn setWarnF(lua: *Lua, warn_fn: CWarnFunction, data: ?*anyopaque) void {
+    pub fn setWarnF(lua: *Lua, warn_fn: CWarnFn, data: ?*anyopaque) void {
         c.lua_setwarnf(lua.state, warn_fn, data);
     }
 
@@ -886,9 +886,9 @@ pub const Lua = struct {
         return c.lua_toboolean(lua.state, index) != 0;
     }
 
-    /// Converts a value at the given `index` into a CFunction
-    /// Returns null if the value is not a CFunction
-    pub fn toCFunction(lua: *Lua, index: i32) ?CFunction {
+    /// Converts a value at the given `index` into a CFn
+    /// Returns null if the value is not a CFn
+    pub fn toCFunction(lua: *Lua, index: i32) ?CFn {
         return c.lua_tocfunction(lua.state, index);
     }
 
@@ -1003,7 +1003,7 @@ pub const Lua = struct {
     }
 
     /// Yields this coroutine (thread)
-    pub fn yieldK(lua: *Lua, num_results: i32, ctx: KContext, k: CKFunction) i32 {
+    pub fn yieldK(lua: *Lua, num_results: i32, ctx: KContext, k: CContFn) i32 {
         return c.lua_yieldk(lua.state, num_results, ctx, k);
     }
 
@@ -1013,7 +1013,7 @@ pub const Lua = struct {
     // Each is kept similar to the original C API function while also making it easy to use from Zig
 
     /// Returns the current hook function
-    pub fn getHook(lua: *Lua) ?CHookFunction {
+    pub fn getHook(lua: *Lua) ?CHookFn {
         return c.lua_gethook(lua.state);
     }
 
@@ -1055,7 +1055,7 @@ pub const Lua = struct {
     }
 
     /// Sets the debugging hook function
-    pub fn setHook(lua: *Lua, hook_fn: CHookFunction, mask: HookMask, count: i32) void {
+    pub fn setHook(lua: *Lua, hook_fn: CHookFn, mask: HookMask, count: i32) void {
         const hook_mask = HookMask.toInt(mask);
         c.lua_sethook(lua.state, hook_fn, hook_mask, count);
     }
@@ -1376,7 +1376,7 @@ pub const Lua = struct {
 
     /// If package.loaded[`mod_name`] is not true, calls the function `open_fn` with `mod_name`
     /// as an argument and sets the call result to package.loaded[`mod_name`]
-    pub fn requireF(lua: *Lua, mod_name: [:0]const u8, open_fn: CFunction, global: bool) void {
+    pub fn requireF(lua: *Lua, mod_name: [:0]const u8, open_fn: CFn, global: bool) void {
         c.luaL_requiref(lua.state, mod_name, open_fn, @boolToInt(global));
     }
 
@@ -1617,22 +1617,22 @@ pub const Buffer = struct {
 
 // Helper functions to make the ziglua API easier to use
 
-pub const ZigFunction = fn (lua: *Lua) i32;
-pub const ZigHookFunction = fn (lua: Lua, ar: *DebugInfo) void;
-pub const ZigKFunction = fn (lua: Lua, status: bool, ctx: KContext) c_int;
-pub const ZigReader = fn (state: *LuaState, data: *anyopaque) ?[]const u8;
-pub const ZigWarnFunction = fn (data: ?*anyopaque, msg: []const u8, to_cont: bool) void;
-pub const ZigWriter = fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool;
+pub const ZigFn = fn (lua: *Lua) i32;
+pub const ZigHookFn = fn (lua: Lua, ar: *DebugInfo) void;
+pub const ZigContFn = fn (lua: Lua, status: bool, ctx: KContext) c_int;
+pub const ZigReaderFn = fn (state: *LuaState, data: *anyopaque) ?[]const u8;
+pub const ZigWarnFn = fn (data: ?*anyopaque, msg: []const u8, to_cont: bool) void;
+pub const ZigWriterFn = fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool;
 
 fn TypeOfWrap(comptime T: type) type {
     return switch (T) {
         LuaState => Lua,
-        ZigFunction => CFunction,
-        ZigHookFunction => CHookFunction,
-        ZigKFunction => CKFunction,
-        ZigReader => CReader,
-        ZigWarnFunction => CWarnFunction,
-        ZigWriter => CWriter,
+        ZigFn => CFn,
+        ZigHookFn => CHookFn,
+        ZigContFn => CContFn,
+        ZigReaderFn => CReaderFn,
+        ZigWarnFn => CWarnFn,
+        ZigWriterFn => CWriterFn,
         else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
     };
 }
@@ -1645,18 +1645,18 @@ pub fn wrap(comptime value: anytype) TypeOfWrap(@TypeOf(value)) {
     return switch (T) {
         // NOTE: should most likely be ?*LuaState and value.?
         LuaState => Lua{ .state = value },
-        ZigFunction => wrapZigFunction(value),
-        ZigHookFunction => wrapZigHookFunction(value),
-        ZigKFunction => wrapZigKFunction(value),
-        ZigReader => wrapZigReader(value),
-        ZigWarnFunction => wrapZigWarnFunction(value),
-        ZigWriter => wrapZigWriter(value),
+        ZigFn => wrapZigFn(value),
+        ZigHookFn => wrapZigHookFn(value),
+        ZigContFn => wrapZigContFn(value),
+        ZigReaderFn => wrapZigReaderFn(value),
+        ZigWarnFn => wrapZigWarnFn(value),
+        ZigWriterFn => wrapZigWriterFn(value),
         else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
     };
 }
 
-/// Wrap a ZigFunction in a CFunction for passing to the API
-fn wrapZigFunction(comptime f: ZigFunction) CFunction {
+/// Wrap a ZigFn in a CFn for passing to the API
+fn wrapZigFn(comptime f: ZigFn) CFn {
     return struct {
         fn inner(state: ?*LuaState) callconv(.C) c_int {
             // this is called by Lua, state should never be null
@@ -1667,8 +1667,8 @@ fn wrapZigFunction(comptime f: ZigFunction) CFunction {
     }.inner;
 }
 
-/// Wrap a ZigHookFunction in a CHookFunction for passing to the API
-fn wrapZigHookFunction(comptime f: ZigHookFunction) CHookFunction {
+/// Wrap a ZigHookFn in a CHookFn for passing to the API
+fn wrapZigHookFn(comptime f: ZigHookFn) CHookFn {
     return struct {
         fn inner(state: ?*LuaState, ar: *DebugInfo) callconv(.C) void {
             // this is called by Lua, state should never be null
@@ -1678,8 +1678,8 @@ fn wrapZigHookFunction(comptime f: ZigHookFunction) CHookFunction {
     }.inner;
 }
 
-/// Wrap a ZigKFunction in a CKfunction for passing to the API
-fn wrapZigKFunction(comptime f: ZigKFunction) CKFunction {
+/// Wrap a ZigContFn in a CContFn for passing to the API
+fn wrapZigContFn(comptime f: ZigContFn) CContFn {
     return struct {
         fn inner(state: ?*LuaState, status: c_int, ctx: KContext) callconv(.C) c_int {
             // this is called by Lua, state should never be null
@@ -1689,8 +1689,8 @@ fn wrapZigKFunction(comptime f: ZigKFunction) CKFunction {
     }.inner;
 }
 
-/// Wrap a ZigReader in a CReader for passing to the API
-fn wrapZigReader(comptime f: ZigReader) CReader {
+/// Wrap a ZigReaderFn in a CReaderFn for passing to the API
+fn wrapZigReaderFn(comptime f: ZigReaderFn) CReaderFn {
     return struct {
         fn inner(state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.C) [*c]const u8 {
             var lua: Lua = .{ .state = state.? };
@@ -1705,8 +1705,8 @@ fn wrapZigReader(comptime f: ZigReader) CReader {
     }.inner;
 }
 
-/// Wrap a ZigWarnFunction in a CWarnFunction for passing to the API
-fn wrapZigWarnFunction(comptime f: ZigWarnFunction) CWarnFunction {
+/// Wrap a ZigWarnFn in a CWarnFn for passing to the API
+fn wrapZigWarnFn(comptime f: ZigWarnFn) CWarnFn {
     return struct {
         fn inner(data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.C) void {
             // warning messages emitted from Lua should be null-terminated for display
@@ -1716,8 +1716,8 @@ fn wrapZigWarnFunction(comptime f: ZigWarnFunction) CWarnFunction {
     }.inner;
 }
 
-/// Wrap a ZigWriter in a CWriter for passing to the API
-fn wrapZigWriter(comptime f: ZigWriter) CWriter {
+/// Wrap a ZigWriterFn in a CWriterFn for passing to the API
+fn wrapZigWriterFn(comptime f: ZigWriterFn) CWriterFn {
     return struct {
         fn inner(state: ?*LuaState, buf: ?*anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int {
             // this is called by Lua, state should never be null
@@ -1760,7 +1760,7 @@ test "initialization" {
     lua = try Lua.newState(Lua.alloc, &allocator);
     lua.close();
 
-    // use the library with a bad AllocFunction
+    // use the library with a bad AllocFn
     try expectError(Error.Memory, Lua.newState(failing_alloc, null));
 
     // use the auxiliary library (uses libc realloc and cannot be checked for leaks!)
