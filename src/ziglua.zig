@@ -76,7 +76,10 @@ pub const Error = error{
 };
 
 /// Type for arrays of functions to be registered
-pub const FunctionReg = c.luaL_Reg;
+pub const FnReg = struct {
+    name: [:0]const u8,
+    func: ?CFn,
+};
 
 /// Actions supported by `Lua.gc()`
 pub const GCAction = enum(u5) {
@@ -632,9 +635,7 @@ pub const Lua = struct {
     /// `n` tells how many upvalues this function will have
     /// TODO: add a Zig interface to pass Zig functions wrapped
     pub fn pushCClosure(lua: *Lua, c_fn: CFn, n: i32) void {
-        _ = lua;
-        _ = c_fn;
-        _ = n;
+        c.lua_pushcclosure(lua.state, c_fn, n);
     }
 
     /// Pushes a C function onto the stack.
@@ -1304,8 +1305,7 @@ pub const Lua = struct {
     }
 
     /// Creates a new table and registers there the functions in `list`
-    /// TODO: this expects an array, probably won't work...
-    pub fn newLib(lua: *Lua, list: []const FunctionReg) void {
+    pub fn newLib(lua: *Lua, list: []const FnReg) void {
         // translate-c failure
         lua.checkVersion();
         lua.newLibTable(list);
@@ -1313,8 +1313,7 @@ pub const Lua = struct {
     }
 
     /// Creates a new table with a size optimized to store all entries in the array `list`
-    /// TODO: this expects an array
-    pub fn newLibTable(lua: *Lua, list: []const FunctionReg) void {
+    pub fn newLibTable(lua: *Lua, list: []const FnReg) void {
         // translate-c failure
         lua.createTable(0, @intCast(i32, list.len));
     }
@@ -1380,13 +1379,20 @@ pub const Lua = struct {
         c.luaL_requiref(lua.state, mod_name, open_fn, @boolToInt(global));
     }
 
-    /// Registers all functions in the array `list` into the table on the top of the stack
-    /// When `num_up` is not null, all functions are created with `num_up` upvalues
-    /// `num_up` == 0 has the same effect as null
-    /// TODO: expects an array, reimplement in Zig so a Zig array/slice can be passed
-    pub fn setFuncs(lua: *Lua, list: []const FunctionReg, num_up: ?i32) void {
-        const num = if (num_up) |n| n else 0;
-        c.luaL_setfuncs(lua.state, @ptrCast([*c]const FunctionReg, list.ptr), num);
+    /// Registers all functions in the array `fns` into the table on the top of the stack
+    /// All functions are created with `num_upvalues` upvalues
+    pub fn setFuncs(lua: *Lua, funcs: []const FnReg, num_upvalues: i32) void {
+        lua.checkStackAux(num_upvalues, "too many upvalues");
+        for (funcs) |f| {
+            if (f.func) |func| {
+                var i: i32 = 0;
+                // copy upvalues to the top
+                while (i < num_upvalues) : (i += 1) lua.pushValue(-num_upvalues);
+                lua.pushCClosure(func, num_upvalues);
+            } else lua.pushBoolean(false); // register a placeholder
+            lua.setField(-(num_upvalues + 2), f.name);
+        }
+        lua.pop(num_upvalues);
     }
 
     /// Sets the metatable of the object on the top of the stack as the metatable associated
@@ -1739,6 +1745,25 @@ const expect = testing.expect;
 const expectEqual = testing.expectEqual;
 const expectError = testing.expectError;
 
+// until issue #1717 we need to use the struct workaround
+const add = struct {
+    fn addInner(l: *Lua) i32 {
+        const a = l.toInteger(1);
+        const b = l.toInteger(2);
+        l.pushInteger(a + b);
+        return 1;
+    }
+}.addInner;
+
+const sub = struct {
+    fn subInner(l: *Lua) i32 {
+        const a = l.toInteger(1);
+        const b = l.toInteger(2);
+        l.pushInteger(a - b);
+        return 1;
+    }
+}.subInner;
+
 fn failing_alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque {
     _ = data;
     _ = ptr;
@@ -2033,16 +2058,6 @@ test "calling a function" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    // until issue #1717 we need to use the struct workaround
-    const add = struct {
-        fn addInner(l: *Lua) i32 {
-            const a = l.toInteger(1);
-            const b = l.toInteger(2);
-            l.pushInteger(a + b);
-            return 1;
-        }
-    }.addInner;
-
     lua.register("zigadd", wrap(add));
     _ = lua.getGlobal("zigadd");
     lua.pushInteger(10);
@@ -2143,6 +2158,42 @@ test "global table" {
     try expectEqual(LuaType.nil, lua.getField(-1, "string"));
 }
 
+test "function registration" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    // register all functions as part of a table
+    const funcs = [_]FnReg{
+        .{ .name = "add", .func = wrap(add) },
+        .{ .name = "sub", .func = wrap(sub) },
+        .{ .name = "placeholder", .func = null },
+    };
+    lua.newTable();
+    lua.setFuncs(&funcs, 0);
+
+    try expectEqual(LuaType.boolean, lua.getField(-1, "placeholder"));
+    lua.pop(1);
+    try expectEqual(LuaType.function, lua.getField(-1, "add"));
+    lua.pop(1);
+    try expectEqual(LuaType.function, lua.getField(-1, "sub"));
+
+    // also try calling the sub function sub(42, 40)
+    lua.pushInteger(42);
+    lua.pushInteger(40);
+    try lua.protectedCall(2, 1, 0);
+    try expectEqual(@as(Integer, 2), lua.toInteger(-1));
+
+    // now test the newlib variation to build a library from functions
+    // indirectly tests newLibTable
+    lua.newLib(&funcs);
+    // add functions to the global table under "funcs"
+    lua.setGlobal("funcs");
+
+    try lua.doString("funcs.add(10, 20)");
+    try lua.doString("funcs.sub('10', 20)");
+    try expectError(Error.Runtime, lua.doString("funcs.placeholder()"));
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
@@ -2175,12 +2226,10 @@ test "refs" {
     _ = Lua.isYieldable;
     _ = Lua.len;
     _ = Lua.load;
-    _ = Lua.newTable;
     _ = Lua.newThread;
     _ = Lua.newUserdataUV;
     _ = Lua.next;
     _ = Lua.numberToInteger;
-    _ = Lua.pushCClosure;
     _ = Lua.pushCFunction;
     _ = Lua.pushFString;
     _ = Lua.pushLString;
@@ -2194,7 +2243,6 @@ test "refs" {
     _ = Lua.rawSetP;
     _ = Lua.resetThread;
     _ = Lua.setField;
-    _ = Lua.setGlobal;
     _ = Lua.setI;
     _ = Lua.setIUserValue;
     _ = Lua.setMetatable;
@@ -2245,7 +2293,6 @@ test "refs" {
     _ = Lua.checkUserdata;
     _ = Lua.checkVersion;
     _ = Lua.doFile;
-    _ = Lua.doString;
     _ = Lua.raiseErrorAux;
     _ = Lua.exeResult;
     _ = Lua.fileResult;
@@ -2258,8 +2305,6 @@ test "refs" {
     _ = Lua.loadBufferX;
     _ = Lua.loadFile;
     _ = Lua.loadFileX;
-    _ = Lua.newLib;
-    _ = Lua.newLibTable;
     _ = Lua.newMetatable;
     _ = Lua.optInteger;
     _ = Lua.optLString;
@@ -2267,7 +2312,6 @@ test "refs" {
     _ = Lua.optString;
     _ = Lua.pushFail;
     _ = Lua.requireF;
-    _ = Lua.setFuncs;
     _ = Lua.setMetatableAux;
     _ = Lua.testUserdata;
     _ = Lua.toLStringAux;
