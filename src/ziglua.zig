@@ -2255,6 +2255,18 @@ test "panic fn" {
     try expectEqual(@as(?CFn, null), lua.atPanic(panicFn));
 }
 
+test "concat" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    _ = lua.pushString("hello ");
+    lua.pushNumber(10);
+    _ = lua.pushString(" wow!");
+    lua.concat(3);
+
+    try expectEqualStrings("hello 10.0 wow!", lua.toString(-1).?);
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
@@ -2262,7 +2274,6 @@ test "refs" {
     // stdlib
     _ = Lua.absIndex;
     _ = Lua.closeSlot;
-    _ = Lua.concat;
     _ = Lua.createTable;
     _ = Lua.dump;
     _ = Lua.raiseError;
