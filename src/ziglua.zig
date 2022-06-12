@@ -434,10 +434,10 @@ pub const Lua = struct {
         return c.lua_getallocf(lua.state, @ptrCast([*c]?*anyopaque, data)).?;
     }
 
-    /// Returns a pointer to a raw memory area associated with the given Lua state
+    /// Returns a slice of a raw memory area associated with the given Lua state
     /// The application may use this area for any purpose; Lua does not use it for anything
-    pub fn getExtraSpace(lua: *Lua) *anyopaque {
-        return c.lua_getextraspace(lua.state).?;
+    pub fn getExtraSpace(lua: *Lua) []u8 {
+        return @ptrCast([*]u8, c.lua_getextraspace(lua.state).?)[0..@sizeOf(isize)];
     }
 
     /// Pushes onto the stack the value t[key] where t is the value at the given `index`
@@ -2311,6 +2311,17 @@ test "garbage collector" {
     try expect(!lua.gc(.set_incremental, .{0, 0, 0}));
 }
 
+test "extra space" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    var space = @ptrCast(*align(1) usize, lua.getExtraSpace().ptr);
+    space.* = 1024;
+    // each new thread is initialized with a copy of the extra space from the main thread
+    var thread = lua.newThread();
+    try expectEqual(@as(usize, 1024), @ptrCast(*align(1) usize, thread.getExtraSpace()).*);
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
@@ -2321,8 +2332,6 @@ test "refs" {
     _ = Lua.createTable;
     _ = Lua.dump;
     _ = Lua.raiseError;
-    _ = Lua.gc;
-    _ = Lua.getExtraSpace;
     _ = Lua.getI;
     _ = Lua.getIUserValue;
     _ = Lua.getMetatable;
