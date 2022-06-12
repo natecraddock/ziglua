@@ -90,8 +90,8 @@ pub const GCAction = enum(u5) {
     countb = c.LUA_GCCOUNTB,
     step = c.LUA_GCSTEP,
     is_running = c.LUA_GCISRUNNING,
-    inc = c.LUA_GCINC,
-    gen = c.LUA_GCGEN,
+    set_incremental = c.LUA_GCINC,
+    set_generational = c.LUA_GCGEN,
 };
 
 /// Type for debugging hook functions
@@ -393,11 +393,37 @@ pub const Lua = struct {
         unreachable;
     }
 
+    fn TypeOfGC(comptime action: GCAction) type {
+        return switch (action) {
+            .stop, .collect, .restart, .step => void,
+            .count, .countb => i32,
+            .is_running, .set_incremental, .set_generational => bool,
+        };
+    }
+
     /// Controls the garbage collector
-    /// The purpose of the return value is dependent on the given action
-    /// TODO: perhaps `action` could be comptime known to enforce specific return types
-    pub fn gc(lua: *Lua, action: GCAction, args: anytype) i32 {
-        return @call(.{}, c.lua_gc, .{ lua.state, @enumToInt(action) } ++ args);
+    /// The return value type is dependent on the given action
+    pub fn gc(lua: *Lua, comptime action: GCAction, args: anytype) TypeOfGC(action) {
+        const val = @enumToInt(action);
+        switch (action) {
+            .stop, .collect, .restart => _ = c.lua_gc(lua.state, val),
+            .step => _ = c.lua_gc(lua.state, val, @as(i32, args.@"0")),
+            .count, .countb => return c.lua_gc(lua.state, val),
+            .is_running => return c.lua_gc(lua.state, val) != 0,
+            .set_incremental => return c.lua_gc(
+                lua.state,
+                val,
+                @as(i32, args.@"0"),
+                @as(i32, args.@"1"),
+                @as(i32, args.@"2"),
+            ) != @enumToInt(GCAction.set_incremental),
+            .set_generational => return c.lua_gc(
+                lua.state,
+                val,
+                @as(i32, args.@"0"),
+                @as(i32, args.@"1"),
+            ) != @enumToInt(GCAction.set_generational),
+        }
     }
 
     /// Returns the memory allocation function of a given state
@@ -2265,6 +2291,24 @@ test "concat" {
     lua.concat(3);
 
     try expectEqualStrings("hello 10.0 wow!", lua.toString(-1).?);
+}
+
+test "garbage collector" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    // because the garbage collector is an opaque, unmanaged
+    // thing, it is hard to test, so just run each function
+    lua.gc(.stop, .{});
+    lua.gc(.collect, .{});
+    lua.gc(.restart, .{});
+    lua.gc(.step, .{10});
+    _ = lua.gc(.count, .{});
+    _ = lua.gc(.countb, .{});
+    _ = lua.gc(.is_running, .{});
+    try expect(lua.gc(.set_generational, .{0, 10}));
+    try expect(lua.gc(.set_incremental, .{0, 0, 0}));
+    try expect(!lua.gc(.set_incremental, .{0, 0, 0}));
 }
 
 test "refs" {

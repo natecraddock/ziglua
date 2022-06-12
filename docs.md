@@ -76,6 +76,10 @@ All functions and types that deal with continuations have been renamed. For exam
 
 In general, just replace the "k" with the word "cont". This is just to make the API more clear and Zig-like.
 
+### `lua_error` and `luaL_error`
+
+Because `error` is a reserved word in Zig, these functions have been renamed to `raiseError` and `raiseErrorAux` respectively.
+
 ### `lua_tostring` and `lua_tolstring`
 
 These functions have been combined into `Lua.toString()`. The function `lua_tostring` is a macro around `lua_tolstring` and does not return the length of the string.
