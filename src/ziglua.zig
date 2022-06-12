@@ -2202,6 +2202,9 @@ test "string buffers" {
     std.mem.copy(u8, b, "defghijklmnopqrstuvwxyz");
     buffer.pushResultSize(23);
     try expectEqualStrings("abcdefghijklmnopqrstuvwxyz", lua.toString(-1).?);
+
+    lua.len(-1);
+    try expectEqual(@as(Integer, 26), lua.toInteger(-1));
 }
 
 test "global table" {
@@ -2337,7 +2340,6 @@ test "refs" {
     _ = Lua.getMetatable;
     _ = Lua.isUserdata;
     _ = Lua.isYieldable;
-    _ = Lua.len;
     _ = Lua.load;
     _ = Lua.newThread;
     _ = Lua.newUserdataUV;
