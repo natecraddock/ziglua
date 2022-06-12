@@ -2226,13 +2226,28 @@ test "function registration" {
     try expectError(Error.Runtime, lua.doString("funcs.placeholder()"));
 }
 
+test "panic fn" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    // just test setting up the panic function
+    // it uses longjmp so cannot return here to test
+    // NOTE: perhaps a later version of zig can test an expected fail
+    const panicFn = wrap(struct {
+        fn inner(l: *Lua) i32 {
+            _ = l;
+            return 0;
+        }
+    }.inner);
+    try expectEqual(@as(?CFn, null), lua.atPanic(panicFn));
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
 
     // stdlib
     _ = Lua.absIndex;
-    _ = Lua.atPanic;
     _ = Lua.closeSlot;
     _ = Lua.compare;
     _ = Lua.concat;
