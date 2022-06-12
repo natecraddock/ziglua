@@ -1623,9 +1623,9 @@ pub const Buffer = struct {
 // Helper functions to make the ziglua API easier to use
 
 pub const ZigFn = fn (lua: *Lua) i32;
-pub const ZigHookFn = fn (lua: Lua, ar: *DebugInfo) void;
-pub const ZigContFn = fn (lua: Lua, status: bool, ctx: KContext) c_int;
-pub const ZigReaderFn = fn (state: *LuaState, data: *anyopaque) ?[]const u8;
+pub const ZigHookFn = fn (lua: *Lua, ar: *DebugInfo) void;
+pub const ZigContFn = fn (lua: *Lua, status: bool, ctx: KContext) c_int;
+pub const ZigReaderFn = fn (lua: *Lua, data: *anyopaque) ?[]const u8;
 pub const ZigWarnFn = fn (data: ?*anyopaque, msg: []const u8, to_cont: bool) void;
 pub const ZigWriterFn = fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool;
 
@@ -1678,7 +1678,7 @@ fn wrapZigHookFn(comptime f: ZigHookFn) CHookFn {
         fn inner(state: ?*LuaState, ar: *DebugInfo) callconv(.C) void {
             // this is called by Lua, state should never be null
             var lua: Lua = .{ .state = state.? };
-            @call(.{ .modifier = .always_inline }, f, .{ lua, ar.? });
+            @call(.{ .modifier = .always_inline }, f, .{ &lua, ar.? });
         }
     }.inner;
 }
@@ -1689,7 +1689,7 @@ fn wrapZigContFn(comptime f: ZigContFn) CContFn {
         fn inner(state: ?*LuaState, status: c_int, ctx: KContext) callconv(.C) c_int {
             // this is called by Lua, state should never be null
             var lua: Lua = .{ .state = state.? };
-            return @call(.{ .modifier = .always_inline }, f, .{ lua, status != 0, ctx });
+            return @call(.{ .modifier = .always_inline }, f, .{ &lua, status != 0, ctx });
         }
     }.inner;
 }
@@ -1699,7 +1699,7 @@ fn wrapZigReaderFn(comptime f: ZigReaderFn) CReaderFn {
     return struct {
         fn inner(state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.C) [*c]const u8 {
             var lua: Lua = .{ .state = state.? };
-            if (@call(.{ .modifier = .always_inline }, f, .{ lua, data.? })) |buffer| {
+            if (@call(.{ .modifier = .always_inline }, f, .{ &lua, data.? })) |buffer| {
                 size.* = buffer.len;
                 return buffer;
             } else {
@@ -1731,7 +1731,7 @@ fn wrapZigWriterFn(comptime f: ZigWriterFn) CWriterFn {
             return @boolToInt(@call(
                 .{ .modifier = .always_inline },
                 f,
-                .{ lua, buffer, data.? },
+                .{ &lua, buffer, data.? },
             ));
         }
     }.inner;
