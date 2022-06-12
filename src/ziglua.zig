@@ -1919,6 +1919,19 @@ test "arithmetic (lua_arith)" {
     try expectEqual(@as(i64, -8), lua.toInteger(1));
 }
 
+test "compare" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    lua.pushNumber(1);
+    lua.pushNumber(2);
+    try expect(!lua.compare(-2, -1, .eq));
+    try expect(!lua.compare(-1, -2, .le));
+    try expect(!lua.compare(-1, -2, .lt));
+    try expect(lua.compare(-2, -1, .le));
+    try expect(lua.compare(-2, -1, .lt));
+}
+
 test "type of" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -2249,7 +2262,6 @@ test "refs" {
     // stdlib
     _ = Lua.absIndex;
     _ = Lua.closeSlot;
-    _ = Lua.compare;
     _ = Lua.concat;
     _ = Lua.createTable;
     _ = Lua.dump;
