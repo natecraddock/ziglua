@@ -2309,9 +2309,9 @@ test "garbage collector" {
     _ = lua.gc(.count, .{});
     _ = lua.gc(.countb, .{});
     _ = lua.gc(.is_running, .{});
-    try expect(lua.gc(.set_generational, .{0, 10}));
-    try expect(lua.gc(.set_incremental, .{0, 0, 0}));
-    try expect(!lua.gc(.set_incremental, .{0, 0, 0}));
+    try expect(lua.gc(.set_generational, .{ 0, 10 }));
+    try expect(lua.gc(.set_incremental, .{ 0, 0, 0 }));
+    try expect(!lua.gc(.set_incremental, .{ 0, 0, 0 }));
 }
 
 test "extra space" {
