@@ -452,8 +452,7 @@ pub const Lua = struct {
 
     /// Pushes onto the stack the value t[`i`] where t is the value at the given `index`
     /// Returns the type of the pushed value
-    /// TODO: rename getIndex
-    pub fn getI(lua: *Lua, index: i32, i: Integer) LuaType {
+    pub fn getIndex(lua: *Lua, index: i32, i: Integer) LuaType {
         return @intToEnum(LuaType, c.lua_geti(lua.state, index, i));
     }
 
@@ -463,10 +462,10 @@ pub const Lua = struct {
         return @intToEnum(LuaType, c.lua_getiuservalue(lua.state, index, n));
     }
 
-    /// If the value at the given `index` has a metatable, the function pushes that metatable onto the stack and returns true
-    /// Otherwise false is returned
-    pub fn getMetatable(lua: *Lua, index: i32) bool {
-        return c.lua_getmetatable(lua.state, index) != 0;
+    /// If the value at the given `index` has a metatable, the function pushes that metatable onto the stack
+    /// Otherwise an error is returned
+    pub fn getMetatable(lua: *Lua, index: i32) !void {
+        if (c.lua_getmetatable(lua.state, index) == 0) return Error.Fail;
     }
 
     /// Pushes onto the stack the value t[k] where t is the value at the given `index` and k is the value on the top of the stack
@@ -681,7 +680,7 @@ pub const Lua = struct {
         // lua_pushglobaltable is a macro and c-translate assumes it returns opaque
         // so just reimplement the macro here
         // c.lua_pushglobaltable(lua.state);
-        _ = lua.rawGetI(registry_index, ridx_globals);
+        _ = lua.rawGetIndex(registry_index, ridx_globals);
     }
 
     /// Pushes an integer with value `n` onto the stack
@@ -718,6 +717,7 @@ pub const Lua = struct {
     /// Lua makes a copy of the string so `str` may be freed immediately after return
     /// Returns a pointer to the internal Lua string
     /// If `str` is null pushes nil and returns null
+    /// TODO: is it useful to return null?
     pub fn pushString(lua: *Lua, str: ?[*:0]const u8) ?[*]const u8 {
         const ptr = c.lua_pushstring(lua.state, str);
         return @ptrCast(?[*]const u8, ptr);
@@ -744,13 +744,13 @@ pub const Lua = struct {
     }
 
     /// Similar to `Lua.getTable()` but does a raw access (without metamethods)
-    pub fn rawGet(lua: *Lua, index: i32) LuaType {
+    pub fn rawGetTable(lua: *Lua, index: i32) LuaType {
         return @intToEnum(LuaType, c.lua_rawget(lua.state, index));
     }
 
     /// Pushes onto the stack the value t[n], where `t` is the table at the given `index`
     /// Returns the `LuaType` of the pushed value
-    pub fn rawGetI(lua: *Lua, index: i32, n: Integer) LuaType {
+    pub fn rawGetIndex(lua: *Lua, index: i32, n: Integer) LuaType {
         return @intToEnum(LuaType, c.lua_rawgeti(lua.state, index, n));
     }
 
@@ -2004,6 +2004,7 @@ test "type of" {
     try expect(lua.isTable(2));
     try expect(lua.isNumber(3));
     try expect(lua.isLightUserdata(4));
+    try expect(lua.isUserdata(4));
     try expect(lua.isNil(5));
     try expect(lua.isNumber(6));
     try expect(lua.isThread(7));
@@ -2213,7 +2214,6 @@ test "global table" {
 
     // open some libs so we can inspect them
     lua.open(.{ .math = true, .base = true });
-    lua.openMath();
     lua.pushGlobalTable();
 
     // find the print function
@@ -2325,6 +2325,37 @@ test "extra space" {
     try expectEqual(@as(usize, 1024), @ptrCast(*align(1) usize, thread.getExtraSpace()).*);
 }
 
+test "table access" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    try lua.doString("a = { [1] = 'first', key = 'value', ['other one'] = 1234 }");
+    _ = lua.getGlobal("a");
+
+    try expectEqual(LuaType.string, lua.getIndex(1, 1));
+    try expectEqualStrings("first", lua.toString(-1).?);
+
+    try expectEqual(LuaType.string, lua.rawGetIndex(1, 1));
+    try expectEqualStrings("first", lua.toString(-1).?);
+
+    _ = lua.pushString("key");
+    try expectEqual(LuaType.string, lua.getTable(1));
+    try expectEqualStrings("value", lua.toString(-1).?);
+
+    _ = lua.pushString("other one");
+    try expectEqual(LuaType.number, lua.rawGetTable(1));
+    try expectEqual(@as(Integer, 1234), lua.toInteger(-1));
+
+    try expectError(Error.Fail, lua.getMetatable(1));
+
+    lua.pushBoolean(true);
+    lua.setField(1, "bool");
+
+    try lua.doString("b = a.bool");
+    try expectEqual(LuaType.boolean, lua.getGlobal("b"));
+    try expect(lua.toBoolean(-1));
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
@@ -2335,10 +2366,7 @@ test "refs" {
     _ = Lua.createTable;
     _ = Lua.dump;
     _ = Lua.raiseError;
-    _ = Lua.getI;
     _ = Lua.getIUserValue;
-    _ = Lua.getMetatable;
-    _ = Lua.isUserdata;
     _ = Lua.isYieldable;
     _ = Lua.load;
     _ = Lua.newThread;
@@ -2346,14 +2374,12 @@ test "refs" {
     _ = Lua.next;
     _ = Lua.numberToInteger;
     _ = Lua.rawEqual;
-    _ = Lua.rawGet;
     _ = Lua.rawGetP;
     _ = Lua.rawLen;
     _ = Lua.rawSet;
     _ = Lua.rawSetI;
     _ = Lua.rawSetP;
     _ = Lua.resetThread;
-    _ = Lua.setField;
     _ = Lua.setI;
     _ = Lua.setIUserValue;
     _ = Lua.setMetatable;
@@ -2361,7 +2387,6 @@ test "refs" {
     _ = Lua.setWarnF;
     _ = Lua.status;
     _ = Lua.stringToNumber;
-    _ = Lua.toBoolean;
     _ = Lua.toCFunction;
     _ = Lua.toClose;
     _ = Lua.toIntegerX;
