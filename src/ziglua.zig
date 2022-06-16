@@ -1956,6 +1956,10 @@ test "compare" {
     try expect(!lua.compare(-1, -2, .lt));
     try expect(lua.compare(-2, -1, .le));
     try expect(lua.compare(-2, -1, .lt));
+
+    try expect(!lua.rawEqual(-1, -2));
+    lua.pushNumber(2);
+    try expect(lua.rawEqual(-1, -2));
 }
 
 test "type of and getting values" {
@@ -2422,7 +2426,6 @@ test "refs" {
     _ = Lua.newThread;
     _ = Lua.newUserdataUV;
     _ = Lua.next;
-    _ = Lua.rawEqual;
     _ = Lua.rawGetP;
     _ = Lua.rawSet;
     _ = Lua.rawSetP;
