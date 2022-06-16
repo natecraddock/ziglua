@@ -776,7 +776,7 @@ pub const Lua = struct {
     /// Does the equivalent of t[`i`] = v where t is the table at the given `index`
     /// and v is the value at the top of the stack
     /// Pops the value from the stack. Does not use __newindex metavalue
-    pub fn rawSetI(lua: *Lua, index: i32, i: Integer) void {
+    pub fn rawSetIndex(lua: *Lua, index: i32, i: Integer) void {
         c.lua_rawseti(lua.state, index, i);
     }
 
@@ -847,7 +847,7 @@ pub const Lua = struct {
 
     /// Does the equivalent to t[`n`] = v where t is the value at the given `index`
     /// and v is the value on the top of the stack. Pops the value from the stack
-    pub fn setI(lua: *Lua, index: i32, n: Integer) void {
+    pub fn setIndex(lua: *Lua, index: i32, n: Integer) void {
         c.lua_seti(lua.state, index, n);
     }
 
@@ -899,11 +899,10 @@ pub const Lua = struct {
     }
 
     /// Converts the zero-terminated string `str` to a number, pushes that number onto the stack,
-    /// and returns the total size of the string (length + 1)
-    pub fn stringToNumber(lua: *Lua, str: [:0]const u8) !usize {
+    /// Returns an error if conversion failed
+    pub fn stringToNumber(lua: *Lua, str: [:0]const u8) !void {
         const size = c.lua_stringtonumber(lua.state, str);
         if (size == 0) return Error.Fail;
-        return size;
     }
 
     /// Converts the Lua value at the given `index` into a boolean
@@ -913,9 +912,9 @@ pub const Lua = struct {
     }
 
     /// Converts a value at the given `index` into a CFn
-    /// Returns null if the value is not a CFn
-    pub fn toCFunction(lua: *Lua, index: i32) ?CFn {
-        return c.lua_tocfunction(lua.state, index);
+    /// Returns an error if the value is not a CFn
+    pub fn toCFunction(lua: *Lua, index: i32) !CFn {
+        return c.lua_tocfunction(lua.state, index) orelse return Error.Fail;
     }
 
     /// Marks the given index in the stack as a to-be-closed slot
@@ -976,10 +975,11 @@ pub const Lua = struct {
 
     /// Converts the value at the given `index` to a Lua thread (wrapped with a `Lua` struct)
     /// The thread does _not_ contain an allocator because it is not the main thread and should therefore not be used with `deinit()`
-    pub fn toThread(lua: *Lua, index: i32) ?Lua {
+    /// Returns an error if the value is not a thread
+    pub fn toThread(lua: *Lua, index: i32) !Lua {
         const thread = c.lua_tothread(lua.state, index);
         if (thread) |thread_ptr| return Lua{ .state = thread_ptr };
-        return null;
+        return Error.Fail;
     }
 
     /// If the value at the given `index` is a full userdata, returns its memory-block address
@@ -1958,7 +1958,7 @@ test "compare" {
     try expect(lua.compare(-2, -1, .lt));
 }
 
-test "type of" {
+test "type of and getting values" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
@@ -2017,6 +2017,13 @@ test "type of" {
     try expect(lua.isBoolean(13));
 
     try expectEqualStrings("hello world 10", lua.toString(12).?);
+
+    // the created thread should equal the main thread (but created thread has no allocator ref)
+    try expectEqual(lua.state, (try lua.toThread(7)).state);
+    try expectEqual(@as(CFn, wrap(add)), try lua.toCFunction(10));
+
+    try expectEqual(@as(Number, 0.1), try lua.toNumberX(6));
+    try expectEqual(@as(Integer, 1), try lua.toIntegerX(3));
 }
 
 test "typenames" {
@@ -2354,6 +2361,51 @@ test "table access" {
     try lua.doString("b = a.bool");
     try expectEqual(LuaType.boolean, lua.getGlobal("b"));
     try expect(lua.toBoolean(-1));
+
+    // create array [1, 2, 3, 4, 5]
+    lua.createTable(0, 0);
+    var index: Integer = 1;
+    while (index <= 5) : (index += 1) {
+        lua.pushInteger(index);
+        lua.setIndex(-2, index);
+    }
+    try expectEqual(@as(Unsigned, 5), lua.rawLen(-1));
+    try expectEqual(@as(Integer, 5), lua.lenAux(-1));
+
+    // add a few more
+    while (index <= 10) : (index += 1) {
+        lua.pushInteger(index);
+        lua.rawSetIndex(-2, index);
+    }
+    try expectEqual(@as(Unsigned, 10), lua.rawLen(-1));
+}
+
+test "conversions" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    // number conversion
+    var value: Integer = undefined;
+    try Lua.numberToInteger(3.14, &value);
+    try expectEqual(@as(Integer, 3), value);
+    try expectError(Error.Fail, Lua.numberToInteger(@intToFloat(Number, max_integer) + 10, &value));
+
+    // string conversion
+    try lua.stringToNumber("1");
+    try expect(lua.isInteger(-1));
+    try expectEqual(@as(Integer, 1), lua.toInteger(1));
+
+    try lua.stringToNumber("  1.0  ");
+    try expect(lua.isNumber(-1));
+    try expectEqual(@as(Number, 1.0), lua.toNumber(-1));
+
+    try expectError(Error.Fail, lua.stringToNumber("a"));
+    try expectError(Error.Fail, lua.stringToNumber("1.a"));
+    try expectError(Error.Fail, lua.stringToNumber(""));
+
+    // index conversion
+    try expectEqual(@as(i32, 2), lua.absIndex(-1));
+    try expectEqual(@as(i32, 1), lua.absIndex(-2));
 }
 
 test "refs" {
@@ -2361,9 +2413,7 @@ test "refs" {
     // they will be type-checked
 
     // stdlib
-    _ = Lua.absIndex;
     _ = Lua.closeSlot;
-    _ = Lua.createTable;
     _ = Lua.dump;
     _ = Lua.raiseError;
     _ = Lua.getIUserValue;
@@ -2372,27 +2422,18 @@ test "refs" {
     _ = Lua.newThread;
     _ = Lua.newUserdataUV;
     _ = Lua.next;
-    _ = Lua.numberToInteger;
     _ = Lua.rawEqual;
     _ = Lua.rawGetP;
-    _ = Lua.rawLen;
     _ = Lua.rawSet;
-    _ = Lua.rawSetI;
     _ = Lua.rawSetP;
     _ = Lua.resetThread;
-    _ = Lua.setI;
     _ = Lua.setIUserValue;
     _ = Lua.setMetatable;
     _ = Lua.setTable;
     _ = Lua.setWarnF;
     _ = Lua.status;
-    _ = Lua.stringToNumber;
-    _ = Lua.toCFunction;
     _ = Lua.toClose;
-    _ = Lua.toIntegerX;
-    _ = Lua.toNumberX;
     _ = Lua.toPointer;
-    _ = Lua.toThread;
     _ = Lua.toUserdata;
     _ = Lua.upvalueIndex;
     _ = Lua.warning;
@@ -2436,7 +2477,6 @@ test "refs" {
     _ = Lua.getMetatableAux;
     _ = Lua.getSubtable;
     _ = Lua.gSub;
-    _ = Lua.lenAux;
     _ = Lua.loadBuffer;
     _ = Lua.loadBufferX;
     _ = Lua.loadFile;
