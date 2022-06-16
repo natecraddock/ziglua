@@ -884,6 +884,7 @@ pub const Lua = struct {
         c.lua_setwarnf(lua.state, warn_fn, data);
     }
 
+    // TODO: this is not very clean
     pub const StatusType = enum(u3) {
         ok = Status.ok,
         yield = Status.yield,
@@ -1801,6 +1802,7 @@ fn failing_alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize
 test "initialization" {
     // initialize the Zig wrapper
     var lua = try Lua.init(testing.allocator);
+    try expectEqual(Lua.StatusType.ok, lua.status());
     lua.deinit();
 
     // attempt to initialize the Zig wrapper with no memory
@@ -2434,7 +2436,6 @@ test "refs" {
     _ = Lua.setMetatable;
     _ = Lua.setTable;
     _ = Lua.setWarnF;
-    _ = Lua.status;
     _ = Lua.toClose;
     _ = Lua.toPointer;
     _ = Lua.toUserdata;
