@@ -382,8 +382,9 @@ pub const Lua = struct {
     }
 
     /// Dumps a function as a binary chunk
-    pub fn dump(lua: *Lua, writer: CWriterFn, data: *anyopaque, strip: bool) i32 {
-        return c.lua_dump(lua.state, writer, data, @boolToInt(strip));
+    /// Returns an error if writing was unsuccessful
+    pub fn dump(lua: *Lua, writer: CWriterFn, data: *anyopaque, strip: bool) !void {
+        if (c.lua_dump(lua.state, writer, data, @boolToInt(strip)) != 0) return Error.Fail;
     }
 
     /// Raises a Lua error using the value at the top of the stack as the error object
@@ -446,6 +447,7 @@ pub const Lua = struct {
     }
 
     /// Pushes onto the stack the value of the global `name`. Returns the type of that value
+    /// NOTE: could return an error if it was successful (not nil)
     pub fn getGlobal(lua: *Lua, name: [:0]const u8) LuaType {
         return @intToEnum(LuaType, c.lua_getglobal(lua.state, name));
     }
@@ -564,23 +566,21 @@ pub const Lua = struct {
     }
 
     /// Loads a Lua chunk without running it
-    pub fn load(lua: *Lua, reader: CReaderFn, data: *anyopaque, chunk_name: [:0]const u8, mode: ?Mode) !void {
-        const mode_str = blk: {
-            if (mode == null) break :blk "bt";
-
-            break :blk switch (mode.?) {
-                .binary => "b",
-                .text => "t",
-                .binary_text => "bt",
-            };
+    pub fn load(lua: *Lua, reader: CReaderFn, data: *anyopaque, chunk_name: [:0]const u8, mode: Mode) !void {
+        const mode_str = switch (mode) {
+            .binary => "b",
+            .text => "t",
+            .binary_text => "bt",
         };
         const ret = c.lua_load(lua.state, reader, data, chunk_name, mode_str);
         switch (ret) {
             Status.ok => return,
             Status.err_syntax => return Error.Syntax,
             Status.err_memory => return Error.Memory,
-            // NOTE: the docs mention possible other return types, but I couldn't figure them out
-            else => panic("load returned an unexpected status: `{d}`", .{ret}),
+            // can also return any result of a pcall error
+            Status.err_runtime => return Error.Runtime,
+            Status.err_error => return Error.MsgHandler,
+            else => unreachable,
         }
     }
 
@@ -810,9 +810,9 @@ pub const Lua = struct {
     }
 
     /// Resets a thread, cleaning its call stack and closing all pending to-be-closed variables
-    /// TODO: look into possible errors
-    pub fn resetThread(lua: *Lua) i32 {
-        return c.lua_resetthread(lua.state);
+    /// Returns an error if an error occured and leaves an error object on top of the stack
+    pub fn resetThread(lua: *Lua) !void {
+        if (c.lua_resetthread(lua.state) != Status.ok) return Error.Fail;
     }
 
     /// Starts and resumes a coroutine in the given thread
@@ -1728,7 +1728,7 @@ fn wrapZigReaderFn(comptime f: ZigReaderFn) CReaderFn {
             var lua: Lua = .{ .state = state.? };
             if (@call(.{ .modifier = .always_inline }, f, .{ &lua, data.? })) |buffer| {
                 size.* = buffer.len;
-                return buffer;
+                return buffer.ptr;
             } else {
                 size.* = 0;
                 return null;
@@ -1751,15 +1751,14 @@ fn wrapZigWarnFn(comptime f: ZigWarnFn) CWarnFn {
 /// Wrap a ZigWriterFn in a CWriterFn for passing to the API
 fn wrapZigWriterFn(comptime f: ZigWriterFn) CWriterFn {
     return struct {
-        fn inner(state: ?*LuaState, buf: ?*anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int {
+        fn inner(state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int {
             // this is called by Lua, state should never be null
             var lua: Lua = .{ .state = state.? };
             const buffer = @ptrCast([*]const u8, buf)[0..size];
-            return @boolToInt(@call(
-                .{ .modifier = .always_inline },
-                f,
-                .{ &lua, buffer, data.? },
-            ));
+            const result = @call(.{ .modifier = .always_inline }, f, .{ &lua, buffer, data.? });
+            // it makes more sense for the inner writer function to return false for failure,
+            // so negate the result here
+            return @boolToInt(!result);
         }
     }.inner;
 }
@@ -2414,24 +2413,70 @@ test "conversions" {
     try expectEqual(@as(i32, 1), lua.absIndex(-2));
 }
 
+test "dump and load" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    // store a function in a global
+    try lua.doString("f = function(x) return function(n) return n + x end end");
+    // put the function on the stack
+    _ = lua.getGlobal("f");
+
+    const writer = struct {
+        fn inner(l: *Lua, buf: []const u8, data: *anyopaque) bool {
+            _ = l;
+            var arr = @ptrCast(*std.ArrayList(u8), @alignCast(@alignOf(std.ArrayList(u8)), data));
+            arr.appendSlice(buf) catch return false;
+            return true;
+        }
+    }.inner;
+
+    var buffer = std.ArrayList(u8).init(testing.allocator);
+    defer buffer.deinit();
+
+    // save the function as a binary chunk in the buffer
+    try lua.dump(wrap(writer), &buffer, false);
+
+    // clear the stack
+    try lua.resetThread();
+
+    const reader = struct {
+        fn inner(l: *Lua, data: *anyopaque) ?[]const u8 {
+            _ = l;
+            var arr = @ptrCast(*std.ArrayList(u8), @alignCast(@alignOf(std.ArrayList(u8)), data));
+            return arr.items;
+        }
+    }.inner;
+
+    // now load the function back onto the stack
+    try lua.load(wrap(reader), &buffer, "function", .binary);
+    try expectEqual(LuaType.function, lua.typeOf(-1));
+
+    // run the function (creating a new function)
+    lua.pushInteger(5);
+    try lua.protectedCall(1, 1, 0);
+
+    // now call the new function (which should return the value + 5)
+    lua.pushInteger(6);
+    try lua.protectedCall(1, 1, 0);
+    try expectEqual(@as(Integer, 11), lua.toInteger(-1));
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
 
     // stdlib
     _ = Lua.closeSlot;
-    _ = Lua.dump;
     _ = Lua.raiseError;
     _ = Lua.getIUserValue;
     _ = Lua.isYieldable;
-    _ = Lua.load;
     _ = Lua.newThread;
     _ = Lua.newUserdataUV;
     _ = Lua.next;
     _ = Lua.rawGetP;
     _ = Lua.rawSet;
     _ = Lua.rawSetP;
-    _ = Lua.resetThread;
     _ = Lua.setIUserValue;
     _ = Lua.setMetatable;
     _ = Lua.setTable;
