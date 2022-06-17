@@ -2296,6 +2296,24 @@ test "panic fn" {
     try expectEqual(@as(?CFn, null), lua.atPanic(panicFn));
 }
 
+test "warn fn" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    lua.warning("this message is going to the void", false);
+
+    const warnFn = wrap(struct {
+        fn inner(data: ?*anyopaque, msg: []const u8, to_cont: bool) void {
+            _ = data;
+            _ = to_cont;
+            if (!std.mem.eql(u8, msg, "this will be caught by the warnFn")) panic("test failed", .{});
+        }
+    }.inner);
+
+    lua.setWarnF(warnFn, null);
+    lua.warning("this will be caught by the warnFn", false);
+}
+
 test "concat" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -2480,12 +2498,10 @@ test "refs" {
     _ = Lua.setIUserValue;
     _ = Lua.setMetatable;
     _ = Lua.setTable;
-    _ = Lua.setWarnF;
     _ = Lua.toClose;
     _ = Lua.toPointer;
     _ = Lua.toUserdata;
     _ = Lua.upvalueIndex;
-    _ = Lua.warning;
     _ = Lua.xMove;
     _ = Lua.yield;
     _ = Lua.yieldCont;
