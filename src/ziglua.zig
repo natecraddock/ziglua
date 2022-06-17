@@ -260,7 +260,7 @@ pub const Lua = struct {
         const alignment = @alignOf(std.c.max_align_t);
 
         // the data pointer is an Allocator, so the @alignCast is safe
-        const allocator = @ptrCast(*Allocator, @alignCast(@alignOf(Allocator), data));
+        const allocator = opaqueCast(Allocator, data.?);
 
         if (@ptrCast(?[*]align(alignment) u8, @alignCast(alignment, ptr))) |prev_ptr| {
             const prev_slice = prev_ptr[0..osize];
@@ -1649,6 +1649,12 @@ pub const Buffer = struct {
 
 // Helper functions to make the ziglua API easier to use
 
+/// Casts the opaque pointer to a pointer of the given type with the proper alignment
+/// Useful for casting pointers from the Lua API like userdata or other data
+pub inline fn opaqueCast(comptime T: type, ptr: *anyopaque) *T {
+    return @ptrCast(*T, @alignCast(@alignOf(T), ptr));
+}
+
 pub const ZigFn = fn (lua: *Lua) i32;
 pub const ZigHookFn = fn (lua: *Lua, ar: *DebugInfo) void;
 pub const ZigContFn = fn (lua: *Lua, status: bool, ctx: KContext) c_int;
@@ -2443,7 +2449,7 @@ test "dump and load" {
     const writer = struct {
         fn inner(l: *Lua, buf: []const u8, data: *anyopaque) bool {
             _ = l;
-            var arr = @ptrCast(*std.ArrayList(u8), @alignCast(@alignOf(std.ArrayList(u8)), data));
+            var arr = opaqueCast(std.ArrayList(u8), data);
             arr.appendSlice(buf) catch return false;
             return true;
         }
@@ -2461,7 +2467,7 @@ test "dump and load" {
     const reader = struct {
         fn inner(l: *Lua, data: *anyopaque) ?[]const u8 {
             _ = l;
-            var arr = @ptrCast(*std.ArrayList(u8), @alignCast(@alignOf(std.ArrayList(u8)), data));
+            var arr = opaqueCast(std.ArrayList(u8), data);
             return arr.items;
         }
     }.inner;
