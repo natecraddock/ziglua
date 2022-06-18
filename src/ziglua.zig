@@ -769,7 +769,7 @@ pub const Lua = struct {
     }
 
     /// Similar to `Lua.setTable()` but does a raw assignment (without metamethods)
-    pub fn rawSet(lua: *Lua, index: i32) void {
+    pub fn rawSetTable(lua: *Lua, index: i32) void {
         c.lua_rawset(lua.state, index);
     }
 
@@ -1242,8 +1242,10 @@ pub const Lua = struct {
     /// Pushes onto the stack the field `e` from the metatable of the object at index `obj`
     /// and returns the type of the pushed value
     /// TODO: possibly return an error if nil
-    pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) LuaType {
-        return @intToEnum(LuaType, c.luaL_getmetafield(lua.state, obj, field));
+    pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) !LuaType {
+        const val_type = @intToEnum(LuaType, c.luaL_getmetafield(lua.state, obj, field));
+        if (val_type == .nil) return Error.Fail;
+        return val_type;
     }
 
     /// Pushes onto the stack the metatable associated with the name `type_name` in the registry
@@ -2382,7 +2384,27 @@ test "table access" {
     try expectEqual(LuaType.number, lua.rawGetTable(1));
     try expectEqual(@as(Integer, 1234), lua.toInteger(-1));
 
+    // a.name = "ziglua"
+    _ = lua.pushString("name");
+    _ = lua.pushString("ziglua");
+    lua.setTable(1);
+
+    // a.lang = "zig"
+    _ = lua.pushString("lang");
+    _ = lua.pushString("zig");
+    lua.rawSetTable(1);
+
     try expectError(Error.Fail, lua.getMetatable(1));
+
+    // create a metatable (it isn't a useful one)
+    lua.newTable();
+    lua.pushCFunction(wrap(add));
+    lua.setField(-2, "__len");
+    lua.setMetatable(1);
+
+    try lua.getMetatable(1);
+    _ = try lua.getMetaField(1, "__len");
+    try expectError(Error.Fail, lua.getMetaField(1, "__index"));
 
     lua.pushBoolean(true);
     lua.setField(1, "bool");
@@ -2499,11 +2521,8 @@ test "refs" {
     _ = Lua.newUserdataUV;
     _ = Lua.next;
     _ = Lua.rawGetP;
-    _ = Lua.rawSet;
     _ = Lua.rawSetP;
     _ = Lua.setIUserValue;
-    _ = Lua.setMetatable;
-    _ = Lua.setTable;
     _ = Lua.toClose;
     _ = Lua.toPointer;
     _ = Lua.toUserdata;
@@ -2544,7 +2563,6 @@ test "refs" {
     _ = Lua.raiseErrorAux;
     _ = Lua.exeResult;
     _ = Lua.fileResult;
-    _ = Lua.getMetaField;
     _ = Lua.getMetatableAux;
     _ = Lua.getSubtable;
     _ = Lua.gSub;
