@@ -460,8 +460,11 @@ pub const Lua = struct {
 
     /// Pushes onto the stack the `n`th user value associated with the full userdata at the given `index`
     /// Returns the type of the pushed value
-    pub fn getIUserValue(lua: *Lua, index: i32, n: i32) LuaType {
-        return @intToEnum(LuaType, c.lua_getiuservalue(lua.state, index, n));
+    /// Returns an error if the userdata does not have that value
+    pub fn getIndexUserValue(lua: *Lua, index: i32, n: i32) !LuaType {
+        const val_type = @intToEnum(LuaType, c.lua_getiuservalue(lua.state, index, n));
+        if (val_type == .none) return Error.Fail;
+        return val_type;
     }
 
     /// If the value at the given `index` has a metatable, the function pushes that metatable onto the stack
@@ -608,8 +611,11 @@ pub const Lua = struct {
     /// Returns the address of the block of memory
     /// TODO: use comptime to return the a pointer to a block of type T for safety?
     /// See how this is used if that would be useful
-    pub fn newUserdataUV(lua: *Lua, size: usize, new_uvalue: i32) *anyopaque {
-        return c.lua_newuserdatauv(lua.state, size, new_uvalue).?;
+    pub fn newUserdataUV(lua: *Lua, comptime T: type, new_uvalue: i32) *T {
+        // safe to .? because this function throws a Lua error on out of memory
+        // so the returned pointer should never be null
+        const ptr = c.lua_newuserdatauv(lua.state, @sizeOf(T), new_uvalue).?;
+        return opaqueCast(T, ptr);
     }
 
     /// Pops a key from the stack, and pushes a key-value pair from the table at the given `index`
@@ -658,7 +664,6 @@ pub const Lua = struct {
 
     /// Pushes a new C Closure onto the stack
     /// `n` tells how many upvalues this function will have
-    /// TODO: add a Zig interface to pass Zig functions wrapped
     pub fn pushCClosure(lua: *Lua, c_fn: CFn, n: i32) void {
         c.lua_pushcclosure(lua.state, c_fn, n);
     }
@@ -756,7 +761,7 @@ pub const Lua = struct {
 
     /// Pushes onto the stack the value t[k] where t is the table at the given `index` and
     /// k is the pointer `p` represented as a light userdata
-    pub fn rawGetP(lua: *Lua, index: i32, p: *anyopaque) LuaType {
+    pub fn rawGetPtr(lua: *Lua, index: i32, p: *const anyopaque) LuaType {
         return @intToEnum(LuaType, c.lua_rawgetp(lua.state, index, p));
     }
 
@@ -783,7 +788,7 @@ pub const Lua = struct {
     /// Does the equivalent of t[p] = v where t is the table at the given `index`
     /// `p` is encoded as a light user data, and v is the value at the top of the stack
     /// Pops the value from the stack. Does not use __newindex metavalue
-    pub fn rawSetP(lua: *Lua, index: i32, p: *anyopaque) void {
+    pub fn rawSetPtr(lua: *Lua, index: i32, p: *const anyopaque) void {
         c.lua_rawsetp(lua.state, index, p);
     }
 
@@ -854,7 +859,7 @@ pub const Lua = struct {
     /// Pops a value from the stack and sets it as the new `n`th user value associated to
     /// the full userdata at the given index
     /// Returns an error if the userdata does not have that value
-    pub fn setIUserValue(lua: *Lua, index: i32, n: i32) !void {
+    pub fn setIndexUserValue(lua: *Lua, index: i32, n: i32) !void {
         if (c.lua_setiuservalue(lua.state, index, n) == 0) return Error.Fail;
     }
 
@@ -960,8 +965,9 @@ pub const Lua = struct {
     }
 
     /// Converts the value at the given `index` to an opaque pointer
-    pub fn toPointer(lua: *Lua, index: i32) ?*const anyopaque {
-        return c.lua_topointer(lua.state, index);
+    pub fn toPointer(lua: *Lua, index: i32) !*const anyopaque {
+        if (c.lua_topointer(lua.state, index)) |ptr| return ptr;
+        return Error.Fail;
     }
 
     /// Converts the Lua value at the given `index` to a zero-terminated slice (string)
@@ -985,9 +991,10 @@ pub const Lua = struct {
 
     /// If the value at the given `index` is a full userdata, returns its memory-block address
     /// If the value is a light userdata, returns its value (a pointer)
-    /// Otherwise returns null
-    pub fn toUserdata(lua: *Lua, index: i32) ?*anyopaque {
-        return c.lua_touserdata(lua.state, index);
+    /// Otherwise returns an error
+    pub fn toUserdata(lua: *Lua, index: i32) !*anyopaque {
+        if (c.lua_touserdata(lua.state, index)) |ptr| return ptr;
+        return Error.Fail;
     }
 
     /// Returns the `LuaType` of the value at the given index
@@ -2508,6 +2515,128 @@ test "dump and load" {
     try expectEqual(@as(Integer, 11), lua.toInteger(-1));
 }
 
+test "threads" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    var new_thread = lua.newThread();
+    try expectEqual(@as(i32, 1), lua.getTop());
+    try expectEqual(@as(i32, 0), new_thread.getTop());
+
+    lua.pushInteger(10);
+    lua.pushNil();
+
+    lua.xMove(new_thread, 2);
+    try expectEqual(@as(i32, 2), new_thread.getTop());
+}
+
+test "userdata and uservalues" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const Data = struct {
+        val: i32,
+        code: [4]u8,
+    };
+
+    // create a Lua-owned pointer to a Data with 2 associated user values
+    var data = lua.newUserdataUV(Data, 2);
+    data.val = 1;
+    std.mem.copy(u8, &data.code, "abcd");
+
+    // assign the user values
+    lua.pushNumber(1234.56);
+    try lua.setIndexUserValue(1, 1);
+
+    _ = lua.pushString("test string");
+    try lua.setIndexUserValue(1, 2);
+
+    try expectEqual(LuaType.number, try lua.getIndexUserValue(1, 1));
+    try expectEqual(@as(Number, 1234.56), lua.toNumber(-1));
+    try expectEqual(LuaType.string, try lua.getIndexUserValue(1, 2));
+    try expectEqualStrings("test string", lua.toString(-1).?);
+
+    try expectError(Error.Fail, lua.setIndexUserValue(1, 3));
+    try expectError(Error.Fail, lua.getIndexUserValue(1, 3));
+
+    try expectEqual(data, opaqueCast(Data, try lua.toUserdata(1)));
+    try expectEqual(@ptrCast(*const anyopaque, data), @alignCast(@alignOf(Data), try lua.toPointer(1)));
+}
+
+test "upvalues" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    // counter from PIL
+    const counter = struct {
+        fn inner(l: *Lua) i32 {
+            var counter = l.toInteger(Lua.upvalueIndex(1));
+            counter += 1;
+            l.pushInteger(counter);
+            l.copy(-1, Lua.upvalueIndex(1));
+            return 1;
+        }
+    }.inner;
+
+    // Initialize the counter at 0
+    lua.pushInteger(0);
+    lua.pushCClosure(wrap(counter), 1);
+    lua.setGlobal("counter");
+
+    // call the function repeatedly, each time ensuring the result increases by one
+    var expected: Integer = 1;
+    while (expected <= 10) : (expected += 1) {
+        _ = lua.getGlobal("counter");
+        lua.call(0, 1);
+        try expectEqual(expected, lua.toInteger(-1));
+        lua.pop(1);
+    }
+}
+
+test "table traversal" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    try lua.doString("t = { key = 'value', second = true, third = 1 }");
+    _ = lua.getGlobal("t");
+
+    lua.pushNil();
+
+    while (lua.next(1)) {
+        switch (lua.typeOf(-1)) {
+            .string => {
+                try expectEqualStrings("key", lua.toString(-2).?);
+                try expectEqualStrings("value", lua.toString(-1).?);
+            },
+            .boolean => {
+                try expectEqualStrings("second", lua.toString(-2).?);
+                try expectEqual(true, lua.toBoolean(-1));
+            },
+            .number => {
+                try expectEqualStrings("third", lua.toString(-2).?);
+                try expectEqual(@as(Integer, 1), lua.toInteger(-1));
+            },
+            else => unreachable,
+        }
+        lua.pop(1);
+    }
+}
+
+test "registry" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const key = "mykey";
+
+    // store a string in the registry
+    _ = lua.pushString("hello there");
+    lua.rawSetPtr(registry_index, key);
+
+    // get key from the registry
+    _ = lua.rawGetPtr(registry_index, key);
+    try expectEqualStrings("hello there", lua.toString(-1).?);
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
@@ -2515,19 +2644,8 @@ test "refs" {
     // stdlib
     _ = Lua.closeSlot;
     _ = Lua.raiseError;
-    _ = Lua.getIUserValue;
     _ = Lua.isYieldable;
-    _ = Lua.newThread;
-    _ = Lua.newUserdataUV;
-    _ = Lua.next;
-    _ = Lua.rawGetP;
-    _ = Lua.rawSetP;
-    _ = Lua.setIUserValue;
     _ = Lua.toClose;
-    _ = Lua.toPointer;
-    _ = Lua.toUserdata;
-    _ = Lua.upvalueIndex;
-    _ = Lua.xMove;
     _ = Lua.yield;
     _ = Lua.yieldCont;
 
