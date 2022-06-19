@@ -6,7 +6,7 @@ const LibExeObjStep = std.build.LibExeObjStep;
 pub fn build(b: *Builder) void {
     const mode = b.standardReleaseOptions();
 
-    const tests = b.addTest("src/ziglua.zig");
+    const tests = b.addTest("src/tests.zig");
     link(b, tests, .{ .use_apicheck = true });
     tests.setBuildMode(mode);
 

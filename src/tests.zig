@@ -886,17 +886,99 @@ test "registry" {
     try expectEqualStrings("hello there", lua.toString(-1).?);
 }
 
+test "closing vars" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    lua.open(.{ .base = true });
+
+    // do setup in Lua for ease
+    try lua.doString(
+        \\closed_vars = 0
+        \\mt = { __close = function() closed_vars = closed_vars + 1 end }
+    );
+
+    lua.newTable();
+    _ = lua.getGlobal("mt");
+    lua.setMetatable(-2);
+    lua.toClose(-1);
+    lua.closeSlot(-1);
+    lua.pop(1);
+
+    lua.newTable();
+    _ = lua.getGlobal("mt");
+    lua.setMetatable(-2);
+    lua.toClose(-1);
+    lua.closeSlot(-1);
+    lua.pop(1);
+
+    // this should have incremented "closed_vars" to 2
+    _ = lua.getGlobal("closed_vars");
+    try expectEqual(@as(Number, 2), lua.toNumber(-1));
+}
+
+test "raise error" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const makeError = struct {
+        fn inner(l: *Lua) i32 {
+            _ = l.pushString("makeError made an error");
+            l.raiseError();
+            return 0;
+        }
+    }.inner;
+
+    lua.pushCFunction(ziglua.wrap(makeError));
+    try expectError(Error.Runtime, lua.protectedCall(0, 0, 0));
+    try expectEqualStrings("makeError made an error", lua.toString(-1).?);
+}
+
+fn continuation(l: *Lua, status: Lua.StatusType, ctx: isize) i32 {
+    _ = status;
+
+    if (ctx == 5) {
+        _ = l.pushString("done");
+        return 1;
+    } else {
+        // yield the current context value
+        l.pushInteger(ctx);
+        return l.yieldCont(1, ctx + 1, ziglua.wrap(continuation));
+    }
+}
+
+test "yielding" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    // here we create some zig functions that will run 5 times, continutally
+    // yielding a count until it finally returns the string "done"
+    const willYield = struct {
+        fn inner(l: *Lua) i32 {
+            return continuation(l, .ok, 0);
+        }
+    }.inner;
+
+    var thread = lua.newThread();
+    thread.pushCFunction(ziglua.wrap(willYield));
+
+    try expect(!lua.isYieldable());
+    try expect(thread.isYieldable());
+
+    var results: i32 = undefined;
+    var i: i32 = 0;
+    while (i < 5) : (i += 1) {
+        try expectEqual(Lua.ResumeStatus.yield, try thread.resumeThread(lua, 0, &results));
+        try expectEqual(@as(Integer, i), thread.toInteger(-1));
+        thread.pop(results);
+    }
+    try expectEqual(Lua.ResumeStatus.ok, try thread.resumeThread(lua, 0, &results));
+    try expectEqualStrings("done", thread.toString(-1).?);
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
-
-    // stdlib
-    _ = Lua.closeSlot;
-    _ = Lua.raiseError;
-    _ = Lua.isYieldable;
-    _ = Lua.toClose;
-    _ = Lua.yield;
-    _ = Lua.yieldCont;
 
     // debug
     _ = Lua.getHook;

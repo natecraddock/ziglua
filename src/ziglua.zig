@@ -818,11 +818,21 @@ pub const Lua = struct {
         if (c.lua_resetthread(lua.state) != Status.ok) return Error.Fail;
     }
 
+    pub const ResumeStatus = enum(u1) {
+        ok = Status.ok,
+        yield = Status.yield,
+    };
+
     /// Starts and resumes a coroutine in the given thread
-    /// TODO: look into possible errors returned
-    pub fn resumeThread(lua: *Lua, from: ?Lua, num_args: i32, num_results: *i32) i32 {
+    pub fn resumeThread(lua: *Lua, from: ?Lua, num_args: i32, num_results: *i32) !ResumeStatus {
         const from_state = if (from) |from_val| from_val.state else null;
-        return c.lua_resume(lua.state, from_state, num_args, num_results);
+        const thread_status = c.lua_resume(lua.state, from_state, num_args, num_results);
+        switch (thread_status) {
+            Status.err_runtime => return Error.Runtime,
+            Status.err_memory => return Error.Memory,
+            Status.err_error => return Error.MsgHandler,
+            else => return @intToEnum(ResumeStatus, thread_status),
+        }
     }
 
     /// Rotates the stack elements between the valid `index` and the top of the stack
@@ -1664,7 +1674,7 @@ pub inline fn opaqueCast(comptime T: type, ptr: *anyopaque) *T {
 
 pub const ZigFn = fn (lua: *Lua) i32;
 pub const ZigHookFn = fn (lua: *Lua, ar: *DebugInfo) void;
-pub const ZigContFn = fn (lua: *Lua, status: bool, ctx: KContext) c_int;
+pub const ZigContFn = fn (lua: *Lua, status: Lua.StatusType, ctx: KContext) i32;
 pub const ZigReaderFn = fn (lua: *Lua, data: *anyopaque) ?[]const u8;
 pub const ZigWarnFn = fn (data: ?*anyopaque, msg: []const u8, to_cont: bool) void;
 pub const ZigWriterFn = fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool;
@@ -1729,7 +1739,7 @@ fn wrapZigContFn(comptime f: ZigContFn) CContFn {
         fn inner(state: ?*LuaState, status: c_int, ctx: KContext) callconv(.C) c_int {
             // this is called by Lua, state should never be null
             var lua: Lua = .{ .state = state.? };
-            return @call(.{ .modifier = .always_inline }, f, .{ &lua, status != 0, ctx });
+            return @call(.{ .modifier = .always_inline }, f, .{ &lua, @intToEnum(Lua.StatusType, status), ctx });
         }
     }.inner;
 }
