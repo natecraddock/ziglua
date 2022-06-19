@@ -72,7 +72,7 @@ The major differences between the C and Zig Lua APIs are described below. This i
 
 ### Continuations
 
-All functions and types that deal with continuations have been renamed. For example, `KFunction` is now `LuaContFn`, and `lua_yieldk` is now `yieldCont`.
+All functions and types that deal with continuations have been renamed. For example, `KFunction` is now `LuaContFn`, and `lua_yieldk` is now `yieldCont`. One exception is the `KContext` type which has been simply renamed to `Context`. This is only ever used in continuation functions, so the `K` doesn't add much detail.
 
 In general, just replace the "k" with the word "cont". This is just to make the API more clear and Zig-like.
 

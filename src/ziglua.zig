@@ -133,10 +133,10 @@ pub const hook_tail_call = c.LUA_HOOKTAILCALL;
 pub const Integer = c.lua_Integer;
 
 /// Type for continuation-function contexts (usually isize)
-pub const KContext = isize;
+pub const Context = isize;
 
 /// Type for continuation functions
-pub const CContFn = fn (state: ?*LuaState, status: c_int, ctx: KContext) callconv(.C) c_int;
+pub const CContFn = fn (state: ?*LuaState, status: c_int, ctx: Context) callconv(.C) c_int;
 
 /// Bitflag for the Lua standard libraries
 pub const Libs = packed struct {
@@ -346,7 +346,7 @@ pub const Lua = struct {
     }
 
     /// Like `call`, but allows the called function to yield
-    pub fn callCont(lua: *Lua, num_args: i32, num_results: i32, ctx: KContext, k: ?CContFn) void {
+    pub fn callCont(lua: *Lua, num_args: i32, num_results: i32, ctx: Context, k: ?CContFn) void {
         c.lua_callk(lua.state, num_args, num_results, ctx, k);
     }
 
@@ -653,7 +653,7 @@ pub const Lua = struct {
     }
 
     /// Behaves exactly like `Lua.protectedCall()` except that it allows the called function to yield
-    pub fn protectedCallCont(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: KContext, k: ?CContFn) !void {
+    pub fn protectedCallCont(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: Context, k: ?CContFn) !void {
         const ret = c.lua_pcallk(lua.state, num_args, num_results, msg_handler, ctx, k);
         switch (ret) {
             StatusCode.ok => return,
@@ -1047,7 +1047,7 @@ pub const Lua = struct {
     }
 
     /// Yields this coroutine (thread)
-    pub fn yieldCont(lua: *Lua, num_results: i32, ctx: KContext, k: CContFn) noreturn {
+    pub fn yieldCont(lua: *Lua, num_results: i32, ctx: Context, k: CContFn) noreturn {
         _ = c.lua_yieldk(lua.state, num_results, ctx, k);
         unreachable;
     }
@@ -1674,7 +1674,7 @@ pub inline fn opaqueCast(comptime T: type, ptr: *anyopaque) *T {
 
 pub const ZigFn = fn (lua: *Lua) i32;
 pub const ZigHookFn = fn (lua: *Lua, ar: *DebugInfo) void;
-pub const ZigContFn = fn (lua: *Lua, status: Status, ctx: KContext) i32;
+pub const ZigContFn = fn (lua: *Lua, status: Status, ctx: Context) i32;
 pub const ZigReaderFn = fn (lua: *Lua, data: *anyopaque) ?[]const u8;
 pub const ZigWarnFn = fn (data: ?*anyopaque, msg: []const u8, to_cont: bool) void;
 pub const ZigWriterFn = fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool;
@@ -1735,7 +1735,7 @@ fn wrapZigHookFn(comptime f: ZigHookFn) CHookFn {
 /// Wrap a ZigContFn in a CContFn for passing to the API
 fn wrapZigContFn(comptime f: ZigContFn) CContFn {
     return struct {
-        fn inner(state: ?*LuaState, status: c_int, ctx: KContext) callconv(.C) c_int {
+        fn inner(state: ?*LuaState, status: c_int, ctx: Context) callconv(.C) c_int {
             // this is called by Lua, state should never be null
             var lua: Lua = .{ .state = state.? };
             return @call(.{ .modifier = .always_inline }, f, .{ &lua, @intToEnum(Status, status), ctx });
