@@ -80,9 +80,11 @@ In general, just replace the "k" with the word "cont". This is just to make the 
 
 Because `error` is a reserved word in Zig, these functions have been renamed to `raiseError` and `raiseErrorAux` respectively.
 
-### `lua_tostring` and `lua_tolstring`
+### `string` vs `lstring`
 
-These functions have been combined into `Lua.toString()`. The function `lua_tostring` is a macro around `lua_tolstring` and does not return the length of the string.
+The "string" variant functions vs the "lstring" functions only differ by returning the length of the string. In ziglua, the lstring functions are all named "bytes" instead. For example, `lua_tolstring` is `Lua.toBytes`. This is because these functions are typically used in cases when the string _might_ contain zeros before the null-terminating zero.
+
+The "string" variant functions are safe to use when the string is known to be null terminated without inner zeros.
 
 ### `lua_pushvfstring`
 

@@ -17,7 +17,10 @@ In a nutshell, ziglua is a simple wrapper around the C API you would get by usin
 * Compiler-enforced checking of optional pointers
 * Functions return `bool` rather than `int` to indicate success
 
-While there are some helper functions added to complement the C API, ziglua aims to remain low-level. If you want something higher-level, perhaps try [zoltan](https://github.com/ranciere/zoltan).
+While there are some helper functions added to complement the C API, ziglua aims to remain low-level.
+This allows full access to Lua with the added benefits of Zig's improvements over C.
+
+If you want something higher-level, perhaps try [zoltan](https://github.com/ranciere/zoltan).
 
 ## Getting Started
 
@@ -58,13 +61,9 @@ See [docs.md](https://github.com/natecraddock/ziglua/blob/master/docs.md) for do
 
 ## Status
 
-All functions, types, and constants in the public Lua API have been wrapped in Zig **(268/268 identifiers)**.
+Nearly all functions, types, and constants in the C API have been wrapped in ziglua. Only a few exceptions have been made when the function doesn't make sense in Zig (like functions using `va_list`).
 
-All of the functions have been referenced in tests, so the parameters are correctly typed.
-
-But I am still going through each function to decide the correct return types, errors, parameters, naming, etc.
-
-ziglua should be relatively stable and safe to use now, but is still rapidly changing.
+All functions have been type checked, but only the standard C API has been tested fully. ziglua should be relatively stable and safe to use now, but is still new and changing frequently.
 
 ## Acknowledgements
 
