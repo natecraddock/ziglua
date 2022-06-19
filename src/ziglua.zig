@@ -647,13 +647,20 @@ pub const Lua = struct {
 
     /// Calls a function (or callable object) in protected mode
     pub fn protectedCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) !void {
-        // The translate-c version of lua_pcall does not type-check so we must use this one
+        // The translate-c version of lua_pcall does not type-check so we must rewrite it
         // (macros don't always translate well with translate-c)
-        try lua.protectedCallCont(num_args, num_results, msg_handler, 0, null);
+        const ret = c.lua_pcallk(lua.state, num_args, num_results, msg_handler, 0, null);
+        switch (ret) {
+            StatusCode.ok => return,
+            StatusCode.err_runtime => return Error.Runtime,
+            StatusCode.err_memory => return Error.Memory,
+            StatusCode.err_error => return Error.MsgHandler,
+            else => unreachable,
+        }
     }
 
     /// Behaves exactly like `Lua.protectedCall()` except that it allows the called function to yield
-    pub fn protectedCallCont(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: Context, k: ?CContFn) !void {
+    pub fn protectedCallCont(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: Context, k: CContFn) !void {
         const ret = c.lua_pcallk(lua.state, num_args, num_results, msg_handler, ctx, k);
         switch (ret) {
             StatusCode.ok => return,
