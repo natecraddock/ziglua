@@ -24,8 +24,8 @@ fn expectEqualStringsSentinel(expected: []const u8, actual: [*:0]const u8) !void
 // until issue #1717 we need to use the struct workaround
 const add = struct {
     fn addInner(l: *Lua) i32 {
-        const a = l.toInteger(1);
-        const b = l.toInteger(2);
+        const a = l.toInteger(1) catch 0;
+        const b = l.toInteger(2) catch 0;
         l.pushInteger(a + b);
         return 1;
     }
@@ -33,8 +33,8 @@ const add = struct {
 
 const sub = struct {
     fn subInner(l: *Lua) i32 {
-        const a = l.toInteger(1);
-        const b = l.toInteger(2);
+        const a = l.toInteger(1) catch 0;
+        const b = l.toInteger(2) catch 0;
         l.pushInteger(a - b);
         return 1;
     }
@@ -157,61 +157,61 @@ test "arithmetic (lua_arith)" {
     lua.pushNumber(42);
 
     lua.arith(.add);
-    try expectEqual(@as(f64, 52), lua.toNumber(1));
+    try expectEqual(@as(f64, 52), try lua.toNumber(1));
 
     lua.pushNumber(12);
     lua.arith(.sub);
-    try expectEqual(@as(f64, 40), lua.toNumber(1));
+    try expectEqual(@as(f64, 40), try lua.toNumber(1));
 
     lua.pushNumber(2);
     lua.arith(.mul);
-    try expectEqual(@as(f64, 80), lua.toNumber(1));
+    try expectEqual(@as(f64, 80), try lua.toNumber(1));
 
     lua.pushNumber(8);
     lua.arith(.div);
-    try expectEqual(@as(f64, 10), lua.toNumber(1));
+    try expectEqual(@as(f64, 10), try lua.toNumber(1));
 
     // prep for idiv
     lua.pushNumber(1);
     lua.arith(.add);
     lua.pushNumber(2);
     lua.arith(.idiv);
-    try expectEqual(@as(f64, 5), lua.toNumber(1));
+    try expectEqual(@as(f64, 5), try lua.toNumber(1));
 
     lua.pushNumber(2);
     lua.arith(.mod);
-    try expectEqual(@as(f64, 1), lua.toNumber(1));
+    try expectEqual(@as(f64, 1), try lua.toNumber(1));
 
     lua.arith(.unm);
-    try expectEqual(@as(f64, -1), lua.toNumber(1));
+    try expectEqual(@as(f64, -1), try lua.toNumber(1));
 
     lua.arith(.unm);
     lua.pushNumber(2);
     lua.arith(.shl);
-    try expectEqual(@as(i64, 4), lua.toInteger(1));
+    try expectEqual(@as(i64, 4), try lua.toInteger(1));
 
     lua.pushNumber(1);
     lua.arith(.shr);
-    try expectEqual(@as(i64, 2), lua.toInteger(1));
+    try expectEqual(@as(i64, 2), try lua.toInteger(1));
 
     lua.pushNumber(4);
     lua.arith(.bor);
-    try expectEqual(@as(i64, 6), lua.toInteger(1));
+    try expectEqual(@as(i64, 6), try lua.toInteger(1));
 
     lua.pushNumber(1);
     lua.arith(.band);
-    try expectEqual(@as(i64, 0), lua.toInteger(1));
+    try expectEqual(@as(i64, 0), try lua.toInteger(1));
 
     lua.pushNumber(1);
     lua.arith(.bxor);
-    try expectEqual(@as(i64, 1), lua.toInteger(1));
+    try expectEqual(@as(i64, 1), try lua.toInteger(1));
 
     lua.arith(.bnot); // 0xFFFFFFFFFFFFFFFE which is -2
-    try expectEqual(@as(i64, -2), lua.toInteger(1));
+    try expectEqual(@as(i64, -2), try lua.toInteger(1));
 
     lua.pushNumber(3);
     lua.arith(.pow);
-    try expectEqual(@as(i64, -8), lua.toInteger(1));
+    try expectEqual(@as(i64, -8), try lua.toInteger(1));
 }
 
 test "compare" {
@@ -292,8 +292,8 @@ test "type of and getting values" {
     try expectEqual(lua.state, (try lua.toThread(7)).state);
     try expectEqual(@as(ziglua.CFn, ziglua.wrap(add)), try lua.toCFunction(9));
 
-    try expectEqual(@as(Number, 0.1), try lua.toNumberX(6));
-    try expectEqual(@as(Integer, 1), try lua.toIntegerX(3));
+    try expectEqual(@as(Number, 0.1), try lua.toNumber(6));
+    try expectEqual(@as(Integer, 1), try lua.toInteger(3));
 }
 
 test "typenames" {
@@ -325,7 +325,7 @@ test "executing string contents" {
     try expectEqual(LuaType.function, lua.getGlobal("f"));
     lua.pop(1);
     try expectEqual(LuaType.number, lua.getGlobal("a"));
-    try expectEqual(@as(i64, 12), lua.toInteger(1));
+    try expectEqual(@as(i64, 12), try lua.toInteger(1));
 
     try expectError(Error.Syntax, lua.loadString("bad syntax"));
     try lua.loadString("a = g()");
@@ -394,10 +394,10 @@ test "stack manipulation" {
     try expectEqual(@as(i32, 10), lua.getTop());
 
     lua.copy(1, 2);
-    try expectEqual(@as(i64, 10), lua.toInteger(1));
-    try expectEqual(@as(i64, 10), lua.toInteger(2));
-    try expectEqual(@as(i64, 1), lua.toInteger(3));
-    try expectEqual(@as(i64, 8), lua.toInteger(-1));
+    try expectEqual(@as(i64, 10), try lua.toInteger(1));
+    try expectEqual(@as(i64, 10), try lua.toInteger(2));
+    try expectEqual(@as(i64, 1), try lua.toInteger(3));
+    try expectEqual(@as(i64, 8), try lua.toInteger(-1));
 
     lua.setTop(0);
     try expectEqual(@as(i32, 0), lua.getTop());
@@ -416,7 +416,7 @@ test "calling a function" {
     // we know it should be safe
     lua.call(2, 1);
 
-    try expectEqual(@as(i64, 42), lua.toInteger(1));
+    try expectEqual(@as(i64, 42), try lua.toInteger(1));
 }
 
 test "version" {
@@ -482,7 +482,7 @@ test "string buffers" {
     try expectEqualStrings("abcdefghijklmnopqrstuvwxyz", try lua.toBytes(-1));
 
     lua.len(-1);
-    try expectEqual(@as(Integer, 26), lua.toInteger(-1));
+    try expectEqual(@as(Integer, 26), try lua.toInteger(-1));
 }
 
 test "global table" {
@@ -532,7 +532,7 @@ test "function registration" {
     lua.pushInteger(42);
     lua.pushInteger(40);
     try lua.protectedCall(2, 1, 0);
-    try expectEqual(@as(Integer, 2), lua.toInteger(-1));
+    try expectEqual(@as(Integer, 2), try lua.toInteger(-1));
 
     // now test the newlib variation to build a library from functions
     // indirectly tests newLibTable
@@ -639,7 +639,7 @@ test "table access" {
 
     _ = lua.pushString("other one");
     try expectEqual(LuaType.number, lua.rawGetTable(1));
-    try expectEqual(@as(Integer, 1234), lua.toInteger(-1));
+    try expectEqual(@as(Integer, 1234), try lua.toInteger(-1));
 
     // a.name = "ziglua"
     _ = lua.pushString("name");
@@ -701,11 +701,11 @@ test "conversions" {
     // string conversion
     try lua.stringToNumber("1");
     try expect(lua.isInteger(-1));
-    try expectEqual(@as(Integer, 1), lua.toInteger(1));
+    try expectEqual(@as(Integer, 1), try lua.toInteger(1));
 
     try lua.stringToNumber("  1.0  ");
     try expect(lua.isNumber(-1));
-    try expectEqual(@as(Number, 1.0), lua.toNumber(-1));
+    try expectEqual(@as(Number, 1.0), try lua.toNumber(-1));
 
     try expectError(Error.Fail, lua.stringToNumber("a"));
     try expectError(Error.Fail, lua.stringToNumber("1.a"));
@@ -762,7 +762,7 @@ test "dump and load" {
     // now call the new function (which should return the value + 5)
     lua.pushInteger(6);
     try lua.protectedCall(1, 1, 0);
-    try expectEqual(@as(Integer, 11), lua.toInteger(-1));
+    try expectEqual(@as(Integer, 11), try lua.toInteger(-1));
 }
 
 test "threads" {
@@ -802,7 +802,7 @@ test "userdata and uservalues" {
     try lua.setIndexUserValue(1, 2);
 
     try expectEqual(LuaType.number, try lua.getIndexUserValue(1, 1));
-    try expectEqual(@as(Number, 1234.56), lua.toNumber(-1));
+    try expectEqual(@as(Number, 1234.56), try lua.toNumber(-1));
     try expectEqual(LuaType.string, try lua.getIndexUserValue(1, 2));
     try expectEqualStrings("test string", try lua.toBytes(-1));
 
@@ -820,7 +820,7 @@ test "upvalues" {
     // counter from PIL
     const counter = struct {
         fn inner(l: *Lua) i32 {
-            var counter = l.toInteger(Lua.upvalueIndex(1));
+            var counter = l.toInteger(Lua.upvalueIndex(1)) catch 0;
             counter += 1;
             l.pushInteger(counter);
             l.copy(-1, Lua.upvalueIndex(1));
@@ -838,7 +838,7 @@ test "upvalues" {
     while (expected <= 10) : (expected += 1) {
         _ = lua.getGlobal("counter");
         lua.call(0, 1);
-        try expectEqual(expected, lua.toInteger(-1));
+        try expectEqual(expected, try lua.toInteger(-1));
         lua.pop(1);
     }
 }
@@ -864,7 +864,7 @@ test "table traversal" {
             },
             .number => {
                 try expectEqualStrings("third", try lua.toBytes(-2));
-                try expectEqual(@as(Integer, 1), lua.toInteger(-1));
+                try expectEqual(@as(Integer, 1), try lua.toInteger(-1));
             },
             else => unreachable,
         }
@@ -915,7 +915,7 @@ test "closing vars" {
 
     // this should have incremented "closed_vars" to 2
     _ = lua.getGlobal("closed_vars");
-    try expectEqual(@as(Number, 2), lua.toNumber(-1));
+    try expectEqual(@as(Number, 2), try lua.toNumber(-1));
 }
 
 test "raise error" {
@@ -970,7 +970,7 @@ test "yielding" {
     var i: i32 = 0;
     while (i < 5) : (i += 1) {
         try expectEqual(ziglua.ResumeStatus.yield, try thread.resumeThread(lua, 0, &results));
-        try expectEqual(@as(Integer, i), thread.toInteger(-1));
+        try expectEqual(@as(Integer, i), try thread.toInteger(-1));
         thread.pop(results);
     }
     try expectEqual(ziglua.ResumeStatus.ok, try thread.resumeThread(lua, 0, &results));

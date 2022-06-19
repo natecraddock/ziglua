@@ -204,8 +204,8 @@ const ziglua = @import("ziglua");
 const Lua = ziglua.Lua;
 
 fn adder(lua: *Lua) i32 {
-    const a = lua.toInteger(1);
-    const b = lua.toInteger(2);
+    const a = lua.toInteger(1) catch 0;
+    const b = lua.toInteger(2) catch 0;
     lua.pushInteger(a + b);
     return 1;
 }

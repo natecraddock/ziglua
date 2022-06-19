@@ -932,18 +932,10 @@ pub const Lua = struct {
         c.lua_toclose(lua.state, index);
     }
 
-    /// Equivalent to toIntegerX but does not return errors
-    /// TODO: there really isn't a reason to use this...
-    /// perhaps combine with toIntegerX and always enforce errors
-    /// The caller can always choose to ignore (same for toNumber)
-    pub fn toInteger(lua: *Lua, index: i32) Integer {
-        return lua.toIntegerX(index) catch return 0;
-    }
-
     /// Converts the Lua value at the given `index` to a signed integer
     /// The Lua value must be an integer, or a number, or a string convertible to an integer otherwise toIntegerX returns 0
     /// Returns an error if the conversion failed
-    pub fn toIntegerX(lua: *Lua, index: i32) !Integer {
+    pub fn toInteger(lua: *Lua, index: i32) !Integer {
         var success: c_int = undefined;
         const result = c.lua_tointegerx(lua.state, index, &success);
         if (success == 0) return Error.Fail;
@@ -959,15 +951,10 @@ pub const Lua = struct {
         return Error.Fail;
     }
 
-    /// Equivalent to toNumberX but does not return errors
-    pub fn toNumber(lua: *Lua, index: i32) Number {
-        return lua.toNumberX(index) catch return 0;
-    }
-
     /// Converts the Lua value at the given `index` to a float
     /// The Lua value must be a number or a string convertible to a number otherwise toNumberX returns 0
     /// Returns an error if the conversion failed
-    pub fn toNumberX(lua: *Lua, index: i32) !Number {
+    pub fn toNumber(lua: *Lua, index: i32) !Number {
         var success: c_int = undefined;
         const result = c.lua_tonumberx(lua.state, index, &success);
         if (success == 0) return Error.Fail;
