@@ -131,7 +131,7 @@ test "standard library loading" {
     }
 
     // open all standard libraries with individual functions
-    // NOTE: these functions are only useful if you want to load the standard
+    // these functions are only useful if you want to load the standard
     // packages into a non-standard table
     {
         var lua = try Lua.init(testing.allocator);
@@ -551,7 +551,7 @@ test "panic fn" {
 
     // just test setting up the panic function
     // it uses longjmp so cannot return here to test
-    // NOTE: perhaps a later version of zig can test an expected fail
+    // TODO: perhaps a later version of zig can test an expected fail
     const panicFn = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
             _ = l;

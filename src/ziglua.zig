@@ -710,11 +710,6 @@ pub const Lua = struct {
         c.lua_pushlightuserdata(lua.state, ptr);
     }
 
-    /// There is no reason to have a pushLiteral function...
-    // pub fn pushLiteral(lua: *Lua, str: []const u8) []const u8 {
-    //     c.lua_pushliteral(lua.state, str); // TODO
-    // }
-
     /// Pushes the bytes onto the stack. Returns a slice pointing to Lua's internal copy of the string
     pub fn pushBytes(lua: *Lua, str: []const u8) []const u8 {
         return c.lua_pushlstring(lua.state, str.ptr, str.len)[0..str.len];
@@ -733,8 +728,6 @@ pub const Lua = struct {
     /// Pushes a zero-terminated string onto the stack
     /// Lua makes a copy of the string so `str` may be freed immediately after return
     /// Returns a pointer to the internal Lua string
-    /// If `str` is null pushes nil and returns null
-    /// TODO: is it useful to return null?
     pub fn pushString(lua: *Lua, str: []const u8) []const u8 {
         return c.lua_pushstring(lua.state, str.ptr).?[0..str.len];
     }
@@ -1571,7 +1564,7 @@ pub const Buffer = struct {
 
     /// Adds `byte` to the buffer
     pub fn addChar(buf: *Buffer, byte: u8) void {
-        // NOTE: could not be translated by translate-c
+        // could not be translated by translate-c
         var lua_buf = &buf.b;
         if (lua_buf.n >= lua_buf.size) _ = buf.prepSize(1);
         lua_buf.b[lua_buf.n] = byte;
