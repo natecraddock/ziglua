@@ -250,7 +250,7 @@ test "type of and getting values" {
     _ = lua.pushString("all your codebase are belong to us");
     try expectEqual(@as(?[*]const u8, null), lua.pushString(null));
     lua.pushCFunction(ziglua.wrap(add));
-    _ = lua.pushLString("hello world");
+    _ = lua.pushBytes("hello world");
     _ = lua.pushFString("%s %s %d", .{ "hello", "world", @as(i32, 10) });
     lua.pushValue(1);
 
@@ -285,7 +285,7 @@ test "type of and getting values" {
     try expect(lua.isString(12));
     try expect(lua.isBoolean(13));
 
-    try expectEqualStrings("hello world 10", lua.toString(12).?);
+    try expectEqualStrings("hello world 10", try lua.toBytes(12));
 
     // the created thread should equal the main thread (but created thread has no allocator ref)
     try expectEqual(lua.state, (try lua.toThread(7)).state);
@@ -466,7 +466,7 @@ test "string buffers" {
     try expectEqualStrings("ziglua api some text here", buffer.addr());
 
     buffer.pushResult();
-    try expectEqualStrings("ziglua api some text here", lua.toString(-1).?);
+    try expectEqualStrings("ziglua api some text here", try lua.toBytes(-1));
 
     // now test a small buffer
     buffer = undefined;
@@ -478,7 +478,7 @@ test "string buffers" {
     b = buffer.prep();
     std.mem.copy(u8, b, "defghijklmnopqrstuvwxyz");
     buffer.pushResultSize(23);
-    try expectEqualStrings("abcdefghijklmnopqrstuvwxyz", lua.toString(-1).?);
+    try expectEqualStrings("abcdefghijklmnopqrstuvwxyz", try lua.toBytes(-1));
 
     lua.len(-1);
     try expectEqual(@as(Integer, 26), lua.toInteger(-1));
@@ -587,7 +587,7 @@ test "concat" {
     _ = lua.pushString(" wow!");
     lua.concat(3);
 
-    try expectEqualStrings("hello 10.0 wow!", lua.toString(-1).?);
+    try expectEqualStrings("hello 10.0 wow!", try lua.toBytes(-1));
 }
 
 test "garbage collector" {
@@ -627,14 +627,14 @@ test "table access" {
     _ = lua.getGlobal("a");
 
     try expectEqual(LuaType.string, lua.getIndex(1, 1));
-    try expectEqualStrings("first", lua.toString(-1).?);
+    try expectEqualStrings("first", try lua.toBytes(-1));
 
     try expectEqual(LuaType.string, lua.rawGetIndex(1, 1));
-    try expectEqualStrings("first", lua.toString(-1).?);
+    try expectEqualStrings("first", try lua.toBytes(-1));
 
     _ = lua.pushString("key");
     try expectEqual(LuaType.string, lua.getTable(1));
-    try expectEqualStrings("value", lua.toString(-1).?);
+    try expectEqualStrings("value", try lua.toBytes(-1));
 
     _ = lua.pushString("other one");
     try expectEqual(LuaType.number, lua.rawGetTable(1));
@@ -803,7 +803,7 @@ test "userdata and uservalues" {
     try expectEqual(LuaType.number, try lua.getIndexUserValue(1, 1));
     try expectEqual(@as(Number, 1234.56), lua.toNumber(-1));
     try expectEqual(LuaType.string, try lua.getIndexUserValue(1, 2));
-    try expectEqualStrings("test string", lua.toString(-1).?);
+    try expectEqualStrings("test string", try lua.toBytes(-1));
 
     try expectError(Error.Fail, lua.setIndexUserValue(1, 3));
     try expectError(Error.Fail, lua.getIndexUserValue(1, 3));
@@ -854,15 +854,15 @@ test "table traversal" {
     while (lua.next(1)) {
         switch (lua.typeOf(-1)) {
             .string => {
-                try expectEqualStrings("key", lua.toString(-2).?);
-                try expectEqualStrings("value", lua.toString(-1).?);
+                try expectEqualStrings("key", try lua.toBytes(-2));
+                try expectEqualStrings("value", try lua.toBytes(-1));
             },
             .boolean => {
-                try expectEqualStrings("second", lua.toString(-2).?);
+                try expectEqualStrings("second", try lua.toBytes(-2));
                 try expectEqual(true, lua.toBoolean(-1));
             },
             .number => {
-                try expectEqualStrings("third", lua.toString(-2).?);
+                try expectEqualStrings("third", try lua.toBytes(-2));
                 try expectEqual(@as(Integer, 1), lua.toInteger(-1));
             },
             else => unreachable,
@@ -883,7 +883,7 @@ test "registry" {
 
     // get key from the registry
     _ = lua.rawGetPtr(ziglua.registry_index, key);
-    try expectEqualStrings("hello there", lua.toString(-1).?);
+    try expectEqualStrings("hello there", try lua.toBytes(-1));
 }
 
 test "closing vars" {
@@ -931,7 +931,7 @@ test "raise error" {
 
     lua.pushCFunction(ziglua.wrap(makeError));
     try expectError(Error.Runtime, lua.protectedCall(0, 0, 0));
-    try expectEqualStrings("makeError made an error", lua.toString(-1).?);
+    try expectEqualStrings("makeError made an error", try lua.toBytes(-1));
 }
 
 fn continuation(l: *Lua, status: ziglua.Status, ctx: isize) i32 {
@@ -973,7 +973,7 @@ test "yielding" {
         thread.pop(results);
     }
     try expectEqual(ziglua.ResumeStatus.ok, try thread.resumeThread(lua, 0, &results));
-    try expectEqualStrings("done", thread.toString(-1).?);
+    try expectEqualStrings("done", try thread.toBytes(-1));
 }
 
 test "refs" {

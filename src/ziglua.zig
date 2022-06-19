@@ -716,7 +716,7 @@ pub const Lua = struct {
     // }
 
     /// Pushes the bytes onto the stack. Returns a slice pointing to Lua's internal copy of the string
-    pub fn pushLString(lua: *Lua, str: []const u8) []const u8 {
+    pub fn pushBytes(lua: *Lua, str: []const u8) []const u8 {
         return c.lua_pushlstring(lua.state, str.ptr, str.len)[0..str.len];
     }
 
@@ -951,8 +951,14 @@ pub const Lua = struct {
         return result;
     }
 
-    // NOTE: No need to have both toLString and toString for a Zig API
-    // pub fn toLString(lua: *Lua, index: i32) []const u8 { ... }
+    /// Returns a slice of bytes at the given index
+    /// If the value is not a string or number, returns an error
+    /// If the value was a number the actual value in the stack will be changed to a string
+    pub fn toBytes(lua: *Lua, index: i32) ![:0]const u8 {
+        var length: usize = undefined;
+        if (c.lua_tolstring(lua.state, index, &length)) |ptr| return ptr[0..length :0];
+        return Error.Fail;
+    }
 
     /// Equivalent to toNumberX but does not return errors
     pub fn toNumber(lua: *Lua, index: i32) Number {
@@ -975,14 +981,14 @@ pub const Lua = struct {
         return Error.Fail;
     }
 
-    /// Converts the Lua value at the given `index` to a zero-terminated slice (string)
-    /// Returns null if the value was not a string or number
+    /// Converts the Lua value at the given `index` to a zero-terminated many-itemed-pointer (string)
+    /// Returns an error if the conversion failed
     /// If the value was a number the actual value in the stack will be changed to a string
-    pub fn toString(lua: *Lua, index: i32) ?[:0]const u8 {
+    pub fn toString(lua: *Lua, index: i32) ![*:0]const u8 {
         var length: usize = undefined;
         if (c.lua_tolstring(lua.state, index, &length)) |str| {
-            return str[0..length :0];
-        } else return null;
+            return std.mem.span(str);
+        } else return Error.Fail;
     }
 
     /// Converts the value at the given `index` to a Lua thread (wrapped with a `Lua` struct)
