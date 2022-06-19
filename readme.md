@@ -9,18 +9,17 @@ Like the Lua C API, the ziglua API "emphasizes flexibility and simplicity... com
 
 ## Why use ziglua?
 
-In a nutshell, ziglua is a simple wrapper around the C API you would get by using `@cImport()` to bind Lua. ziglua aims to mirror the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4) as closely as possible, while improving ergonomics using Zig's features. For example:
+In a nutshell, ziglua is a simple wrapper around the C API you would get by using Zig's `@cImport()`. ziglua aims to mirror the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4) as closely as possible, while improving ergonomics using Zig's features. For example:
 
-* Zig error unions to enforce failure state handling
+* Zig error unions to require failure state handling
 * Null-terminated slices instead of C strings
 * Type-checked enums for parameters and return values
 * Compiler-enforced checking of optional pointers
-* Functions return `bool` rather than `int` to indicate success
+* More precise types (e.g. `bool` instead of `int`)
 
-While there are some helper functions added to complement the C API, ziglua aims to remain low-level.
-This allows full access to Lua with the added benefits of Zig's improvements over C.
+While there are some helper functions added to complement the C API, ziglua aims to remain low-level. This allows full access to the Lua API through a layer of Zig's improvements over C.
 
-If you want something higher-level, perhaps try [zoltan](https://github.com/ranciere/zoltan).
+If you want something higher-level (but doesn't expose the full API), perhaps try [zoltan](https://github.com/ranciere/zoltan).
 
 ## Getting Started
 
