@@ -252,7 +252,6 @@ test "type of and getting values" {
     lua.pushNumber(0.1);
     _ = lua.pushThread();
     _ = lua.pushString("all your codebase are belong to us");
-    try expectEqual(@as(?[*]const u8, null), lua.pushString(null));
     lua.pushCFunction(ziglua.wrap(add));
     _ = lua.pushBytes("hello world");
     _ = lua.pushFString("%s %s %d", .{ "hello", "world", @as(i32, 10) });
@@ -267,11 +266,10 @@ test "type of and getting values" {
     try expectEqual(LuaType.number, lua.typeOf(6));
     try expectEqual(LuaType.thread, lua.typeOf(7));
     try expectEqual(LuaType.string, lua.typeOf(8));
-    try expectEqual(LuaType.nil, lua.typeOf(9));
-    try expectEqual(LuaType.function, lua.typeOf(10));
+    try expectEqual(LuaType.function, lua.typeOf(9));
+    try expectEqual(LuaType.string, lua.typeOf(10));
     try expectEqual(LuaType.string, lua.typeOf(11));
-    try expectEqual(LuaType.string, lua.typeOf(12));
-    try expectEqual(LuaType.boolean, lua.typeOf(13));
+    try expectEqual(LuaType.boolean, lua.typeOf(12));
 
     try expect(lua.isBoolean(1));
     try expect(lua.isTable(2));
@@ -282,18 +280,17 @@ test "type of and getting values" {
     try expect(lua.isNumber(6));
     try expect(lua.isThread(7));
     try expect(lua.isString(8));
-    try expect(lua.isNil(9));
-    try expect(lua.isCFunction(10));
-    try expect(lua.isFunction(10));
+    try expect(lua.isCFunction(9));
+    try expect(lua.isFunction(9));
+    try expect(lua.isString(10));
     try expect(lua.isString(11));
-    try expect(lua.isString(12));
-    try expect(lua.isBoolean(13));
+    try expect(lua.isBoolean(12));
 
-    try expectEqualStrings("hello world 10", std.mem.span(try lua.toString(12)));
+    try expectEqualStrings("hello world 10", std.mem.span(try lua.toString(11)));
 
     // the created thread should equal the main thread (but created thread has no allocator ref)
     try expectEqual(lua.state, (try lua.toThread(7)).state);
-    try expectEqual(@as(ziglua.CFn, ziglua.wrap(add)), try lua.toCFunction(10));
+    try expectEqual(@as(ziglua.CFn, ziglua.wrap(add)), try lua.toCFunction(9));
 
     try expectEqual(@as(Number, 0.1), try lua.toNumberX(6));
     try expectEqual(@as(Integer, 1), try lua.toIntegerX(3));

@@ -735,9 +735,8 @@ pub const Lua = struct {
     /// Returns a pointer to the internal Lua string
     /// If `str` is null pushes nil and returns null
     /// TODO: is it useful to return null?
-    pub fn pushString(lua: *Lua, str: ?[*:0]const u8) ?[*]const u8 {
-        const ptr = c.lua_pushstring(lua.state, str);
-        return @ptrCast(?[*]const u8, ptr);
+    pub fn pushString(lua: *Lua, str: []const u8) []const u8 {
+        return c.lua_pushstring(lua.state, str.ptr).?[0..str.len];
     }
 
     /// Pushes this thread onto the stack
