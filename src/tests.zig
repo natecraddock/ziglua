@@ -17,6 +17,10 @@ const expectEqualStrings = testing.expectEqualStrings;
 const expectError = testing.expectError;
 const panic = std.debug.panic;
 
+fn expectEqualStringsSentinel(expected: []const u8, actual: [*:0]const u8) !void {
+    return expectEqualStrings(expected, std.mem.span(actual));
+}
+
 // until issue #1717 we need to use the struct workaround
 const add = struct {
     fn addInner(l: *Lua) i32 {
@@ -285,7 +289,7 @@ test "type of and getting values" {
     try expect(lua.isString(12));
     try expect(lua.isBoolean(13));
 
-    try expectEqualStrings("hello world 10", try lua.toBytes(12));
+    try expectEqualStrings("hello world 10", std.mem.span(try lua.toString(12)));
 
     // the created thread should equal the main thread (but created thread has no allocator ref)
     try expectEqual(lua.state, (try lua.toThread(7)).state);
@@ -299,16 +303,16 @@ test "typenames" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    try expectEqualStrings("no value", lua.typeName(.none));
-    try expectEqualStrings("nil", lua.typeName(.nil));
-    try expectEqualStrings("boolean", lua.typeName(.boolean));
-    try expectEqualStrings("userdata", lua.typeName(.light_userdata));
-    try expectEqualStrings("number", lua.typeName(.number));
-    try expectEqualStrings("string", lua.typeName(.string));
-    try expectEqualStrings("table", lua.typeName(.table));
-    try expectEqualStrings("function", lua.typeName(.function));
-    try expectEqualStrings("userdata", lua.typeName(.userdata));
-    try expectEqualStrings("thread", lua.typeName(.thread));
+    try expectEqualStringsSentinel("no value", lua.typeName(.none));
+    try expectEqualStringsSentinel("nil", lua.typeName(.nil));
+    try expectEqualStringsSentinel("boolean", lua.typeName(.boolean));
+    try expectEqualStringsSentinel("userdata", lua.typeName(.light_userdata));
+    try expectEqualStringsSentinel("number", lua.typeName(.number));
+    try expectEqualStringsSentinel("string", lua.typeName(.string));
+    try expectEqualStringsSentinel("table", lua.typeName(.table));
+    try expectEqualStringsSentinel("function", lua.typeName(.function));
+    try expectEqualStringsSentinel("userdata", lua.typeName(.userdata));
+    try expectEqualStringsSentinel("thread", lua.typeName(.thread));
 }
 
 test "executing string contents" {

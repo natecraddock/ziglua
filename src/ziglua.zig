@@ -986,9 +986,8 @@ pub const Lua = struct {
     /// If the value was a number the actual value in the stack will be changed to a string
     pub fn toString(lua: *Lua, index: i32) ![*:0]const u8 {
         var length: usize = undefined;
-        if (c.lua_tolstring(lua.state, index, &length)) |str| {
-            return std.mem.span(str);
-        } else return Error.Fail;
+        if (c.lua_tolstring(lua.state, index, &length)) |str| return str;
+        return Error.Fail;
     }
 
     /// Converts the value at the given `index` to a Lua thread (wrapped with a `Lua` struct)
@@ -1015,8 +1014,8 @@ pub const Lua = struct {
     }
 
     /// Returns the name of the given `LuaType` as a null-terminated slice
-    pub fn typeName(lua: *Lua, t: LuaType) [:0]const u8 {
-        return std.mem.span(c.lua_typename(lua.state, @enumToInt(t)));
+    pub fn typeName(lua: *Lua, t: LuaType) [*:0]const u8 {
+        return c.lua_typename(lua.state, @enumToInt(t));
     }
 
     /// Returns the pseudo-index that represents the `i`th upvalue of the running function
