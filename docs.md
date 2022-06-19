@@ -84,6 +84,11 @@ Because `error` is a reserved word in Zig, these functions have been renamed to 
 
 These functions have been combined into `Lua.toString()`. The function `lua_tostring` is a macro around `lua_tolstring` and does not return the length of the string.
 
+### `lua_pushvfstring`
+
+This function has been omitted because Zig does not have a va_list type, and `Lua.pushFString` works well
+enough for string formatting if variadic args are really needed.
+
 The length of the returned string is almost always needed, so `Lua.toString() returns a zero-terminated Zig slice of the bytes with the correct length.
 
 ### `lua_tointegerx` and `lua_tonumberx`

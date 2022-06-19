@@ -66,7 +66,7 @@ fn failing_alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize
 test "initialization" {
     // initialize the Zig wrapper
     var lua = try Lua.init(testing.allocator);
-    try expectEqual(Lua.StatusType.ok, lua.status());
+    try expectEqual(ziglua.Status.ok, lua.status());
     lua.deinit();
 
     // attempt to initialize the Zig wrapper with no memory
@@ -934,7 +934,7 @@ test "raise error" {
     try expectEqualStrings("makeError made an error", lua.toString(-1).?);
 }
 
-fn continuation(l: *Lua, status: Lua.StatusType, ctx: isize) i32 {
+fn continuation(l: *Lua, status: ziglua.Status, ctx: isize) i32 {
     _ = status;
 
     if (ctx == 5) {
@@ -968,11 +968,11 @@ test "yielding" {
     var results: i32 = undefined;
     var i: i32 = 0;
     while (i < 5) : (i += 1) {
-        try expectEqual(Lua.ResumeStatus.yield, try thread.resumeThread(lua, 0, &results));
+        try expectEqual(ziglua.ResumeStatus.yield, try thread.resumeThread(lua, 0, &results));
         try expectEqual(@as(Integer, i), thread.toInteger(-1));
         thread.pop(results);
     }
-    try expectEqual(Lua.ResumeStatus.ok, try thread.resumeThread(lua, 0, &results));
+    try expectEqual(ziglua.ResumeStatus.ok, try thread.resumeThread(lua, 0, &results));
     try expectEqualStrings("done", thread.toString(-1).?);
 }
 

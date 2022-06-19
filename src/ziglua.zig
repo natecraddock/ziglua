@@ -44,7 +44,6 @@ pub const ArithOperator = enum(u4) {
 
 /// Type for C functions
 /// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
-/// TODO: we really are passing Zig functions, maybe call `Function` and use `func` for params?
 pub const CFn = fn (state: ?*LuaState) callconv(.C) c_int;
 
 /// Operations supported by `Lua.compare()`
@@ -198,6 +197,12 @@ pub const Number = c.lua_Number;
 /// The type of the reader function used by `Lua.load()`
 pub const CReaderFn = fn (state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.C) [*c]const u8;
 
+/// The possible status of a call to `Lua.resumeThread`
+pub const ResumeStatus = enum(u1) {
+    ok = StatusCode.ok,
+    yield = StatusCode.yield,
+};
+
 /// Reference constants
 pub const ref_nil = c.LUA_REFNIL;
 pub const ref_no = c.LUA_NOREF;
@@ -211,23 +216,34 @@ pub const ridx_globals = c.LUA_RIDX_GLOBALS;
 /// Index of the main thread in the registry
 pub const ridx_mainthread = c.LUA_RIDX_MAINTHREAD;
 
+/// Status that a thread can be in
+/// Usually errors are reported by a Zig error rather than a status enum value
+pub const Status = enum(u3) {
+    ok = StatusCode.ok,
+    yield = StatusCode.yield,
+    err_runtime = StatusCode.err_runtime,
+    err_syntax = StatusCode.err_syntax,
+    err_memory = StatusCode.err_memory,
+    err_error = StatusCode.err_error,
+};
+
 /// Status codes
 /// Not public, because typically Status.ok is returned from a function implicitly;
 /// Any function that returns an error usually returns a Zig error, and a void return
 /// is an implicit Status.ok.
 /// In the rare case that the status code is required from a function, an enum is
 /// used for that specific function's return type
-const Status = struct {
+const StatusCode = struct {
     pub const ok = c.LUA_OK;
     pub const yield = c.LUA_YIELD;
     pub const err_runtime = c.LUA_ERRRUN;
     pub const err_syntax = c.LUA_ERRSYNTAX;
     pub const err_memory = c.LUA_ERRMEM;
     pub const err_error = c.LUA_ERRERR;
-
-    // Only used in loadFileX
-    pub const err_file = c.LUA_ERRFILE;
 };
+
+// Only used in loadFileX, so no need to group with Status
+pub const err_file = c.LUA_ERRFILE;
 
 /// The standard representation for file handles used by the standard IO library
 pub const Stream = c.luaL_Stream;
@@ -575,12 +591,12 @@ pub const Lua = struct {
         };
         const ret = c.lua_load(lua.state, reader, data, chunk_name, mode_str);
         switch (ret) {
-            Status.ok => return,
-            Status.err_syntax => return Error.Syntax,
-            Status.err_memory => return Error.Memory,
-            // can also return any result of a pcall error
-            Status.err_runtime => return Error.Runtime,
-            Status.err_error => return Error.MsgHandler,
+            StatusCode.ok => return,
+            StatusCode.err_syntax => return Error.Syntax,
+            StatusCode.err_memory => return Error.Memory,
+            // lua_load runs pcall, so can also return any result of an pcall error
+            StatusCode.err_runtime => return Error.Runtime,
+            StatusCode.err_error => return Error.MsgHandler,
             else => unreachable,
         }
     }
@@ -607,8 +623,6 @@ pub const Lua = struct {
     /// This function creates and pushes a new full userdata onto the stack
     /// with `num_uvalue` associated Lua values, plus an associated block of raw memory with `size` bytes
     /// Returns the address of the block of memory
-    /// TODO: use comptime to return the a pointer to a block of type T for safety?
-    /// See how this is used if that would be useful
     pub fn newUserdataUV(lua: *Lua, comptime T: type, new_uvalue: i32) *T {
         // safe to .? because this function throws a Lua error on out of memory
         // so the returned pointer should never be null
@@ -642,10 +656,10 @@ pub const Lua = struct {
     pub fn protectedCallCont(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: KContext, k: ?CContFn) !void {
         const ret = c.lua_pcallk(lua.state, num_args, num_results, msg_handler, ctx, k);
         switch (ret) {
-            Status.ok => return,
-            Status.err_runtime => return Error.Runtime,
-            Status.err_memory => return Error.Memory,
-            Status.err_error => return Error.MsgHandler,
+            StatusCode.ok => return,
+            StatusCode.err_runtime => return Error.Runtime,
+            StatusCode.err_memory => return Error.Memory,
+            StatusCode.err_error => return Error.MsgHandler,
             else => unreachable,
         }
     }
@@ -737,8 +751,6 @@ pub const Lua = struct {
         c.lua_pushvalue(lua.state, index);
     }
 
-    // TODO: pub fn pushVFString is that even worth?
-
     /// Returns true if the two values in indices `index1` and `index2` are primitively equal
     /// Bypasses __eq metamethods
     /// Returns false if not equal, or if any index is invalid
@@ -815,22 +827,17 @@ pub const Lua = struct {
     /// Resets a thread, cleaning its call stack and closing all pending to-be-closed variables
     /// Returns an error if an error occured and leaves an error object on top of the stack
     pub fn resetThread(lua: *Lua) !void {
-        if (c.lua_resetthread(lua.state) != Status.ok) return Error.Fail;
+        if (c.lua_resetthread(lua.state) != StatusCode.ok) return Error.Fail;
     }
-
-    pub const ResumeStatus = enum(u1) {
-        ok = Status.ok,
-        yield = Status.yield,
-    };
 
     /// Starts and resumes a coroutine in the given thread
     pub fn resumeThread(lua: *Lua, from: ?Lua, num_args: i32, num_results: *i32) !ResumeStatus {
         const from_state = if (from) |from_val| from_val.state else null;
         const thread_status = c.lua_resume(lua.state, from_state, num_args, num_results);
         switch (thread_status) {
-            Status.err_runtime => return Error.Runtime,
-            Status.err_memory => return Error.Memory,
-            Status.err_error => return Error.MsgHandler,
+            StatusCode.err_runtime => return Error.Runtime,
+            StatusCode.err_memory => return Error.Memory,
+            StatusCode.err_error => return Error.MsgHandler,
             else => return @intToEnum(ResumeStatus, thread_status),
         }
     }
@@ -897,19 +904,9 @@ pub const Lua = struct {
         c.lua_setwarnf(lua.state, warn_fn, data);
     }
 
-    // TODO: this is not very clean
-    pub const StatusType = enum(u3) {
-        ok = Status.ok,
-        yield = Status.yield,
-        err_runtime = Status.err_runtime,
-        err_syntax = Status.err_syntax,
-        err_memory = Status.err_memory,
-        err_error = Status.err_error,
-    };
-
     /// Returns the status of this thread
-    pub fn status(lua: *Lua) StatusType {
-        return @intToEnum(StatusType, c.lua_status(lua.state));
+    pub fn status(lua: *Lua) Status {
+        return @intToEnum(Status, c.lua_status(lua.state));
     }
 
     /// Converts the zero-terminated string `str` to a number, pushes that number onto the stack,
@@ -1037,16 +1034,18 @@ pub const Lua = struct {
         c.lua_xmove(lua.state, to.state, num);
     }
 
-    /// This function is equivalent to `Lua.yieldK()` but has no continuation
-    /// TODO: return values?
-    pub fn yield(lua: *Lua, num_results: i32) i32 {
+    /// This function is equivalent to `Lua.yieldCont()` but has no continuation
+    /// NOTE: look into the lua_yieldk docs about this and debug hooks and noreturn
+    pub fn yield(lua: *Lua, num_results: i32) noreturn {
         // translate-c failed to pass NULL correctly
-        return c.lua_yieldk(lua.state, num_results, 0, null);
+        _ = c.lua_yieldk(lua.state, num_results, 0, null);
+        unreachable;
     }
 
     /// Yields this coroutine (thread)
-    pub fn yieldCont(lua: *Lua, num_results: i32, ctx: KContext, k: CContFn) i32 {
-        return c.lua_yieldk(lua.state, num_results, ctx, k);
+    pub fn yieldCont(lua: *Lua, num_results: i32, ctx: KContext, k: CContFn) noreturn {
+        _ = c.lua_yieldk(lua.state, num_results, ctx, k);
+        unreachable;
     }
 
     // Debug library functions
@@ -1325,24 +1324,25 @@ pub const Lua = struct {
         };
         const ret = c.luaL_loadfilex(lua.state, file_name, mode_str);
         switch (ret) {
-            Status.ok => return,
-            Status.err_syntax => return Error.Syntax,
-            Status.err_memory => return Error.Memory,
-            Status.err_file => return Error.File,
+            StatusCode.ok => return,
+            StatusCode.err_syntax => return Error.Syntax,
+            StatusCode.err_memory => return Error.Memory,
+            err_file => return Error.File,
             // NOTE: the docs mention possible other return types, but I couldn't figure them out
             else => unreachable,
         }
     }
 
     /// Loads a string as a Lua chunk
-    /// TODO: investigate what kind of return codes this really can return
     pub fn loadString(lua: *Lua, str: [:0]const u8) !void {
         const ret = c.luaL_loadstring(lua.state, str);
         switch (ret) {
-            Status.ok => return,
-            Status.err_syntax => return Error.Syntax,
-            Status.err_memory => return Error.Memory,
-            // NOTE: loadstring calls lua_load which can return more status codes than this?
+            StatusCode.ok => return,
+            StatusCode.err_syntax => return Error.Syntax,
+            StatusCode.err_memory => return Error.Memory,
+            // loadstring runs lua_load which runs pcall, so can also return any result of an pcall error
+            StatusCode.err_runtime => return Error.Runtime,
+            StatusCode.err_error => return Error.MsgHandler,
             else => unreachable,
         }
     }
@@ -1485,8 +1485,6 @@ pub const Lua = struct {
     }
 
     // Standard library loading functions
-    //
-    // TODO: opening libs can run arbitrary Lua code and can throw any error
 
     /// Opens the specified standard library functions
     /// Behaves like openLibs, but allows specifying which libraries
@@ -1582,9 +1580,7 @@ pub const Buffer = struct {
 
     /// Adds `byte` to the buffer
     pub fn addChar(buf: *Buffer, byte: u8) void {
-        // the postfix inc/dec expression is not yet supported by translate-c
-        // c.luaL_addchar(&buf.b, byte);
-        // TODO: revisit this once Zig bug is fixed (perhaps fix bug?)
+        // NOTE: could not be translated by translate-c
         var lua_buf = &buf.b;
         if (lua_buf.n >= lua_buf.size) _ = buf.prepSize(1);
         lua_buf.b[lua_buf.n] = byte;
@@ -1674,7 +1670,7 @@ pub inline fn opaqueCast(comptime T: type, ptr: *anyopaque) *T {
 
 pub const ZigFn = fn (lua: *Lua) i32;
 pub const ZigHookFn = fn (lua: *Lua, ar: *DebugInfo) void;
-pub const ZigContFn = fn (lua: *Lua, status: Lua.StatusType, ctx: KContext) i32;
+pub const ZigContFn = fn (lua: *Lua, status: Status, ctx: KContext) i32;
 pub const ZigReaderFn = fn (lua: *Lua, data: *anyopaque) ?[]const u8;
 pub const ZigWarnFn = fn (data: ?*anyopaque, msg: []const u8, to_cont: bool) void;
 pub const ZigWriterFn = fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool;
@@ -1716,7 +1712,6 @@ fn wrapZigFn(comptime f: ZigFn) CFn {
         fn inner(state: ?*LuaState) callconv(.C) c_int {
             // this is called by Lua, state should never be null
             var lua: Lua = .{ .state = state.? };
-            // TODO: should we pass a pointer to the lua state? no real reason to
             return @call(.{ .modifier = .always_inline }, f, .{&lua});
         }
     }.inner;
@@ -1739,7 +1734,7 @@ fn wrapZigContFn(comptime f: ZigContFn) CContFn {
         fn inner(state: ?*LuaState, status: c_int, ctx: KContext) callconv(.C) c_int {
             // this is called by Lua, state should never be null
             var lua: Lua = .{ .state = state.? };
-            return @call(.{ .modifier = .always_inline }, f, .{ &lua, @intToEnum(Lua.StatusType, status), ctx });
+            return @call(.{ .modifier = .always_inline }, f, .{ &lua, @intToEnum(Status, status), ctx });
         }
     }.inner;
 }
