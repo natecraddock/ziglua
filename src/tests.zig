@@ -252,7 +252,7 @@ test "type of and getting values" {
     lua.pushNumber(0.1);
     _ = lua.pushThread();
     _ = lua.pushString("all your codebase are belong to us");
-    lua.pushCFunction(ziglua.wrap(add));
+    lua.pushFunction(ziglua.wrap(add));
     _ = lua.pushBytes("hello world");
     _ = lua.pushFString("%s %s %d", .{ "hello", "world", @as(i32, 10) });
     lua.pushValue(1);
@@ -655,7 +655,7 @@ test "table access" {
 
     // create a metatable (it isn't a useful one)
     lua.newTable();
-    lua.pushCFunction(ziglua.wrap(add));
+    lua.pushFunction(ziglua.wrap(add));
     lua.setField(-2, "__len");
     lua.setMetatable(1);
 
@@ -830,7 +830,7 @@ test "upvalues" {
 
     // Initialize the counter at 0
     lua.pushInteger(0);
-    lua.pushCClosure(ziglua.wrap(counter), 1);
+    lua.pushClosure(ziglua.wrap(counter), 1);
     lua.setGlobal("counter");
 
     // call the function repeatedly, each time ensuring the result increases by one
@@ -930,7 +930,7 @@ test "raise error" {
         }
     }.inner;
 
-    lua.pushCFunction(ziglua.wrap(makeError));
+    lua.pushFunction(ziglua.wrap(makeError));
     try expectError(Error.Runtime, lua.protectedCall(0, 0, 0));
     try expectEqualStrings("makeError made an error", try lua.toBytes(-1));
 }
@@ -961,7 +961,7 @@ test "yielding" {
     }.inner;
 
     var thread = lua.newThread();
-    thread.pushCFunction(ziglua.wrap(willYield));
+    thread.pushFunction(ziglua.wrap(willYield));
 
     try expect(!lua.isYieldable());
     try expect(thread.isYieldable());

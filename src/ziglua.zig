@@ -681,16 +681,16 @@ pub const Lua = struct {
         c.lua_pushboolean(lua.state, @boolToInt(b));
     }
 
-    /// Pushes a new C Closure onto the stack
+    /// Pushes a new Closure onto the stack
     /// `n` tells how many upvalues this function will have
-    pub fn pushCClosure(lua: *Lua, c_fn: CFn, n: i32) void {
+    pub fn pushClosure(lua: *Lua, c_fn: CFn, n: i32) void {
         c.lua_pushcclosure(lua.state, c_fn, n);
     }
 
-    /// Pushes a C function onto the stack.
-    /// Equivalent to pushCClosure with no upvalues
-    pub fn pushCFunction(lua: *Lua, c_fn: CFn) void {
-        lua.pushCClosure(c_fn, 0);
+    /// Pushes a function onto the stack.
+    /// Equivalent to pushClosure with no upvalues
+    pub fn pushFunction(lua: *Lua, c_fn: CFn) void {
+        lua.pushClosure(c_fn, 0);
     }
 
     /// Push a formatted string onto the stack and return a pointer to the string
@@ -1422,7 +1422,7 @@ pub const Lua = struct {
                 var i: i32 = 0;
                 // copy upvalues to the top
                 while (i < num_upvalues) : (i += 1) lua.pushValue(-num_upvalues);
-                lua.pushCClosure(func, num_upvalues);
+                lua.pushClosure(func, num_upvalues);
             } else lua.pushBoolean(false); // register a placeholder
             lua.setField(-(num_upvalues + 2), f.name);
         }

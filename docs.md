@@ -218,7 +218,7 @@ pub fn main() anyerror!void {
     var lua = try Lua.init(allocator);
     defer lua.deinit();
 
-    lua.pushCFunction(ziglua.wrap(adder));
+    lua.pushFunction(ziglua.wrap(adder));
     lua.pushInteger(10);
     lua.pushInteger(32);
 
@@ -229,6 +229,6 @@ pub fn main() anyerror!void {
 }
 ```
 
-Notice the use of `ziglua.wrap`. This is because the function `fn adder(*Lua) i32` is a `ziglua.ZigFn`, when the `lua.register` call expects a `ziglua.CFn` type.
+Notice the use of `ziglua.wrap`. This is because the function `fn adder(*Lua) i32` is a `ziglua.ZigFn`, when the `lua.pushFunction` call expects a `ziglua.CFn` type.
 
-The `ziglua.wrap` function generates a new function at compile time that wraps the Zig function in a function compatible with the Lua C API. This could be done automatically by the register function, but that would require the parameter to be comptime-known. The call to `ziglua.wrap` is slightly more verbose, but has the benefit of being more flexible.
+The `ziglua.wrap` function generates a new function at compile time that wraps the Zig function in a function compatible with the Lua C API. This could be done automatically by `lua.pushFunction`, but that would require the parameter to be comptime-known. The call to `ziglua.wrap` is slightly more verbose, but has the benefit of being more flexible.
