@@ -53,8 +53,64 @@ pub const CompareOperator = enum(u2) {
     le = c.LUA_OPLE,
 };
 
+/// The internal Lua debug structure
+const Debug = c.lua_Debug;
+
 /// The Lua debug interface structure
-pub const DebugInfo = c.lua_Debug;
+pub const DebugInfo = struct {
+    source: [:0]const u8 = undefined,
+    src_len: usize = 0,
+    short_src: [c.LUA_IDSIZE:0]u8 = undefined,
+
+    name: ?[:0]const u8 = undefined,
+    name_what: NameType = undefined,
+    what: FnType = undefined,
+
+    current_line: ?i32 = null,
+    first_line_defined: ?i32 = null,
+    last_line_defined: ?i32 = null,
+
+    num_upvalues: u8 = 0,
+    num_params: u8 = 0,
+
+    is_vararg: bool = false,
+    is_tail_call: bool = false,
+
+    first_transfer: u16 = 0,
+    num_transfer: u16 = 0,
+
+    private: *anyopaque = undefined,
+
+    pub const NameType = enum { global, local, method, field, upvalue, other };
+
+    pub const FnType = enum { lua, c, main };
+
+    pub const Options = packed struct {
+        @">": bool = false,
+        f: bool = false,
+        l: bool = false,
+        n: bool = false,
+        r: bool = false,
+        S: bool = false,
+        t: bool = false,
+        u: bool = false,
+        L: bool = false,
+
+        fn toString(options: Options) [10:0]u8 {
+            var str = [_:0]u8{0} ** 10;
+            var index: u8 = 0;
+
+            inline for (std.meta.fields(Options)) |field| {
+                if (@field(options, field.name)) {
+                    str[index] = field.name[0];
+                    index += 1;
+                }
+            }
+
+            return str;
+        }
+    };
+};
 
 /// The superset of all errors returned from ziglua
 pub const Error = error{
@@ -70,6 +126,15 @@ pub const Error = error{
     MsgHandler,
     /// A file-releated error
     File,
+};
+
+/// The type of event that triggers a hook
+pub const Event = enum(u3) {
+    call = c.LUA_HOOKCALL,
+    ret = c.LUA_HOOKRET,
+    line = c.LUA_HOOKLINE,
+    count = c.LUA_HOOKCOUNT,
+    tail_call = c.LUA_HOOKTAILCALL,
 };
 
 /// Type for arrays of functions to be registered
@@ -92,7 +157,7 @@ pub const GCAction = enum(u5) {
 };
 
 /// Type for debugging hook functions
-pub const CHookFn = fn (state: ?*LuaState, ar: ?*DebugInfo) callconv(.C) void;
+pub const CHookFn = fn (state: ?*LuaState, ar: ?*Debug) callconv(.C) void;
 
 /// Specifies on which events the hook will be called
 pub const HookMask = packed struct {
@@ -1060,22 +1125,72 @@ pub const Lua = struct {
     }
 
     /// Gets information about a specific function or function invocation
-    /// TODO: look at possible types for what
-    pub fn getInfo(lua: *Lua, what: [:0]const u8, ar: *DebugInfo) bool {
-        return c.lua_getinfo(lua.state, what, ar) != 0;
+    /// Returns an error if an invalid option was given, but the valid options
+    /// are still handled
+    pub fn getInfo(lua: *Lua, options: DebugInfo.Options) DebugInfo {
+        const str = options.toString();
+        var ar: Debug = undefined;
+
+        // should never fail because we are controlling options with the struct param
+        std.debug.assert(c.lua_getinfo(lua.state, &str, &ar) != 0);
+
+        // copy data into a struct
+        var info: DebugInfo = undefined;
+        if (options.l) info.current_line = if (ar.currentline == -1) null else ar.currentline;
+        if (options.n) {
+            info.name = if (ar.name != null) std.mem.span(ar.name) else null;
+            info.name_what = blk: {
+                const what = std.mem.span(ar.namewhat);
+                if (std.mem.eql(u8, "global", what)) break :blk .global;
+                if (std.mem.eql(u8, "local", what)) break :blk .local;
+                if (std.mem.eql(u8, "method", what)) break :blk .method;
+                if (std.mem.eql(u8, "field", what)) break :blk .field;
+                if (std.mem.eql(u8, "upvalue", what)) break :blk .upvalue;
+                if (what.len == 0) break :blk .other;
+                unreachable;
+            };
+        }
+        if (options.r) {
+            info.first_transfer = ar.ftransfer;
+            info.num_transfer = ar.ntransfer;
+        }
+        if (options.S) {
+            info.source = std.mem.span(ar.source);
+            std.mem.copy(u8, &info.short_src, &ar.short_src);
+            info.first_line_defined = ar.linedefined;
+            info.last_line_defined = ar.lastlinedefined;
+            info.what = blk: {
+                const what = std.mem.span(ar.what);
+                if (std.mem.eql(u8, "Lua", what)) break :blk .lua;
+                if (std.mem.eql(u8, "C", what)) break :blk .c;
+                if (std.mem.eql(u8, "main", what)) break :blk .main;
+                unreachable;
+            };
+        }
+        if (options.t) info.is_tail_call = ar.istailcall != 0;
+        if (options.u) {
+            info.num_upvalues = ar.nups;
+            info.num_params = ar.nparams;
+            info.is_vararg = ar.isvararg != 0;
+        }
+        return info;
     }
 
     /// Gets information about a local variable
-    pub fn getLocal(lua: *Lua, ar: *DebugInfo, n: i32) ![:0]const u8 {
-        if (c.lua_getlocal(lua.state, ar, n)) |name| {
+    pub fn getLocal(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
+        var ar: Debug = undefined;
+        ar.i_ci = @ptrCast(*c.struct_CallInfo, info.private);
+        if (c.lua_getlocal(lua.state, &ar, n)) |name| {
             return std.mem.span(name);
         }
         return Error.Fail;
     }
 
     /// Gets information about the interpreter runtime stack
-    pub fn getStack(lua: *Lua, level: i32, ar: *DebugInfo) bool {
-        return c.lua_getstack(lua.state, level, ar) != 0;
+    pub fn getStack(lua: *Lua, level: i32) !DebugInfo {
+        var ar: Debug = undefined;
+        if (c.lua_getstack(lua.state, level, &ar) == 0) return Error.Fail;
+        return DebugInfo{ .private = ar.i_ci.? };
     }
 
     /// Gets information about the `n`th upvalue of the closure at index `func_index`
@@ -1094,8 +1209,10 @@ pub const Lua = struct {
 
     /// Sets the value of a local variable
     /// Returns an error when the index is greater than the number of active locals
-    pub fn setLocal(lua: *Lua, ar: *DebugInfo, n: i32) ![:0]const u8 {
-        if (c.lua_setlocal(lua.state, ar, n)) |name| {
+    pub fn setLocal(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
+        var ar: Debug = undefined;
+        ar.i_ci = @ptrCast(*c.struct_CallInfo, info.private);
+        if (c.lua_setlocal(lua.state, &ar, n)) |name| {
             return std.mem.span(name);
         }
         return Error.Fail;
@@ -1660,7 +1777,7 @@ pub inline fn opaqueCast(comptime T: type, ptr: *anyopaque) *T {
 }
 
 pub const ZigFn = fn (lua: *Lua) i32;
-pub const ZigHookFn = fn (lua: *Lua, ar: *DebugInfo) void;
+pub const ZigHookFn = fn (lua: *Lua, event: Event, info: *DebugInfo) void;
 pub const ZigContFn = fn (lua: *Lua, status: Status, ctx: Context) i32;
 pub const ZigReaderFn = fn (lua: *Lua, data: *anyopaque) ?[]const u8;
 pub const ZigWarnFn = fn (data: ?*anyopaque, msg: []const u8, to_cont: bool) void;
@@ -1711,10 +1828,14 @@ fn wrapZigFn(comptime f: ZigFn) CFn {
 /// Wrap a ZigHookFn in a CHookFn for passing to the API
 fn wrapZigHookFn(comptime f: ZigHookFn) CHookFn {
     return struct {
-        fn inner(state: ?*LuaState, ar: *DebugInfo) callconv(.C) void {
+        fn inner(state: ?*LuaState, ar: ?*Debug) callconv(.C) void {
             // this is called by Lua, state should never be null
             var lua: Lua = .{ .state = state.? };
-            @call(.{ .modifier = .always_inline }, f, .{ &lua, ar.? });
+            var info: DebugInfo = .{
+                .current_line = if (ar.?.currentline == -1) null else ar.?.currentline,
+                .private = ar.i_ci,
+            };
+            @call(.{ .modifier = .always_inline }, f, .{ &lua, @intToEnum(Event, ar.?.event), info });
         }
     }.inner;
 }

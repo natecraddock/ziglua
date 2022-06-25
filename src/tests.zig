@@ -977,6 +977,38 @@ test "yielding" {
     try expectEqualStrings("done", try thread.toBytes(-1));
 }
 
+test "debug interface" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    try lua.doString(
+        \\f = function(x)
+        \\  return x + 1
+        \\end
+    );
+    _ = lua.getGlobal("f");
+
+    var info = lua.getInfo(.{
+        .@">" = true,
+        .l = true,
+        .S = true,
+        .n = true,
+        .u = true,
+        .t = true,
+    });
+
+    try expectEqual(ziglua.DebugInfo.FnType.lua, info.what);
+    try expectEqual(ziglua.DebugInfo.NameType.other, info.name_what);
+    const len = std.mem.len(@ptrCast([*:0]u8, &info.short_src));
+    try expectEqualStrings("[string \"f = function(x)...\"]", info.short_src[0..len]);
+    try expectEqual(@as(?i32, 1), info.first_line_defined);
+    try expectEqual(@as(?i32, 3), info.last_line_defined);
+    try expectEqual(@as(u8, 1), info.num_params);
+    try expectEqual(@as(u8, 0), info.num_upvalues);
+    try expect(!info.is_tail_call);
+    try expectEqual(@as(?i32, null), info.current_line);
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
@@ -985,7 +1017,6 @@ test "refs" {
     _ = Lua.getHook;
     _ = Lua.getHookCount;
     _ = Lua.getHookMask;
-    _ = Lua.getInfo;
     _ = Lua.getLocal;
     _ = Lua.getStack;
     _ = Lua.getUpvalue;
