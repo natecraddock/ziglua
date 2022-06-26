@@ -5,7 +5,9 @@ const testing = std.testing;
 const ziglua = @import("ziglua.zig");
 
 const Buffer = ziglua.Buffer;
+const DebugInfo = ziglua.DebugInfo;
 const Error = ziglua.Error;
+const Event = ziglua.Event;
 const Integer = ziglua.Integer;
 const Lua = ziglua.Lua;
 const LuaType = ziglua.LuaType;
@@ -983,30 +985,73 @@ test "debug interface" {
 
     try lua.doString(
         \\f = function(x)
-        \\  return x + 1
+        \\  local y = x * 2
+        \\  y = y + 2
+        \\  return x + y
         \\end
     );
     _ = lua.getGlobal("f");
 
-    var info = lua.getInfo(.{
+    var info: DebugInfo = undefined;
+    lua.getInfo(.{
         .@">" = true,
         .l = true,
         .S = true,
         .n = true,
         .u = true,
         .t = true,
-    });
+    }, &info);
 
-    try expectEqual(ziglua.DebugInfo.FnType.lua, info.what);
-    try expectEqual(ziglua.DebugInfo.NameType.other, info.name_what);
+    // get information about the function
+    try expectEqual(DebugInfo.FnType.lua, info.what);
+    try expectEqual(DebugInfo.NameType.other, info.name_what);
     const len = std.mem.len(@ptrCast([*:0]u8, &info.short_src));
     try expectEqualStrings("[string \"f = function(x)...\"]", info.short_src[0..len]);
     try expectEqual(@as(?i32, 1), info.first_line_defined);
-    try expectEqual(@as(?i32, 3), info.last_line_defined);
+    try expectEqual(@as(?i32, 5), info.last_line_defined);
     try expectEqual(@as(u8, 1), info.num_params);
     try expectEqual(@as(u8, 0), info.num_upvalues);
     try expect(!info.is_tail_call);
     try expectEqual(@as(?i32, null), info.current_line);
+
+    // create a hook
+    const hook = struct {
+        fn inner(l: *Lua, event: Event, i: *DebugInfo) void {
+            switch (event) {
+                .call => {
+                    l.getInfo(.{ .l = true, .r = true }, i);
+                    if (i.current_line.? != 2) panic("Expected line to be 2", .{});
+                    _ = l.getLocal(i, i.first_transfer) catch unreachable;
+                    if ((l.toNumber(-1) catch unreachable) != 3) panic("Expected x to equal 3", .{});
+                },
+                .line => if (i.current_line.? == 4) {
+                    // modify the value of y to be 0 right before returning
+                    l.pushNumber(0);
+                    _ = l.setLocal(i, 2) catch unreachable;
+                },
+                .ret => {
+                    l.getInfo(.{ .l = true, .r = true }, i);
+                    if (i.current_line.? != 4) panic("Expected line to be 4", .{});
+                    _ = l.getLocal(i, i.first_transfer) catch unreachable;
+                    if ((l.toNumber(-1) catch unreachable) != 3) panic("Expected result to equal 3", .{});
+                },
+                else => unreachable,
+            }
+        }
+    }.inner;
+
+    // run the hook when a function is called
+    try expectEqual(@as(?ziglua.CHookFn, null), lua.getHook());
+    try expectEqual(ziglua.HookMask{}, lua.getHookMask());
+    try expectEqual(@as(i32, 0), lua.getHookCount());
+
+    lua.setHook(ziglua.wrap(hook), .{ .call = true, .line = true, .ret = true }, 0);
+    try expectEqual(@as(?ziglua.CHookFn, ziglua.wrap(hook)), lua.getHook());
+    try expectEqual(ziglua.HookMask{ .call = true, .line = true, .ret = true }, lua.getHookMask());
+
+    _ = lua.getGlobal("f");
+    lua.pushNumber(3);
+    try lua.protectedCall(1, 1, 0);
 }
 
 test "refs" {
@@ -1014,14 +1059,8 @@ test "refs" {
     // they will be type-checked
 
     // debug
-    _ = Lua.getHook;
-    _ = Lua.getHookCount;
-    _ = Lua.getHookMask;
-    _ = Lua.getLocal;
     _ = Lua.getStack;
     _ = Lua.getUpvalue;
-    _ = Lua.setHook;
-    _ = Lua.setLocal;
     _ = Lua.setUpvalue;
     _ = Lua.upvalueId;
     _ = Lua.upvalueJoin;

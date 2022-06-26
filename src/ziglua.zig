@@ -106,6 +106,7 @@ pub const DebugInfo = struct {
                     index += 1;
                 }
             }
+            while (index < str.len) : (index += 1) str[index] = 0;
 
             return str;
         }
@@ -1127,15 +1128,17 @@ pub const Lua = struct {
     /// Gets information about a specific function or function invocation
     /// Returns an error if an invalid option was given, but the valid options
     /// are still handled
-    pub fn getInfo(lua: *Lua, options: DebugInfo.Options) DebugInfo {
+    pub fn getInfo(lua: *Lua, options: DebugInfo.Options, info: *DebugInfo) void {
         const str = options.toString();
+
         var ar: Debug = undefined;
+        ar.i_ci = @ptrCast(*c.struct_CallInfo, info.private);
 
         // should never fail because we are controlling options with the struct param
-        std.debug.assert(c.lua_getinfo(lua.state, &str, &ar) != 0);
+        _ = c.lua_getinfo(lua.state, &str, &ar);
+        // std.debug.assert( != 0);
 
         // copy data into a struct
-        var info: DebugInfo = undefined;
         if (options.l) info.current_line = if (ar.currentline == -1) null else ar.currentline;
         if (options.n) {
             info.name = if (ar.name != null) std.mem.span(ar.name) else null;
@@ -1173,7 +1176,6 @@ pub const Lua = struct {
             info.num_params = ar.nparams;
             info.is_vararg = ar.isvararg != 0;
         }
-        return info;
     }
 
     /// Gets information about a local variable
@@ -1833,9 +1835,9 @@ fn wrapZigHookFn(comptime f: ZigHookFn) CHookFn {
             var lua: Lua = .{ .state = state.? };
             var info: DebugInfo = .{
                 .current_line = if (ar.?.currentline == -1) null else ar.?.currentline,
-                .private = ar.i_ci,
+                .private = @ptrCast(*anyopaque, ar.?.i_ci),
             };
-            @call(.{ .modifier = .always_inline }, f, .{ &lua, @intToEnum(Event, ar.?.event), info });
+            @call(.{ .modifier = .always_inline }, f, .{ &lua, @intToEnum(Event, ar.?.event), &info });
         }
     }.inner;
 }
