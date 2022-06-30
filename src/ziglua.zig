@@ -1229,8 +1229,9 @@ pub const Lua = struct {
     }
 
     /// Returns a unique identifier for the upvalue numbered `n` from the closure index `func_index`
-    pub fn upvalueId(lua: *Lua, func_index: i32, n: i32) ?*anyopaque {
-        return c.lua_upvalueid(lua.state, func_index, n);
+    pub fn upvalueId(lua: *Lua, func_index: i32, n: i32) !*anyopaque {
+        if (c.lua_upvalueid(lua.state, func_index, n)) |ptr| return ptr;
+        return Error.Fail;
     }
 
     /// Make the `n1`th upvalue of the Lua closure at index `func_index1` refer to the `n2`th upvalue

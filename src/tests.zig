@@ -1054,16 +1054,59 @@ test "debug interface" {
     try lua.protectedCall(1, 1, 0);
 }
 
+test "debug upvalues" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    try lua.doString(
+        \\f = function(x)
+        \\  return function(y)
+        \\    return x + y
+        \\  end
+        \\end
+        \\addone = f(1)
+    );
+    _ = lua.getGlobal("addone");
+
+    // index doesn't exist
+    try expectError(Error.Fail, lua.getUpvalue(1, 2));
+
+    // inspect the upvalue (should be x)
+    try expectEqualStrings("x", try lua.getUpvalue(-1, 1));
+    try expectEqual(@as(Number, 1), try lua.toNumber(-1));
+    lua.pop(1);
+
+    // now make the function an "add five" function
+    lua.pushNumber(5);
+    _ = try lua.setUpvalue(-2, 1);
+
+    // test a bad index (the valid one's result is unpredicable)
+    try expectError(Error.Fail, lua.upvalueId(-1, 2));
+
+    // call the new function (should return 7)
+    lua.pushNumber(2);
+    try lua.protectedCall(1, 1, 0);
+    try expectEqual(@as(Number, 7), try lua.toNumber(-1));
+    lua.pop(1);
+
+    try lua.doString(
+        \\addthree = f(3)
+    );
+
+    _ = lua.getGlobal("addone");
+    _ = lua.getGlobal("addthree");
+
+    // now addone and addthree share the same upvalue
+    lua.upvalueJoin(-2, 1, -1, 1);
+    try expect((try lua.upvalueId(-2, 1)) == try lua.upvalueId(-1, 1));
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
 
     // debug
     _ = Lua.getStack;
-    _ = Lua.getUpvalue;
-    _ = Lua.setUpvalue;
-    _ = Lua.upvalueId;
-    _ = Lua.upvalueJoin;
 
     // auxlib
     _ = Lua.argCheck;
