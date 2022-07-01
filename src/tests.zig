@@ -1101,6 +1101,33 @@ test "debug upvalues" {
     try expect((try lua.upvalueId(-2, 1)) == try lua.upvalueId(-1, 1));
 }
 
+test "getstack" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    try expectError(Error.Fail, lua.getStack(1));
+
+    const function = struct {
+        fn inner(l: *Lua) i32 {
+            // get info about calling lua function
+            var info = l.getStack(1) catch unreachable;
+            l.getInfo(.{ .n = true }, &info);
+            expectEqualStrings("g", info.name.?) catch unreachable;
+            return 0;
+        }
+    }.inner;
+
+    lua.pushFunction(ziglua.wrap(function));
+    lua.setGlobal("f");
+
+    try lua.doString(
+        \\g = function()
+        \\  f()
+        \\end
+        \\g()
+    );
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
