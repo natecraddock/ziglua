@@ -1128,25 +1128,105 @@ test "getstack" {
     );
 }
 
+test "aux check functions" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const function = ziglua.wrap(struct {
+        fn inner(l: *Lua) i32 {
+            l.checkAny(1);
+            _ = l.checkInteger(2);
+            _ = l.checkBytes(3);
+            _ = l.checkNumber(4);
+            _ = l.checkString(5);
+            _ = l.checkType(6, .boolean);
+            return 0;
+        }
+    }.inner);
+
+    lua.pushFunction(function);
+    lua.protectedCall(0, 0, 0) catch {
+        try expectEqualStrings("bad argument #1 to '?' (value expected)", try lua.toBytes(-1));
+        lua.pop(-1);
+    };
+
+    lua.pushFunction(function);
+    lua.pushNil();
+    lua.protectedCall(1, 0, 0) catch {
+        try expectEqualStrings("bad argument #2 to '?' (number expected, got no value)", try lua.toBytes(-1));
+        lua.pop(-1);
+    };
+
+    lua.pushFunction(function);
+    lua.pushNil();
+    lua.pushInteger(3);
+    lua.protectedCall(2, 0, 0) catch {
+        try expectEqualStrings("bad argument #3 to '?' (string expected, got no value)", try lua.toBytes(-1));
+        lua.pop(-1);
+    };
+
+    lua.pushFunction(function);
+    lua.pushNil();
+    lua.pushInteger(3);
+    _ = lua.pushBytes("hello world");
+    lua.protectedCall(3, 0, 0) catch {
+        try expectEqualStrings("bad argument #4 to '?' (number expected, got no value)", try lua.toBytes(-1));
+        lua.pop(-1);
+    };
+
+    lua.pushFunction(function);
+    lua.pushNil();
+    lua.pushInteger(3);
+    _ = lua.pushBytes("hello world");
+    lua.pushNumber(4);
+    lua.protectedCall(4, 0, 0) catch {
+        try expectEqualStrings("bad argument #5 to '?' (string expected, got no value)", try lua.toBytes(-1));
+        lua.pop(-1);
+    };
+
+    lua.pushFunction(function);
+    lua.pushNil();
+    lua.pushInteger(3);
+    _ = lua.pushBytes("hello world");
+    lua.pushNumber(4);
+    _ = lua.pushString("hello world");
+    lua.protectedCall(5, 0, 0) catch {
+        try expectEqualStrings("bad argument #6 to '?' (boolean expected, got no value)", try lua.toBytes(-1));
+        lua.pop(-1);
+    };
+
+    lua.pushFunction(function);
+    lua.pushNil();
+    lua.pushInteger(3);
+    _ = lua.pushBytes("hello world");
+    lua.pushNumber(4);
+    _ = lua.pushString("hello world");
+    lua.pushBoolean(true);
+    lua.protectedCall(6, 0, 0) catch {
+        try expectEqualStrings("bad argument #6 to '?' (boolean expected, got no value)", try lua.toBytes(-1));
+        lua.pop(-1);
+    };
+
+    lua.pushFunction(function);
+    lua.pushNil();
+    lua.pushInteger(3);
+    _ = lua.pushBytes("hello world");
+    lua.pushNumber(4);
+    _ = lua.pushString("hello world");
+    lua.pushBoolean(true);
+    try lua.protectedCall(6, 0, 0);
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
-
-    // debug
-    _ = Lua.getStack;
 
     // auxlib
     _ = Lua.argCheck;
     _ = Lua.argError;
     _ = Lua.argExpected;
     _ = Lua.callMeta;
-    _ = Lua.checkAny;
-    _ = Lua.checkInteger;
-    _ = Lua.checkLString;
-    _ = Lua.checkNumber;
     _ = Lua.checkOption;
-    _ = Lua.checkString;
-    _ = Lua.checkType;
     _ = Lua.checkUserdata;
     _ = Lua.checkVersion;
     _ = Lua.doFile;

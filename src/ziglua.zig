@@ -1280,12 +1280,12 @@ pub const Lua = struct {
         return c.luaL_checkinteger(lua.state, arg);
     }
 
-    /// Checks whether the function argument `arg` is a string and returns the string
-    pub fn checkLString(lua: *Lua, arg: i32) ?[]const u8 {
+    /// Checks whether the function argument `arg` is a slice of bytes and returns the slice
+    pub fn checkBytes(lua: *Lua, arg: i32) [:0]const u8 {
         var length: usize = 0;
-        if (c.luaL_checklstring(lua.state, arg, @ptrCast([*c]usize, &length))) |str| {
-            return str[0..length];
-        } else return null;
+        const str = c.luaL_checklstring(lua.state, arg, @ptrCast([*c]usize, &length));
+        // luaL_checklstring never returns null (throws lua error)
+        return str.?[0..length :0];
     }
 
     /// Checks whether the function argument `arg` is a number and returns the number
