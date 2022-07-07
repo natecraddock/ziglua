@@ -327,9 +327,9 @@ test "executing string contents" {
     try lua.loadString("a = f(2)");
     try lua.protectedCall(0, 0, 0);
 
-    try expectEqual(LuaType.function, lua.getGlobal("f"));
+    try expectEqual(LuaType.function, try lua.getGlobalEx("f"));
     lua.pop(1);
-    try expectEqual(LuaType.number, lua.getGlobal("a"));
+    try expectEqual(LuaType.number, try lua.getGlobalEx("a"));
     try expectEqual(@as(i64, 12), try lua.toInteger(1));
 
     try expectError(Error.Syntax, lua.loadString("bad syntax"));
@@ -413,7 +413,7 @@ test "calling a function" {
     defer lua.deinit();
 
     lua.register("zigadd", ziglua.wrap(add));
-    _ = lua.getGlobal("zigadd");
+    try lua.getGlobal("zigadd");
     lua.pushInteger(10);
     lua.pushInteger(32);
 
@@ -630,7 +630,7 @@ test "table access" {
     defer lua.deinit();
 
     try lua.doString("a = { [1] = 'first', key = 'value', ['other one'] = 1234 }");
-    _ = lua.getGlobal("a");
+    try lua.getGlobal("a");
 
     try expectEqual(LuaType.string, lua.getIndex(1, 1));
     try expectEqualStrings("first", try lua.toBytes(-1));
@@ -672,7 +672,7 @@ test "table access" {
     lua.setField(1, "bool");
 
     try lua.doString("b = a.bool");
-    try expectEqual(LuaType.boolean, lua.getGlobal("b"));
+    try expectEqual(LuaType.boolean, try lua.getGlobalEx("b"));
     try expect(lua.toBoolean(-1));
 
     // create array [1, 2, 3, 4, 5]
@@ -728,7 +728,7 @@ test "dump and load" {
     // store a function in a global
     try lua.doString("f = function(x) return function(n) return n + x end end");
     // put the function on the stack
-    _ = lua.getGlobal("f");
+    try lua.getGlobal("f");
 
     const writer = struct {
         fn inner(l: *Lua, buf: []const u8, data: *anyopaque) bool {
@@ -841,7 +841,7 @@ test "upvalues" {
     // call the function repeatedly, each time ensuring the result increases by one
     var expected: Integer = 1;
     while (expected <= 10) : (expected += 1) {
-        _ = lua.getGlobal("counter");
+        try lua.getGlobal("counter");
         lua.call(0, 1);
         try expectEqual(expected, try lua.toInteger(-1));
         lua.pop(1);
@@ -853,7 +853,7 @@ test "table traversal" {
     defer lua.deinit();
 
     try lua.doString("t = { key = 'value', second = true, third = 1 }");
-    _ = lua.getGlobal("t");
+    try lua.getGlobal("t");
 
     lua.pushNil();
 
@@ -905,21 +905,21 @@ test "closing vars" {
     );
 
     lua.newTable();
-    _ = lua.getGlobal("mt");
+    try lua.getGlobal("mt");
     lua.setMetatable(-2);
     lua.toClose(-1);
     lua.closeSlot(-1);
     lua.pop(1);
 
     lua.newTable();
-    _ = lua.getGlobal("mt");
+    try lua.getGlobal("mt");
     lua.setMetatable(-2);
     lua.toClose(-1);
     lua.closeSlot(-1);
     lua.pop(1);
 
     // this should have incremented "closed_vars" to 2
-    _ = lua.getGlobal("closed_vars");
+    try lua.getGlobal("closed_vars");
     try expectEqual(@as(Number, 2), try lua.toNumber(-1));
 }
 
@@ -993,7 +993,7 @@ test "debug interface" {
         \\  return x + y
         \\end
     );
-    _ = lua.getGlobal("f");
+    try lua.getGlobal("f");
 
     var info: DebugInfo = undefined;
     lua.getInfo(.{
@@ -1052,7 +1052,7 @@ test "debug interface" {
     try expectEqual(@as(?ziglua.CHookFn, ziglua.wrap(hook)), lua.getHook());
     try expectEqual(ziglua.HookMask{ .call = true, .line = true, .ret = true }, lua.getHookMask());
 
-    _ = lua.getGlobal("f");
+    try lua.getGlobal("f");
     lua.pushNumber(3);
     try lua.protectedCall(1, 1, 0);
 }
@@ -1069,7 +1069,7 @@ test "debug upvalues" {
         \\end
         \\addone = f(1)
     );
-    _ = lua.getGlobal("addone");
+    try lua.getGlobal("addone");
 
     // index doesn't exist
     try expectError(Error.Fail, lua.getUpvalue(1, 2));
@@ -1096,8 +1096,8 @@ test "debug upvalues" {
         \\addthree = f(3)
     );
 
-    _ = lua.getGlobal("addone");
-    _ = lua.getGlobal("addthree");
+    try lua.getGlobal("addone");
+    try lua.getGlobal("addthree");
 
     // now addone and addthree share the same upvalue
     lua.upvalueJoin(-2, 1, -1, 1);
@@ -1218,6 +1218,13 @@ test "aux check functions" {
     lua.pushString("hello world");
     lua.pushBoolean(true);
     try lua.protectedCall(6, 0, 0);
+}
+
+test "get global fail" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    try expectError(Error.Fail, lua.getGlobal("foo"));
 }
 
 test "refs" {

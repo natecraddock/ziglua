@@ -484,6 +484,7 @@ pub const Lua = struct {
 
     /// Controls the garbage collector
     /// The return value type is dependent on the given action
+    /// TODO: split into separate functions
     pub fn gc(lua: *Lua, comptime action: GCAction, args: anytype) TypeOfGC(action) {
         const val = @enumToInt(action);
         switch (action) {
@@ -526,10 +527,18 @@ pub const Lua = struct {
         return @intToEnum(LuaType, c.lua_getfield(lua.state, index, key));
     }
 
+    /// Pushes onto the stack the value of the global `name`
+    /// Returns an error if the global does not exist (is nil)
+    pub fn getGlobal(lua: *Lua, name: [:0]const u8) !void {
+        _ = try lua.getGlobalEx(name);
+    }
+
     /// Pushes onto the stack the value of the global `name`. Returns the type of that value
-    /// NOTE: could return an error if it was successful (not nil)
-    pub fn getGlobal(lua: *Lua, name: [:0]const u8) LuaType {
-        return @intToEnum(LuaType, c.lua_getglobal(lua.state, name));
+    /// Returns an error if the global does not exist (is nil)
+    pub fn getGlobalEx(lua: *Lua, name: [:0]const u8) !LuaType {
+        const lua_type = @intToEnum(LuaType, c.lua_getglobal(lua.state, name));
+        if (lua_type == .nil) return Error.Fail;
+        return lua_type;
     }
 
     /// Pushes onto the stack the value t[`i`] where t is the value at the given `index`
