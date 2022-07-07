@@ -783,9 +783,14 @@ pub const Lua = struct {
         c.lua_pushlightuserdata(lua.state, ptr);
     }
 
+    /// Pushes a slice of bytes onto the stack
+    pub fn pushBytes(lua: *Lua, bytes: []const u8) void {
+        _ = lua.pushBytesEx(bytes);
+    }
+
     /// Pushes the bytes onto the stack. Returns a slice pointing to Lua's internal copy of the string
-    pub fn pushBytes(lua: *Lua, str: []const u8) []const u8 {
-        return c.lua_pushlstring(lua.state, str.ptr, str.len)[0..str.len];
+    pub fn pushBytesEx(lua: *Lua, bytes: []const u8) []const u8 {
+        return c.lua_pushlstring(lua.state, bytes.ptr, bytes.len)[0..bytes.len];
     }
 
     /// Pushes a nil value onto the stack
@@ -798,11 +803,16 @@ pub const Lua = struct {
         c.lua_pushnumber(lua.state, n);
     }
 
+    /// Pushes a zero-terminated string on to the stack
+    pub fn pushString(lua: *Lua, str: [:0]const u8) void {
+        _ = lua.pushStringEx(str);
+    }
+
     /// Pushes a zero-terminated string onto the stack
     /// Lua makes a copy of the string so `str` may be freed immediately after return
     /// Returns a pointer to the internal Lua string
-    pub fn pushString(lua: *Lua, str: []const u8) []const u8 {
-        return c.lua_pushstring(lua.state, str.ptr).?[0..str.len];
+    pub fn pushStringEx(lua: *Lua, str: [:0]const u8) [:0]const u8 {
+        return c.lua_pushstring(lua.state, str.ptr).?[0..str.len :0];
     }
 
     /// Pushes this thread onto the stack

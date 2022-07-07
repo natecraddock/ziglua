@@ -253,9 +253,12 @@ test "type of and getting values" {
     lua.pushNil();
     lua.pushNumber(0.1);
     _ = lua.pushThread();
-    _ = lua.pushString("all your codebase are belong to us");
+    try expectEqualStrings(
+        "all your codebase are belong to us",
+        lua.pushStringEx("all your codebase are belong to us"),
+    );
     lua.pushFunction(ziglua.wrap(add));
-    _ = lua.pushBytes("hello world");
+    try expectEqualStrings("hello world", lua.pushBytesEx("hello world"));
     _ = lua.pushFString("%s %s %d", .{ "hello", "world", @as(i32, 10) });
     lua.pushValue(1);
 
@@ -496,7 +499,7 @@ test "global table" {
     lua.pushGlobalTable();
 
     // find the print function
-    _ = lua.pushString("print");
+    lua.pushString("print");
     try expectEqual(LuaType.function, lua.getTable(-2));
 
     // index the global table in the global table
@@ -585,9 +588,9 @@ test "concat" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    _ = lua.pushString("hello ");
+    lua.pushString("hello ");
     lua.pushNumber(10);
-    _ = lua.pushString(" wow!");
+    lua.pushString(" wow!");
     lua.concat(3);
 
     try expectEqualStrings("hello 10.0 wow!", try lua.toBytes(-1));
@@ -635,22 +638,22 @@ test "table access" {
     try expectEqual(LuaType.string, lua.rawGetIndex(1, 1));
     try expectEqualStrings("first", try lua.toBytes(-1));
 
-    _ = lua.pushString("key");
+    lua.pushString("key");
     try expectEqual(LuaType.string, lua.getTable(1));
     try expectEqualStrings("value", try lua.toBytes(-1));
 
-    _ = lua.pushString("other one");
+    lua.pushString("other one");
     try expectEqual(LuaType.number, lua.rawGetTable(1));
     try expectEqual(@as(Integer, 1234), try lua.toInteger(-1));
 
     // a.name = "ziglua"
-    _ = lua.pushString("name");
-    _ = lua.pushString("ziglua");
+    lua.pushString("name");
+    lua.pushString("ziglua");
     lua.setTable(1);
 
     // a.lang = "zig"
-    _ = lua.pushString("lang");
-    _ = lua.pushString("zig");
+    lua.pushString("lang");
+    lua.pushString("zig");
     lua.rawSetTable(1);
 
     try expectError(Error.Fail, lua.getMetatable(1));
@@ -800,7 +803,7 @@ test "userdata and uservalues" {
     lua.pushNumber(1234.56);
     try lua.setIndexUserValue(1, 1);
 
-    _ = lua.pushString("test string");
+    lua.pushString("test string");
     try lua.setIndexUserValue(1, 2);
 
     try expectEqual(LuaType.number, try lua.getIndexUserValue(1, 1));
@@ -881,7 +884,7 @@ test "registry" {
     const key = "mykey";
 
     // store a string in the registry
-    _ = lua.pushString("hello there");
+    lua.pushString("hello there");
     lua.rawSetPtr(ziglua.registry_index, key);
 
     // get key from the registry
@@ -926,7 +929,7 @@ test "raise error" {
 
     const makeError = struct {
         fn inner(l: *Lua) i32 {
-            _ = l.pushString("makeError made an error");
+            l.pushString("makeError made an error");
             l.raiseError();
             return 0;
         }
@@ -941,7 +944,7 @@ fn continuation(l: *Lua, status: ziglua.Status, ctx: isize) i32 {
     _ = status;
 
     if (ctx == 5) {
-        _ = l.pushString("done");
+        l.pushString("done");
         return 1;
     } else {
         // yield the current context value
@@ -1168,7 +1171,7 @@ test "aux check functions" {
     lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
-    _ = lua.pushBytes("hello world");
+    lua.pushBytes("hello world");
     lua.protectedCall(3, 0, 0) catch {
         try expectEqualStrings("bad argument #4 to '?' (number expected, got no value)", try lua.toBytes(-1));
         lua.pop(-1);
@@ -1177,7 +1180,7 @@ test "aux check functions" {
     lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
-    _ = lua.pushBytes("hello world");
+    lua.pushBytes("hello world");
     lua.pushNumber(4);
     lua.protectedCall(4, 0, 0) catch {
         try expectEqualStrings("bad argument #5 to '?' (string expected, got no value)", try lua.toBytes(-1));
@@ -1187,9 +1190,9 @@ test "aux check functions" {
     lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
-    _ = lua.pushBytes("hello world");
+    lua.pushBytes("hello world");
     lua.pushNumber(4);
-    _ = lua.pushString("hello world");
+    lua.pushString("hello world");
     lua.protectedCall(5, 0, 0) catch {
         try expectEqualStrings("bad argument #6 to '?' (boolean expected, got no value)", try lua.toBytes(-1));
         lua.pop(-1);
@@ -1198,9 +1201,9 @@ test "aux check functions" {
     lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
-    _ = lua.pushBytes("hello world");
+    lua.pushBytes("hello world");
     lua.pushNumber(4);
-    _ = lua.pushString("hello world");
+    lua.pushString("hello world");
     lua.pushBoolean(true);
     lua.protectedCall(6, 0, 0) catch {
         try expectEqualStrings("bad argument #6 to '?' (boolean expected, got no value)", try lua.toBytes(-1));
@@ -1210,9 +1213,9 @@ test "aux check functions" {
     lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
-    _ = lua.pushBytes("hello world");
+    lua.pushBytes("hello world");
     lua.pushNumber(4);
-    _ = lua.pushString("hello world");
+    lua.pushString("hello world");
     lua.pushBoolean(true);
     try lua.protectedCall(6, 0, 0);
 }
