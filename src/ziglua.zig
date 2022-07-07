@@ -759,10 +759,15 @@ pub const Lua = struct {
         lua.pushClosure(c_fn, 0);
     }
 
+    /// Push a formatted string onto the stack
+    pub fn pushFString(lua: *Lua, fmt: [:0]const u8, args: anytype) void {
+        _ = lua.pushFStringEx(fmt, args);
+    }
+
     /// Push a formatted string onto the stack and return a pointer to the string
-    pub fn pushFString(lua: *Lua, fmt: [:0]const u8, args: anytype) [*]const u8 {
+    pub fn pushFStringEx(lua: *Lua, fmt: [:0]const u8, args: anytype) [*:0]const u8 {
         const ptr = @call(.{}, c.lua_pushfstring, .{ lua.state, fmt } ++ args);
-        return @ptrCast([*]const u8, ptr);
+        return @ptrCast([*:0]const u8, ptr);
     }
 
     /// Pushes the global environment onto the stack

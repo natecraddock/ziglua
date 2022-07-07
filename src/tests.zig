@@ -259,7 +259,7 @@ test "type of and getting values" {
     );
     lua.pushFunction(ziglua.wrap(add));
     try expectEqualStrings("hello world", lua.pushBytesEx("hello world"));
-    _ = lua.pushFString("%s %s %d", .{ "hello", "world", @as(i32, 10) });
+    lua.pushFString("%s %s %d", .{ "hello", "world", @as(i32, 10) });
     lua.pushValue(1);
 
     // test both typeof and is functions
