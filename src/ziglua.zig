@@ -830,8 +830,13 @@ pub const Lua = struct {
     }
 
     /// Pushes this thread onto the stack
+    pub fn pushThread(lua: *Lua) void {
+        _ = lua.pushThreadEx();
+    }
+
+    /// Pushes this thread onto the stack
     /// Returns true if this thread is the main thread of its state
-    pub fn pushThread(lua: *Lua) bool {
+    pub fn pushThreadEx(lua: *Lua) bool {
         return c.lua_pushthread(lua.state) != 0;
     }
 
@@ -1203,7 +1208,13 @@ pub const Lua = struct {
     }
 
     /// Gets information about a local variable
-    pub fn getLocal(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
+    pub fn getLocal(lua: *Lua, info: *DebugInfo, n: i32) !void {
+        _ = try lua.getLocalEx(info, n);
+    }
+
+    /// Gets information about a local variable
+    /// Returns the name of the local variable
+    pub fn getLocalEx(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
         var ar: Debug = undefined;
         ar.i_ci = @ptrCast(*c.struct_CallInfo, info.private);
         if (c.lua_getlocal(lua.state, &ar, n)) |name| {
@@ -1234,8 +1245,14 @@ pub const Lua = struct {
     }
 
     /// Sets the value of a local variable
+    pub fn setLocal(lua: *Lua, info: *DebugInfo, n: i32) !void {
+        _ = try lua.setLocalEx(info, n);
+    }
+
+    /// Sets the value of a local variable
     /// Returns an error when the index is greater than the number of active locals
-    pub fn setLocal(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
+    /// Returns the name of the local variable
+    pub fn setLocalEx(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
         var ar: Debug = undefined;
         ar.i_ci = @ptrCast(*c.struct_CallInfo, info.private);
         if (c.lua_setlocal(lua.state, &ar, n)) |name| {
@@ -1245,7 +1262,14 @@ pub const Lua = struct {
     }
 
     /// Sets the value of a closure's upvalue
-    pub fn setUpvalue(lua: *Lua, func_index: i32, n: i32) ![:0]const u8 {
+    /// Returns an error if the upvalu does not exist
+    pub fn setUpvalue(lua: *Lua, func_index: i32, n: i32) !void {
+        _ = try lua.setUpvalueEx(func_index, n);
+    }
+
+    /// Sets the value of a closure's upvalue
+    /// Returns the name of the upvalue or an error if the upvalue does not exist
+    pub fn setUpvalueEx(lua: *Lua, func_index: i32, n: i32) ![:0]const u8 {
         if (c.lua_setupvalue(lua.state, func_index, n)) |name| {
             return std.mem.span(name);
         }

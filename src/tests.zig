@@ -252,7 +252,7 @@ test "type of and getting values" {
     lua.pushLightUserdata(&value);
     lua.pushNil();
     lua.pushNumber(0.1);
-    _ = lua.pushThread();
+    lua.pushThread();
     try expectEqualStrings(
         "all your codebase are belong to us",
         lua.pushStringEx("all your codebase are belong to us"),
@@ -1024,18 +1024,18 @@ test "debug interface" {
                 .call => {
                     l.getInfo(.{ .l = true, .r = true }, i);
                     if (i.current_line.? != 2) panic("Expected line to be 2", .{});
-                    _ = l.getLocal(i, i.first_transfer) catch unreachable;
+                    l.getLocal(i, i.first_transfer) catch unreachable;
                     if ((l.toNumber(-1) catch unreachable) != 3) panic("Expected x to equal 3", .{});
                 },
                 .line => if (i.current_line.? == 4) {
                     // modify the value of y to be 0 right before returning
                     l.pushNumber(0);
-                    _ = l.setLocal(i, 2) catch unreachable;
+                    l.setLocal(i, 2) catch unreachable;
                 },
                 .ret => {
                     l.getInfo(.{ .l = true, .r = true }, i);
                     if (i.current_line.? != 4) panic("Expected line to be 4", .{});
-                    _ = l.getLocal(i, i.first_transfer) catch unreachable;
+                    l.getLocal(i, i.first_transfer) catch unreachable;
                     if ((l.toNumber(-1) catch unreachable) != 3) panic("Expected result to equal 3", .{});
                 },
                 else => unreachable,
@@ -1081,7 +1081,7 @@ test "debug upvalues" {
 
     // now make the function an "add five" function
     lua.pushNumber(5);
-    _ = try lua.setUpvalue(-2, 1);
+    try lua.setUpvalue(-2, 1);
 
     // test a bad index (the valid one's result is unpredicable)
     try expectError(Error.Fail, lua.upvalueId(-1, 2));
@@ -1142,7 +1142,7 @@ test "aux check functions" {
             _ = l.checkBytes(3);
             _ = l.checkNumber(4);
             _ = l.checkString(5);
-            _ = l.checkType(6, .boolean);
+            l.checkType(6, .boolean);
             return 0;
         }
     }.inner);
