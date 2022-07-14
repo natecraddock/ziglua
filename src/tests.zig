@@ -76,14 +76,14 @@ test "initialization" {
     lua.deinit();
 
     // attempt to initialize the Zig wrapper with no memory
-    try expectError(Error.Memory, Lua.init(testing.failing_allocator));
+    try expectError(error.Memory, Lua.init(testing.failing_allocator));
 
     // use the library directly
     lua = try Lua.newState(alloc, null);
     lua.close();
 
     // use the library with a bad AllocFn
-    try expectError(Error.Memory, Lua.newState(failing_alloc, null));
+    try expectError(error.Memory, Lua.newState(failing_alloc, null));
 
     // use the auxiliary library (uses libc realloc and cannot be checked for leaks!)
     lua = try Lua.newStateAux();
@@ -332,9 +332,9 @@ test "executing string contents" {
     try expectEqual(LuaType.number, try lua.getGlobalEx("a"));
     try expectEqual(@as(i64, 12), try lua.toInteger(1));
 
-    try expectError(Error.Syntax, lua.loadString("bad syntax"));
+    try expectError(error.Syntax, lua.loadString("bad syntax"));
     try lua.loadString("a = g()");
-    try expectError(Error.Runtime, lua.protectedCall(0, 0, 0));
+    try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
 }
 
 test "filling and checking the stack" {
@@ -355,7 +355,7 @@ test "filling and checking the stack" {
     try expectEqual(@as(i32, 30), lua.getTop());
 
     // this should fail (beyond max stack size)
-    try expectError(Error.Fail, lua.checkStack(1_000_000));
+    try expectError(error.Fail, lua.checkStack(1_000_000));
 
     // this is small enough it won't fail (would raise an error if it did)
     lua.checkStackAux(40, null);
@@ -547,7 +547,7 @@ test "function registration" {
 
     try lua.doString("funcs.add(10, 20)");
     try lua.doString("funcs.sub('10', 20)");
-    try expectError(Error.Runtime, lua.doString("funcs.placeholder()"));
+    try expectError(error.Runtime, lua.doString("funcs.placeholder()"));
 }
 
 test "panic fn" {
@@ -657,7 +657,7 @@ test "table access" {
     lua.pushString("zig");
     lua.rawSetTable(1);
 
-    try expectError(Error.Fail, lua.getMetatable(1));
+    try expectError(error.Fail, lua.getMetatable(1));
 
     // create a metatable (it isn't a useful one)
     lua.newTable();
@@ -667,7 +667,7 @@ test "table access" {
 
     try lua.getMetatable(1);
     _ = try lua.getMetaField(1, "__len");
-    try expectError(Error.Fail, lua.getMetaField(1, "__index"));
+    try expectError(error.Fail, lua.getMetaField(1, "__index"));
 
     lua.pushBoolean(true);
     lua.setField(1, "bool");
@@ -702,7 +702,7 @@ test "conversions" {
     var value: Integer = undefined;
     try Lua.numberToInteger(3.14, &value);
     try expectEqual(@as(Integer, 3), value);
-    try expectError(Error.Fail, Lua.numberToInteger(@intToFloat(Number, ziglua.max_integer) + 10, &value));
+    try expectError(error.Fail, Lua.numberToInteger(@intToFloat(Number, ziglua.max_integer) + 10, &value));
 
     // string conversion
     try lua.stringToNumber("1");
@@ -713,9 +713,9 @@ test "conversions" {
     try expect(lua.isNumber(-1));
     try expectEqual(@as(Number, 1.0), try lua.toNumber(-1));
 
-    try expectError(Error.Fail, lua.stringToNumber("a"));
-    try expectError(Error.Fail, lua.stringToNumber("1.a"));
-    try expectError(Error.Fail, lua.stringToNumber(""));
+    try expectError(error.Fail, lua.stringToNumber("a"));
+    try expectError(error.Fail, lua.stringToNumber("1.a"));
+    try expectError(error.Fail, lua.stringToNumber(""));
 
     // index conversion
     try expectEqual(@as(i32, 2), lua.absIndex(-1));
@@ -812,8 +812,8 @@ test "userdata and uservalues" {
     try expectEqual(LuaType.string, try lua.getIndexUserValue(1, 2));
     try expectEqualStrings("test string", try lua.toBytes(-1));
 
-    try expectError(Error.Fail, lua.setIndexUserValue(1, 3));
-    try expectError(Error.Fail, lua.getIndexUserValue(1, 3));
+    try expectError(error.Fail, lua.setIndexUserValue(1, 3));
+    try expectError(error.Fail, lua.getIndexUserValue(1, 3));
 
     try expectEqual(data, ziglua.opaqueCast(Data, try lua.toUserdata(1)));
     try expectEqual(@ptrCast(*const anyopaque, data), @alignCast(@alignOf(Data), try lua.toPointer(1)));
@@ -937,7 +937,7 @@ test "raise error" {
     }.inner;
 
     lua.pushFunction(ziglua.wrap(makeError));
-    try expectError(Error.Runtime, lua.protectedCall(0, 0, 0));
+    try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
     try expectEqualStrings("makeError made an error", try lua.toBytes(-1));
 }
 
@@ -1073,7 +1073,7 @@ test "debug upvalues" {
     try lua.getGlobal("addone");
 
     // index doesn't exist
-    try expectError(Error.Fail, lua.getUpvalue(1, 2));
+    try expectError(error.Fail, lua.getUpvalue(1, 2));
 
     // inspect the upvalue (should be x)
     try expectEqualStrings("x", try lua.getUpvalue(-1, 1));
@@ -1085,7 +1085,7 @@ test "debug upvalues" {
     try lua.setUpvalue(-2, 1);
 
     // test a bad index (the valid one's result is unpredicable)
-    try expectError(Error.Fail, lua.upvalueId(-1, 2));
+    try expectError(error.Fail, lua.upvalueId(-1, 2));
 
     // call the new function (should return 7)
     lua.pushNumber(2);
@@ -1109,7 +1109,7 @@ test "getstack" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    try expectError(Error.Fail, lua.getStack(1));
+    try expectError(error.Fail, lua.getStack(1));
 
     const function = struct {
         fn inner(l: *Lua) i32 {
@@ -1225,7 +1225,7 @@ test "get global fail" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    try expectError(Error.Fail, lua.getGlobal("foo"));
+    try expectError(error.Fail, lua.getGlobal("foo"));
 }
 
 test "metatables" {

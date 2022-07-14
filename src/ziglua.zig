@@ -352,10 +352,10 @@ pub const Lua = struct {
     pub fn init(allocator: Allocator) !Lua {
         // the userdata passed to alloc needs to be a pointer with a consistent address
         // so we allocate an Allocator struct to hold a copy of the allocator's data
-        var allocator_ptr = allocator.create(Allocator) catch return Error.Memory;
+        var allocator_ptr = allocator.create(Allocator) catch return error.Memory;
         allocator_ptr.* = allocator;
 
-        const state = c.lua_newstate(alloc, allocator_ptr) orelse return Error.Memory;
+        const state = c.lua_newstate(alloc, allocator_ptr) orelse return error.Memory;
         return Lua{
             .allocator = allocator_ptr,
             .state = state,
@@ -407,7 +407,7 @@ pub const Lua = struct {
     /// Returns an error if it cannot fulfil the request
     /// Never shrinks the stack
     pub fn checkStack(lua: *Lua, n: i32) !void {
-        if (c.lua_checkstack(lua.state, n) == 0) return Error.Fail;
+        if (c.lua_checkstack(lua.state, n) == 0) return error.Fail;
     }
 
     /// Release all Lua objects in the state and free all dynamic memory
@@ -451,7 +451,7 @@ pub const Lua = struct {
     /// Dumps a function as a binary chunk
     /// Returns an error if writing was unsuccessful
     pub fn dump(lua: *Lua, writer: CWriterFn, data: *anyopaque, strip: bool) !void {
-        if (c.lua_dump(lua.state, writer, data, @boolToInt(strip)) != 0) return Error.Fail;
+        if (c.lua_dump(lua.state, writer, data, @boolToInt(strip)) != 0) return error.Fail;
     }
 
     /// Raises a Lua error using the value at the top of the stack as the error object
@@ -537,7 +537,7 @@ pub const Lua = struct {
     /// Returns an error if the global does not exist (is nil)
     pub fn getGlobalEx(lua: *Lua, name: [:0]const u8) !LuaType {
         const lua_type = @intToEnum(LuaType, c.lua_getglobal(lua.state, name));
-        if (lua_type == .nil) return Error.Fail;
+        if (lua_type == .nil) return error.Fail;
         return lua_type;
     }
 
@@ -552,14 +552,14 @@ pub const Lua = struct {
     /// Returns an error if the userdata does not have that value
     pub fn getIndexUserValue(lua: *Lua, index: i32, n: i32) !LuaType {
         const val_type = @intToEnum(LuaType, c.lua_getiuservalue(lua.state, index, n));
-        if (val_type == .none) return Error.Fail;
+        if (val_type == .none) return error.Fail;
         return val_type;
     }
 
     /// If the value at the given `index` has a metatable, the function pushes that metatable onto the stack
     /// Otherwise an error is returned
     pub fn getMetatable(lua: *Lua, index: i32) !void {
-        if (c.lua_getmetatable(lua.state, index) == 0) return Error.Fail;
+        if (c.lua_getmetatable(lua.state, index) == 0) return error.Fail;
     }
 
     /// Pushes onto the stack the value t[k] where t is the value at the given `index` and k is the value on the top of the stack
@@ -667,18 +667,18 @@ pub const Lua = struct {
         const ret = c.lua_load(lua.state, reader, data, chunk_name, mode_str);
         switch (ret) {
             StatusCode.ok => return,
-            StatusCode.err_syntax => return Error.Syntax,
-            StatusCode.err_memory => return Error.Memory,
+            StatusCode.err_syntax => return error.Syntax,
+            StatusCode.err_memory => return error.Memory,
             // lua_load runs pcall, so can also return any result of an pcall error
-            StatusCode.err_runtime => return Error.Runtime,
-            StatusCode.err_error => return Error.MsgHandler,
+            StatusCode.err_runtime => return error.Runtime,
+            StatusCode.err_error => return error.MsgHandler,
             else => unreachable,
         }
     }
 
     /// Creates a new independent state and returns its main thread
     pub fn newState(alloc_fn: AllocFn, data: ?*anyopaque) !Lua {
-        const state = c.lua_newstate(alloc_fn, data) orelse return Error.Memory;
+        const state = c.lua_newstate(alloc_fn, data) orelse return error.Memory;
         return Lua{ .state = state };
     }
 
@@ -717,7 +717,7 @@ pub const Lua = struct {
         // return c.lua_numbertointeger(n, i) != 0;
         if (n >= @intToFloat(Number, min_integer) and n < -@intToFloat(Number, min_integer)) {
             i.* = @floatToInt(Integer, n);
-        } else return Error.Fail;
+        } else return error.Fail;
     }
 
     /// Calls a function (or callable object) in protected mode
@@ -727,9 +727,9 @@ pub const Lua = struct {
         const ret = c.lua_pcallk(lua.state, num_args, num_results, msg_handler, 0, null);
         switch (ret) {
             StatusCode.ok => return,
-            StatusCode.err_runtime => return Error.Runtime,
-            StatusCode.err_memory => return Error.Memory,
-            StatusCode.err_error => return Error.MsgHandler,
+            StatusCode.err_runtime => return error.Runtime,
+            StatusCode.err_memory => return error.Memory,
+            StatusCode.err_error => return error.MsgHandler,
             else => unreachable,
         }
     }
@@ -739,9 +739,9 @@ pub const Lua = struct {
         const ret = c.lua_pcallk(lua.state, num_args, num_results, msg_handler, ctx, k);
         switch (ret) {
             StatusCode.ok => return,
-            StatusCode.err_runtime => return Error.Runtime,
-            StatusCode.err_memory => return Error.Memory,
-            StatusCode.err_error => return Error.MsgHandler,
+            StatusCode.err_runtime => return error.Runtime,
+            StatusCode.err_memory => return error.Memory,
+            StatusCode.err_error => return error.MsgHandler,
             else => unreachable,
         }
     }
@@ -921,7 +921,7 @@ pub const Lua = struct {
     /// Resets a thread, cleaning its call stack and closing all pending to-be-closed variables
     /// Returns an error if an error occured and leaves an error object on top of the stack
     pub fn resetThread(lua: *Lua) !void {
-        if (c.lua_resetthread(lua.state) != StatusCode.ok) return Error.Fail;
+        if (c.lua_resetthread(lua.state) != StatusCode.ok) return error.Fail;
     }
 
     /// Starts and resumes a coroutine in the given thread
@@ -929,9 +929,9 @@ pub const Lua = struct {
         const from_state = if (from) |from_val| from_val.state else null;
         const thread_status = c.lua_resume(lua.state, from_state, num_args, num_results);
         switch (thread_status) {
-            StatusCode.err_runtime => return Error.Runtime,
-            StatusCode.err_memory => return Error.Memory,
-            StatusCode.err_error => return Error.MsgHandler,
+            StatusCode.err_runtime => return error.Runtime,
+            StatusCode.err_memory => return error.Memory,
+            StatusCode.err_error => return error.MsgHandler,
             else => return @intToEnum(ResumeStatus, thread_status),
         }
     }
@@ -969,7 +969,7 @@ pub const Lua = struct {
     /// the full userdata at the given index
     /// Returns an error if the userdata does not have that value
     pub fn setIndexUserValue(lua: *Lua, index: i32, n: i32) !void {
-        if (c.lua_setiuservalue(lua.state, index, n) == 0) return Error.Fail;
+        if (c.lua_setiuservalue(lua.state, index, n) == 0) return error.Fail;
     }
 
     /// Pops a table or nil from the stack and sets that value as the new metatable for the
@@ -1007,7 +1007,7 @@ pub const Lua = struct {
     /// Returns an error if conversion failed
     pub fn stringToNumber(lua: *Lua, str: [:0]const u8) !void {
         const size = c.lua_stringtonumber(lua.state, str);
-        if (size == 0) return Error.Fail;
+        if (size == 0) return error.Fail;
     }
 
     /// Converts the Lua value at the given `index` into a boolean
@@ -1019,7 +1019,7 @@ pub const Lua = struct {
     /// Converts a value at the given `index` into a CFn
     /// Returns an error if the value is not a CFn
     pub fn toCFunction(lua: *Lua, index: i32) !CFn {
-        return c.lua_tocfunction(lua.state, index) orelse return Error.Fail;
+        return c.lua_tocfunction(lua.state, index) orelse return error.Fail;
     }
 
     /// Marks the given index in the stack as a to-be-closed slot
@@ -1033,7 +1033,7 @@ pub const Lua = struct {
     pub fn toInteger(lua: *Lua, index: i32) !Integer {
         var success: c_int = undefined;
         const result = c.lua_tointegerx(lua.state, index, &success);
-        if (success == 0) return Error.Fail;
+        if (success == 0) return error.Fail;
         return result;
     }
 
@@ -1043,7 +1043,7 @@ pub const Lua = struct {
     pub fn toBytes(lua: *Lua, index: i32) ![:0]const u8 {
         var length: usize = undefined;
         if (c.lua_tolstring(lua.state, index, &length)) |ptr| return ptr[0..length :0];
-        return Error.Fail;
+        return error.Fail;
     }
 
     /// Converts the Lua value at the given `index` to a float
@@ -1052,14 +1052,14 @@ pub const Lua = struct {
     pub fn toNumber(lua: *Lua, index: i32) !Number {
         var success: c_int = undefined;
         const result = c.lua_tonumberx(lua.state, index, &success);
-        if (success == 0) return Error.Fail;
+        if (success == 0) return error.Fail;
         return result;
     }
 
     /// Converts the value at the given `index` to an opaque pointer
     pub fn toPointer(lua: *Lua, index: i32) !*const anyopaque {
         if (c.lua_topointer(lua.state, index)) |ptr| return ptr;
-        return Error.Fail;
+        return error.Fail;
     }
 
     /// Converts the Lua value at the given `index` to a zero-terminated many-itemed-pointer (string)
@@ -1068,7 +1068,7 @@ pub const Lua = struct {
     pub fn toString(lua: *Lua, index: i32) ![*:0]const u8 {
         var length: usize = undefined;
         if (c.lua_tolstring(lua.state, index, &length)) |str| return str;
-        return Error.Fail;
+        return error.Fail;
     }
 
     /// Converts the value at the given `index` to a Lua thread (wrapped with a `Lua` struct)
@@ -1077,7 +1077,7 @@ pub const Lua = struct {
     pub fn toThread(lua: *Lua, index: i32) !Lua {
         const thread = c.lua_tothread(lua.state, index);
         if (thread) |thread_ptr| return Lua{ .state = thread_ptr };
-        return Error.Fail;
+        return error.Fail;
     }
 
     /// If the value at the given `index` is a full userdata, returns its memory-block address
@@ -1085,7 +1085,7 @@ pub const Lua = struct {
     /// Otherwise returns an error
     pub fn toUserdata(lua: *Lua, index: i32) !*anyopaque {
         if (c.lua_touserdata(lua.state, index)) |ptr| return ptr;
-        return Error.Fail;
+        return error.Fail;
     }
 
     /// Returns the `LuaType` of the value at the given index
@@ -1220,13 +1220,13 @@ pub const Lua = struct {
         if (c.lua_getlocal(lua.state, &ar, n)) |name| {
             return std.mem.span(name);
         }
-        return Error.Fail;
+        return error.Fail;
     }
 
     /// Gets information about the interpreter runtime stack
     pub fn getStack(lua: *Lua, level: i32) !DebugInfo {
         var ar: Debug = undefined;
-        if (c.lua_getstack(lua.state, level, &ar) == 0) return Error.Fail;
+        if (c.lua_getstack(lua.state, level, &ar) == 0) return error.Fail;
         return DebugInfo{ .private = ar.i_ci.? };
     }
 
@@ -1235,7 +1235,7 @@ pub const Lua = struct {
         if (c.lua_getupvalue(lua.state, func_index, n)) |name| {
             return std.mem.span(name);
         }
-        return Error.Fail;
+        return error.Fail;
     }
 
     /// Sets the debugging hook function
@@ -1258,7 +1258,7 @@ pub const Lua = struct {
         if (c.lua_setlocal(lua.state, &ar, n)) |name| {
             return std.mem.span(name);
         }
-        return Error.Fail;
+        return error.Fail;
     }
 
     /// Sets the value of a closure's upvalue
@@ -1273,13 +1273,13 @@ pub const Lua = struct {
         if (c.lua_setupvalue(lua.state, func_index, n)) |name| {
             return std.mem.span(name);
         }
-        return Error.Fail;
+        return error.Fail;
     }
 
     /// Returns a unique identifier for the upvalue numbered `n` from the closure index `func_index`
     pub fn upvalueId(lua: *Lua, func_index: i32, n: i32) !*anyopaque {
         if (c.lua_upvalueid(lua.state, func_index, n)) |ptr| return ptr;
-        return Error.Fail;
+        return error.Fail;
     }
 
     /// Make the `n1`th upvalue of the Lua closure at index `func_index1` refer to the `n2`th upvalue
@@ -1315,7 +1315,7 @@ pub const Lua = struct {
 
     /// Calls a metamethod
     pub fn callMeta(lua: *Lua, obj: i32, field: [:0]const u8) !void {
-        if (c.luaL_callmeta(lua.state, obj, field) == 0) return Error.Fail;
+        if (c.luaL_callmeta(lua.state, obj, field) == 0) return error.Fail;
     }
 
     /// Checks whether the function has an argument of any type at position `arg`
@@ -1417,7 +1417,7 @@ pub const Lua = struct {
     /// TODO: possibly return an error if nil
     pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) !LuaType {
         const val_type = @intToEnum(LuaType, c.luaL_getmetafield(lua.state, obj, field));
-        if (val_type == .nil) return Error.Fail;
+        if (val_type == .nil) return error.Fail;
         return val_type;
     }
 
@@ -1485,9 +1485,9 @@ pub const Lua = struct {
         const ret = c.luaL_loadfilex(lua.state, file_name, mode_str);
         switch (ret) {
             StatusCode.ok => return,
-            StatusCode.err_syntax => return Error.Syntax,
-            StatusCode.err_memory => return Error.Memory,
-            err_file => return Error.File,
+            StatusCode.err_syntax => return error.Syntax,
+            StatusCode.err_memory => return error.Memory,
+            err_file => return error.File,
             // NOTE: the docs mention possible other return types, but I couldn't figure them out
             else => unreachable,
         }
@@ -1498,11 +1498,11 @@ pub const Lua = struct {
         const ret = c.luaL_loadstring(lua.state, str);
         switch (ret) {
             StatusCode.ok => return,
-            StatusCode.err_syntax => return Error.Syntax,
-            StatusCode.err_memory => return Error.Memory,
+            StatusCode.err_syntax => return error.Syntax,
+            StatusCode.err_memory => return error.Memory,
             // loadstring runs lua_load which runs pcall, so can also return any result of an pcall error
-            StatusCode.err_runtime => return Error.Runtime,
-            StatusCode.err_error => return Error.MsgHandler,
+            StatusCode.err_runtime => return error.Runtime,
+            StatusCode.err_error => return error.MsgHandler,
             else => unreachable,
         }
     }
@@ -1524,12 +1524,12 @@ pub const Lua = struct {
     /// If the registry already has the key `key`, returns an error
     /// Otherwise, creates a new table to be used as a metatable for userdata
     pub fn newMetatable(lua: *Lua, key: [:0]const u8) !void {
-        if (c.luaL_newmetatable(lua.state, key) == 0) return Error.Fail;
+        if (c.luaL_newmetatable(lua.state, key) == 0) return error.Fail;
     }
 
     /// Creates a new Lua state with an allocator using the default libc allocator
     pub fn newStateAux() !Lua {
-        const state = c.luaL_newstate() orelse return Error.Memory;
+        const state = c.luaL_newstate() orelse return error.Memory;
         return Lua{ .state = state };
     }
 
