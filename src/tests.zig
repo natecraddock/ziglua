@@ -1228,6 +1228,28 @@ test "get global fail" {
     try expectError(Error.Fail, lua.getGlobal("foo"));
 }
 
+test "metatables" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    try lua.doString("f = function() return 10 end");
+
+    try lua.newMetatable("mt");
+    _ = lua.getMetatableAux("mt");
+    try expect(lua.compare(1, 2, .eq));
+    lua.pop(1);
+
+    // set the len metamethod to the function f
+    try lua.getGlobal("f");
+    lua.setField(1, "__len");
+
+    lua.newTable();
+    lua.setMetatableAux("mt");
+
+    try lua.callMeta(-1, "__len");
+    try expectEqual(@as(Number, 10), try lua.toNumber(-1));
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
@@ -1236,7 +1258,6 @@ test "refs" {
     _ = Lua.argCheck;
     _ = Lua.argError;
     _ = Lua.argExpected;
-    _ = Lua.callMeta;
     _ = Lua.checkOption;
     _ = Lua.checkUserdata;
     _ = Lua.checkVersion;
@@ -1244,21 +1265,18 @@ test "refs" {
     _ = Lua.raiseErrorAux;
     _ = Lua.exeResult;
     _ = Lua.fileResult;
-    _ = Lua.getMetatableAux;
     _ = Lua.getSubtable;
     _ = Lua.gSub;
     _ = Lua.loadBuffer;
     _ = Lua.loadBufferX;
     _ = Lua.loadFile;
     _ = Lua.loadFileX;
-    _ = Lua.newMetatable;
     _ = Lua.optInteger;
     _ = Lua.optLString;
     _ = Lua.optNumber;
     _ = Lua.optString;
     _ = Lua.pushFail;
     _ = Lua.requireF;
-    _ = Lua.setMetatableAux;
     _ = Lua.testUserdata;
     _ = Lua.toLStringAux;
     _ = Lua.traceback;

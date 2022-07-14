@@ -1314,8 +1314,8 @@ pub const Lua = struct {
     }
 
     /// Calls a metamethod
-    pub fn callMeta(lua: *Lua, obj: i32, field: [:0]const u8) bool {
-        return c.luaL_callmeta(lua.state, obj, field) != 0;
+    pub fn callMeta(lua: *Lua, obj: i32, field: [:0]const u8) !void {
+        if (c.luaL_callmeta(lua.state, obj, field) == 0) return Error.Fail;
     }
 
     /// Checks whether the function has an argument of any type at position `arg`
@@ -1423,6 +1423,7 @@ pub const Lua = struct {
 
     /// Pushes onto the stack the metatable associated with the name `type_name` in the registry
     /// or nil if there is no metatable associated with that name. Returns the type of the pushed value
+    /// TODO: return error when type is nil?
     pub fn getMetatableAux(lua: *Lua, type_name: [:0]const u8) LuaType {
         return @intToEnum(LuaType, c.luaL_getmetatable(lua.state, type_name));
     }
@@ -1520,7 +1521,7 @@ pub const Lua = struct {
         lua.createTable(0, @intCast(i32, list.len));
     }
 
-    /// If the registry already has the key `key`, returns 0
+    /// If the registry already has the key `key`, returns an error
     /// Otherwise, creates a new table to be used as a metatable for userdata
     pub fn newMetatable(lua: *Lua, key: [:0]const u8) !void {
         if (c.luaL_newmetatable(lua.state, key) == 0) return Error.Fail;
