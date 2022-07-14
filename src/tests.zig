@@ -602,16 +602,17 @@ test "garbage collector" {
 
     // because the garbage collector is an opaque, unmanaged
     // thing, it is hard to test, so just run each function
-    lua.gc(.stop, .{});
-    lua.gc(.collect, .{});
-    lua.gc(.restart, .{});
-    lua.gc(.step, .{10});
-    _ = lua.gc(.count, .{});
-    _ = lua.gc(.countb, .{});
-    _ = lua.gc(.is_running, .{});
-    try expect(lua.gc(.set_generational, .{ 0, 10 }));
-    try expect(lua.gc(.set_incremental, .{ 0, 0, 0 }));
-    try expect(!lua.gc(.set_incremental, .{ 0, 0, 0 }));
+    lua.gcStop();
+    lua.gcCollect();
+    lua.gcRestart();
+    lua.gcStep(10);
+    _ = lua.gcCount();
+    _ = lua.gcCountB();
+    _ = lua.gcIsRunning();
+
+    try expect(lua.gcSetGenerational(0, 10));
+    try expect(lua.gcSetIncremental(0, 0, 0));
+    try expect(!lua.gcSetIncremental(0, 0, 0));
 }
 
 test "extra space" {

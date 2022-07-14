@@ -144,19 +144,6 @@ pub const FnReg = struct {
     func: ?CFn,
 };
 
-/// Actions supported by `Lua.gc()`
-pub const GCAction = enum(u5) {
-    stop = c.LUA_GCSTOP,
-    restart = c.LUA_GCRESTART,
-    collect = c.LUA_GCCOLLECT,
-    count = c.LUA_GCCOUNT,
-    countb = c.LUA_GCCOUNTB,
-    step = c.LUA_GCSTEP,
-    is_running = c.LUA_GCISRUNNING,
-    set_incremental = c.LUA_GCINC,
-    set_generational = c.LUA_GCGEN,
-};
-
 /// Type for debugging hook functions
 pub const CHookFn = fn (state: ?*LuaState, ar: ?*Debug) callconv(.C) void;
 
@@ -474,38 +461,51 @@ pub const Lua = struct {
         unreachable;
     }
 
-    fn TypeOfGC(comptime action: GCAction) type {
-        return switch (action) {
-            .stop, .collect, .restart, .step => void,
-            .count, .countb => i32,
-            .is_running, .set_incremental, .set_generational => bool,
-        };
+    /// Perform a full garbage-collection cycle
+    pub fn gcCollect(lua: *Lua) void {
+        _ = c.lua_gc(lua.state, c.LUA_GCCOLLECT);
     }
 
-    /// Controls the garbage collector
-    /// The return value type is dependent on the given action
-    /// TODO: split into separate functions
-    pub fn gc(lua: *Lua, comptime action: GCAction, args: anytype) TypeOfGC(action) {
-        const val = @enumToInt(action);
-        switch (action) {
-            .stop, .collect, .restart => _ = c.lua_gc(lua.state, val),
-            .step => _ = c.lua_gc(lua.state, val, @as(i32, args.@"0")),
-            .count, .countb => return c.lua_gc(lua.state, val),
-            .is_running => return c.lua_gc(lua.state, val) != 0,
-            .set_incremental => return c.lua_gc(
-                lua.state,
-                val,
-                @as(i32, args.@"0"),
-                @as(i32, args.@"1"),
-                @as(i32, args.@"2"),
-            ) != @enumToInt(GCAction.set_incremental),
-            .set_generational => return c.lua_gc(
-                lua.state,
-                val,
-                @as(i32, args.@"0"),
-                @as(i32, args.@"1"),
-            ) != @enumToInt(GCAction.set_generational),
-        }
+    /// Stops the garbage collector
+    pub fn gcStop(lua: *Lua) void {
+        _ = c.lua_gc(lua.state, c.LUA_GCSTOP);
+    }
+
+    /// Restarts the garbage collector
+    pub fn gcRestart(lua: *Lua) void {
+        _ = c.lua_gc(lua.state, c.LUA_GCRESTART);
+    }
+
+    /// Performs an incremental step of garbage collection corresponding to the allocation of `step_size` Kbytes
+    pub fn gcStep(lua: *Lua, step_size: i32) void {
+        _ = c.lua_gc(lua.state, c.LUA_GCSTEP, step_size);
+    }
+
+    /// Returns the current amount of memory (in Kbytes) in use by Lua
+    pub fn gcCount(lua: *Lua) i32 {
+        return c.lua_gc(lua.state, c.LUA_GCCOUNT);
+    }
+
+    /// Returns the remainder of dividing the current amount of bytes of memory in use by Lua by 1024
+    pub fn gcCountB(lua: *Lua) i32 {
+        return c.lua_gc(lua.state, c.LUA_GCCOUNTB);
+    }
+
+    /// Returns a boolean that tells whether the garbage collector is running
+    pub fn gcIsRunning(lua: *Lua) bool {
+        return c.lua_gc(lua.state, c.LUA_GCISRUNNING) != 0;
+    }
+
+    /// Changes the collector to incremental mode
+    /// Returns true if the previous mode was generational
+    pub fn gcSetIncremental(lua: *Lua, pause: i32, step_mul: i32, step_size: i32) bool {
+        return c.lua_gc(lua.state, c.LUA_GCINC, pause, step_mul, step_size) == c.LUA_GCGEN;
+    }
+
+    /// Changes the collector to generational mode
+    /// Returns true if the previous mode was incremental
+    pub fn gcSetGenerational(lua: *Lua, minor_mul: i32, major_mul: i32) bool {
+        return c.lua_gc(lua.state, c.LUA_GCGEN, minor_mul, major_mul) == c.LUA_GCINC;
     }
 
     /// Returns the memory allocation function of a given state
