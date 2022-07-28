@@ -429,6 +429,7 @@ test "version" {
     defer lua.deinit();
 
     try expectEqual(@as(f64, 504), lua.version());
+    lua.checkVersion();
 }
 
 test "string buffers" {
@@ -484,7 +485,8 @@ test "string buffers" {
     b = buffer.prep();
     std.mem.copy(u8, b, "defghijklmnopqrstuvwxyz");
     buffer.pushResultSize(23);
-    try expectEqualStrings("abcdefghijklmnopqrstuvwxyz", try lua.toBytes(-1));
+    try expectEqualStrings("abcdefghijklmnopqrstuvwxyz", lua.toBytesAux(-1));
+    lua.pop(1);
 
     lua.len(-1);
     try expectEqual(@as(Integer, 26), try lua.toInteger(-1));
@@ -1212,7 +1214,8 @@ test "aux check functions" {
     };
 
     lua.pushFunction(function);
-    lua.pushNil();
+    // test pushFail here (currently acts the same as pushNil)
+    lua.pushFail();
     lua.pushInteger(3);
     lua.pushBytes("hello world");
     lua.pushNumber(4);
@@ -1250,17 +1253,86 @@ test "metatables" {
     try expectEqual(@as(Number, 10), try lua.toNumber(-1));
 }
 
+test "aux opt functions" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const function = ziglua.wrap(struct {
+        fn inner(l: *Lua) i32 {
+            expectEqual(@as(Integer, 10), l.optInteger(1, 10)) catch unreachable;
+            expectEqualStrings("zig", l.optBytes(2, "zig")) catch unreachable;
+            expectEqual(@as(Number, 1.23), l.optNumber(3, 1.23)) catch unreachable;
+            expectEqualStringsSentinel("lang", l.optString(4, "lang")) catch unreachable;
+            return 0;
+        }
+    }.inner);
+
+    lua.pushFunction(function);
+    try lua.protectedCall(0, 0, 0);
+
+    lua.pushFunction(function);
+    lua.pushInteger(10);
+    lua.pushBytes("zig");
+    lua.pushNumber(1.23);
+    lua.pushString("lang");
+    try lua.protectedCall(4, 0, 0);
+}
+
+test "checkOption" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const Variant = enum {
+        one,
+        two,
+        three,
+    };
+
+    const function = ziglua.wrap(struct {
+        fn inner(l: *Lua) i32 {
+            const option = l.checkOption(Variant, 1, .one);
+            l.pushInteger(switch (option) {
+                .one => 1,
+                .two => 2,
+                .three => 3,
+            });
+            return 1;
+        }
+    }.inner);
+
+    lua.pushFunction(function);
+    lua.pushString("one");
+    try lua.protectedCall(1, 1, 0);
+    try expectEqual(@as(Integer, 1), try lua.toInteger(-1));
+    lua.pop(1);
+
+    lua.pushFunction(function);
+    lua.pushString("two");
+    try lua.protectedCall(1, 1, 0);
+    try expectEqual(@as(Integer, 2), try lua.toInteger(-1));
+    lua.pop(1);
+
+    lua.pushFunction(function);
+    lua.pushString("three");
+    try lua.protectedCall(1, 1, 0);
+    try expectEqual(@as(Integer, 3), try lua.toInteger(-1));
+    lua.pop(1);
+
+    // try the default now
+    lua.pushFunction(function);
+    try lua.protectedCall(0, 1, 0);
+    try expectEqual(@as(Integer, 1), try lua.toInteger(-1));
+    lua.pop(1);
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
 
     // auxlib
     _ = Lua.argCheck;
-    _ = Lua.argError;
     _ = Lua.argExpected;
-    _ = Lua.checkOption;
     _ = Lua.checkUserdata;
-    _ = Lua.checkVersion;
     _ = Lua.doFile;
     _ = Lua.raiseErrorAux;
     _ = Lua.exeResult;
@@ -1271,14 +1343,7 @@ test "refs" {
     _ = Lua.loadBufferX;
     _ = Lua.loadFile;
     _ = Lua.loadFileX;
-    _ = Lua.optInteger;
-    _ = Lua.optLString;
-    _ = Lua.optNumber;
-    _ = Lua.optString;
-    _ = Lua.pushFail;
-    _ = Lua.requireF;
     _ = Lua.testUserdata;
-    _ = Lua.toLStringAux;
     _ = Lua.traceback;
     _ = Lua.typeError;
     _ = Lua.typeNameAux;

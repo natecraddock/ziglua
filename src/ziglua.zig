@@ -1301,7 +1301,7 @@ pub const Lua = struct {
     }
 
     /// Raises an error reporting a problem with argument `arg` of the C function that called it
-    pub fn argError(lua: *Lua, arg: i32, extra_msg: [:0]const u8) noreturn {
+    pub fn argError(lua: *Lua, arg: i32, extra_msg: [*:0]const u8) noreturn {
         _ = c.luaL_argerror(lua.state, arg, extra_msg);
         unreachable;
     }
@@ -1341,17 +1341,27 @@ pub const Lua = struct {
         return c.luaL_checknumber(lua.state, arg);
     }
 
-    /// Checks whether the function argument `arg` is a string and searches for the string in the null-terminated array `list`
+    /// Checks whether the function argument `arg` is a string and searches for the enum value with the same name in `T`.
     /// `default` is used as a default value when not null
-    /// Returns the index in the array where the string was found
-    pub fn checkOption(lua: *Lua, arg: i32, default: ?[:0]const u8, list: [:null]?[:0]const u8) i32 {
-        return c.luaL_checkoption(
-            lua.state,
-            arg,
-            if (default != null) default.?.ptr else null,
-            // TODO: check this cast
-            @ptrCast([*c]const [*c]const u8, list.ptr),
-        );
+    /// Returns the enum value found
+    /// Useful for mapping Lua strings to Zig enums
+    pub fn checkOption(lua: *Lua, comptime T: type, arg: i32, default: ?T) T {
+        const name = blk: {
+            if (default) |defaultName| {
+                break :blk lua.optBytes(arg, @tagName(defaultName));
+            } else {
+                break :blk lua.checkBytes(arg);
+            }
+        };
+
+        inline for (std.meta.fields(T)) |field| {
+            if (std.mem.eql(u8, field.name, name)) {
+                return @intToEnum(T, field.value);
+            }
+        }
+
+        // NOTE: ptrCast is required because a slice is not supported ziglang/zig/issues/1481
+        return lua.argError(arg, lua.pushFStringEx("invalid option '%s'", .{@ptrCast([*c]const u8, name)}));
     }
 
     /// Grows the stack size to top + `size` elements, raising an error if the stack cannot grow to that size
@@ -1541,14 +1551,14 @@ pub const Lua = struct {
         return c.luaL_optinteger(lua.state, arg, default);
     }
 
-    /// If the function argument `arg` is a string, returns the string
+    /// If the function argument `arg` is a slice of bytes, returns the slice
     /// If the argument is absent or nil returns `default`
-    pub fn optLString(lua: *Lua, arg: i32, default: [:0]const u8) []const u8 {
+    pub fn optBytes(lua: *Lua, arg: i32, default: [:0]const u8) [:0]const u8 {
         var length: usize = 0;
         // will never return null because default cannot be null
         const ret: [*]const u8 = c.luaL_optlstring(lua.state, arg, default, &length);
         if (ret == default.ptr) return default;
-        return ret[0..length];
+        return ret[0..length :0];
     }
 
     /// If the function argument `arg` is a number, returns the number
@@ -1610,10 +1620,10 @@ pub const Lua = struct {
     }
 
     /// Converts any Lua value at the given index into a string in a reasonable format
-    pub fn toLStringAux(lua: *Lua, index: i32) []const u8 {
+    pub fn toBytesAux(lua: *Lua, index: i32) [:0]const u8 {
         var length: usize = undefined;
         const ptr = c.luaL_tolstring(lua.state, index, &length);
-        return ptr[0..length];
+        return ptr[0..length :0];
     }
 
     /// Creates and pushes a traceback of the stack of `other`
