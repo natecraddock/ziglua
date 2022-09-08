@@ -1456,24 +1456,24 @@ pub const Lua = struct {
     }
 
     /// The same as `Lua.loadBufferX` with `mode` set to null
-    pub fn loadBuffer(lua: *Lua, buf: [:0]const u8, size: usize, name: [:0]const u8) i32 {
-        // translate-c failure
-        return c.luaL_loadbufferx(lua.state, buf, size, name, null);
+    pub fn loadBuffer(lua: *Lua, buf: []const u8, name: [:0]const u8) !void {
+        try lua.loadBufferX(buf, name, .binary_text);
     }
 
     /// Loads a buffer as a Lua chunk
     /// TODO: There isn't a real reason to allow null mofe with loadBuffer
-    pub fn loadBufferX(lua: *Lua, buf: [:0]const u8, size: usize, name: [:0]const u8, mode: ?Mode) i32 {
-        const mode_str = blk: {
-            if (mode == null) break :blk "bt";
-
-            break :blk switch (mode.?) {
-                .binary => "b",
-                .text => "t",
-                .binary_text => "bt",
-            };
+    pub fn loadBufferX(lua: *Lua, buf: []const u8, name: [:0]const u8, mode: Mode) !void {
+        const mode_str = switch (mode) {
+            .binary => "b",
+            .text => "t",
+            .binary_text => "bt",
         };
-        return c.luaL_loadbufferx(lua.state, buf, size, name, mode_str);
+        switch (c.luaL_loadbufferx(lua.state, buf.ptr, buf.len, name, mode_str)) {
+            StatusCode.ok => return,
+            StatusCode.err_syntax => return error.Syntax,
+            StatusCode.err_memory => return error.Memory,
+            else => unreachable,
+        }
     }
 
     /// Equivalent to `Lua.loadFileX()` with mode equal to null

@@ -1325,6 +1325,24 @@ test "checkOption" {
     lua.pop(1);
 }
 
+test "gSub" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    _ = lua.gSub("-gity -!", "-", "zig");
+    try expectEqualStrings("ziggity zig!", try lua.toBytes(-1));
+}
+
+test "loadBuffer" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    _ = try lua.loadBuffer("global = 10", "chunkname");
+    try lua.protectedCall(0, ziglua.mult_return, 0);
+    try lua.getGlobal("global");
+    try expectEqual(@as(Integer, 10), try lua.toInteger(-1));
+}
+
 test "refs" {
     // temporary test that includes a reference to all functions so
     // they will be type-checked
@@ -1338,9 +1356,6 @@ test "refs" {
     _ = Lua.exeResult;
     _ = Lua.fileResult;
     _ = Lua.getSubtable;
-    _ = Lua.gSub;
-    _ = Lua.loadBuffer;
-    _ = Lua.loadBufferX;
     _ = Lua.loadFile;
     _ = Lua.loadFileX;
     _ = Lua.testUserdata;
