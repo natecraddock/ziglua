@@ -177,17 +177,17 @@ test "arithmetic (lua_arith)" {
     lua.pushNumber(1);
     lua.arith(.add);
     lua.pushNumber(2);
-    lua.arith(.idiv);
+    lua.arith(.int_div);
     try expectEqual(@as(f64, 5), try lua.toNumber(1));
 
     lua.pushNumber(2);
     lua.arith(.mod);
     try expectEqual(@as(f64, 1), try lua.toNumber(1));
 
-    lua.arith(.unm);
+    lua.arith(.negate);
     try expectEqual(@as(f64, -1), try lua.toNumber(1));
 
-    lua.arith(.unm);
+    lua.arith(.negate);
     lua.pushNumber(2);
     lua.arith(.shl);
     try expectEqual(@as(i64, 4), try lua.toInteger(1));

@@ -24,16 +24,15 @@ const Allocator = std.mem.Allocator;
 pub const AllocFn = fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque;
 
 /// Operations supported by `Lua.arith()`
-/// TODO: use longer names
 pub const ArithOperator = enum(u4) {
     add = c.LUA_OPADD,
     sub = c.LUA_OPSUB,
     mul = c.LUA_OPMUL,
     div = c.LUA_OPDIV,
-    idiv = c.LUA_OPIDIV,
+    int_div = c.LUA_OPIDIV,
     mod = c.LUA_OPMOD,
     pow = c.LUA_OPPOW,
-    unm = c.LUA_OPUNM,
+    negate = c.LUA_OPUNM,
     bnot = c.LUA_OPBNOT,
     band = c.LUA_OPBAND,
     bor = c.LUA_OPBOR,
