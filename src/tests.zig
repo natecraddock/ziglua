@@ -800,7 +800,7 @@ test "userdata and uservalues" {
     };
 
     // create a Lua-owned pointer to a Data with 2 associated user values
-    var data = lua.newUserdataUV(Data, 2);
+    var data = lua.newUserdata(Data, 2);
     data.val = 1;
     std.mem.copy(u8, &data.code, "abcd");
 
@@ -1468,7 +1468,7 @@ test "userdata" {
     const Type = struct { a: i32, b: f32 };
     try lua.newMetatable("Type");
 
-    var t = lua.newUserdataUV(Type, 0);
+    var t = lua.newUserdata(Type, 0);
     lua.setMetatableAux("Type");
     t.a = 1234;
     t.b = 3.14;

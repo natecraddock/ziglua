@@ -695,13 +695,12 @@ pub const Lua = struct {
     }
 
     /// This function creates and pushes a new full userdata onto the stack
-    /// with `num_uvalue` associated Lua values, plus an associated block of raw memory with `size` bytes
+    /// with `upvalues` associated Lua values, plus an associated block of raw memory with `size` bytes
     /// Returns the address of the block of memory
-    /// TODO: rename to newUserdata?
-    pub fn newUserdataUV(lua: *Lua, comptime T: type, new_uvalue: i32) *T {
+    pub fn newUserdata(lua: *Lua, comptime T: type, upvalues: i32) *T {
         // safe to .? because this function throws a Lua error on out of memory
         // so the returned pointer should never be null
-        const ptr = c.lua_newuserdatauv(lua.state, @sizeOf(T), new_uvalue).?;
+        const ptr = c.lua_newuserdatauv(lua.state, @sizeOf(T), upvalues).?;
         return opaqueCast(T, ptr);
     }
 
