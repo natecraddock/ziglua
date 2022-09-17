@@ -4,11 +4,12 @@
 
 This documentation provides
 
-* An overview of ziglua's structure
+* An overview of ziglua's structure and changes from the C API
 * Safety considerations
-* API Differences
 * `build.zig` documentation
 * Example code
+
+Documentation on each individual function is found in the [ziglua.zig](https://github.com/natecraddock/ziglua/blob/master/src/ziglua.zig) source code.
 
 ## Moving from the C API to Zig
 
@@ -28,13 +29,13 @@ In the few cases when the [auxiliary library](https://www.lua.org/manual/5.4/man
 
 For example, the functions `lua_newstate` and `luaL_newstate` are translated to `Lua.newState` and `Lua.newStateAux` respectively.
 
-Because Zig optimizes for readability, some abbreviations are expanded to make names more clear, like renaming `pcall` to `protectedCall`.
+Because Zig best practice is to communicate intent precisely, some abbreviations are expanded to make names more clear, like renaming `pcall` to `protectedCall`.
 
 ### Lua Initialization
 
 In the C API, there are two functions provided to initialize the main Lua state: `lua_newstate` and `luaL_newstate`. The former requires passing an allocator function to be used by Lua for all memory allocations, while the latter uses the default libc allocator.
 
-Ziglua provides a third option with the `Lua.init(Allocator)` function, which accepts a traditional Zig allocator. All three functions are available depending on your needs, but most likely you will want to use the `init` function. If you have special requirements for allocation, then `Lua.newState` would be useful. `Lua.newStateAux` is available, but Zig cannot track allocations made by libc so this is less safe.
+Ziglua provides a third option with the `Lua.init(Allocator)` function, which accepts a traditional Zig allocator. All three functions are available depending on your needs, but most likely you will want to use the `Lua.init(Allocator)` function. If you have special requirements for allocation, then `Lua.newState` would be useful. `Lua.newStateAux` is available if you wish to use the default libc allocator.
 
 ## Safety
 
@@ -60,7 +61,7 @@ The slices are typed to indicate the contents (zero-terminated, raw bytes, etc)
 
 ### Enums
 
-ziglua uses enums instead of enumerated integer codes to ensure all cases are handled, and to prevent passing an invalid integer type to a function.
+ziglua uses enums instead of integer codes or strings to prevent passing an invalid value to a function.
 
 ### Optionals
 
