@@ -1463,7 +1463,6 @@ pub const Lua = struct {
     }
 
     /// Loads a buffer as a Lua chunk
-    /// TODO: There isn't a real reason to allow null mofe with loadBuffer
     pub fn loadBufferX(lua: *Lua, buf: []const u8, name: [:0]const u8, mode: Mode) !void {
         const mode_str = switch (mode) {
             .binary => "b",
