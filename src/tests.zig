@@ -1475,7 +1475,7 @@ test "userdata" {
 
     const checkUdata = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
-            const ptr = ziglua.opaqueCast(Type, l.checkUserdata(1, "Type"));
+            const ptr = l.checkUserdata(Type, 1);
             if (ptr.a != 1234) {
                 l.pushBytes("error!");
                 l.raiseError();
@@ -1497,10 +1497,10 @@ test "userdata" {
 
     const testUdata = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
-            const ptr = ziglua.opaqueCast(Type, l.testUserdata(1, "Type") catch {
+            const ptr = l.testUserdata(Type, 1) catch {
                 l.pushBytes("error!");
                 l.raiseError();
-            });
+            };
             if (ptr.a != 1234) {
                 l.pushBytes("error!");
                 l.raiseError();
@@ -1533,6 +1533,4 @@ test "refs" {
     // probably not needed in ziglua
     _ = Lua.execResult;
     _ = Lua.fileResult;
-
-    _ = Lua.testUserdata;
 }

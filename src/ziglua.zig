@@ -1383,10 +1383,9 @@ pub const Lua = struct {
 
     /// Checks whether the function argument `arg` is a userdata of the type `type_name`
     /// Returns the userdata's memory-block address
-    /// TODO: accept type as param?
-    pub fn checkUserdata(lua: *Lua, arg: i32, type_name: [:0]const u8) *anyopaque {
+    pub fn checkUserdata(lua: *Lua, comptime T: type, arg: i32) *T {
         // the returned pointer will not be null
-        return c.luaL_checkudata(lua.state, arg, type_name).?;
+        return opaqueCast(T, c.luaL_checkudata(lua.state, arg, @typeName(T)).?);
     }
 
     /// Checks whether the code making the call and the Lua library being called are using
@@ -1614,9 +1613,9 @@ pub const Lua = struct {
     }
 
     /// This function works like `Lua.checkUserdata()` except it returns a Zig error instead of raising a Lua error on fail
-    pub fn testUserdata(lua: *Lua, arg: i32, type_name: [:0]const u8) !*anyopaque {
-        if (c.luaL_testudata(lua.state, arg, type_name)) |ptr| {
-            return ptr;
+    pub fn testUserdata(lua: *Lua, comptime T: type, arg: i32) !*T {
+        if (c.luaL_testudata(lua.state, arg, @typeName(T))) |ptr| {
+            return opaqueCast(T, ptr);
         } else return error.Fail;
     }
 
