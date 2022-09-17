@@ -698,6 +698,7 @@ pub const Lua = struct {
     /// This function creates and pushes a new full userdata onto the stack
     /// with `num_uvalue` associated Lua values, plus an associated block of raw memory with `size` bytes
     /// Returns the address of the block of memory
+    /// TODO: rename to newUserdata?
     pub fn newUserdataUV(lua: *Lua, comptime T: type, new_uvalue: i32) *T {
         // safe to .? because this function throws a Lua error on out of memory
         // so the returned pointer should never be null
@@ -721,6 +722,7 @@ pub const Lua = struct {
     }
 
     /// Calls a function (or callable object) in protected mode
+    /// NOTE: it might be good to make the args named struct params?
     pub fn protectedCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) !void {
         // The translate-c version of lua_pcall does not type-check so we must rewrite it
         // (macros don't always translate well with translate-c)
@@ -1095,6 +1097,7 @@ pub const Lua = struct {
     }
 
     /// Returns the name of the given `LuaType` as a null-terminated slice
+    /// TODO: return a spanned string
     pub fn typeName(lua: *Lua, t: LuaType) [*:0]const u8 {
         return c.lua_typename(lua.state, @enumToInt(t));
     }
@@ -1297,7 +1300,7 @@ pub const Lua = struct {
     /// Possibly never returns
     pub fn argCheck(lua: *Lua, cond: bool, arg: i32, extra_msg: [:0]const u8) void {
         // translate-c failed
-        if (cond) lua.typeError(arg, extra_msg);
+        if (cond) lua.argError(arg, extra_msg);
     }
 
     /// Raises an error reporting a problem with argument `arg` of the C function that called it
@@ -1383,7 +1386,9 @@ pub const Lua = struct {
 
     /// Checks whether the function argument `arg` is a userdata of the type `type_name`
     /// Returns the userdata's memory-block address
+    /// TODO: accept type as param?
     pub fn checkUserdata(lua: *Lua, arg: i32, type_name: [:0]const u8) *anyopaque {
+        // the returned pointer will not be null
         return c.luaL_checkudata(lua.state, arg, type_name).?;
     }
 
@@ -1409,11 +1414,12 @@ pub const Lua = struct {
 
     /// Raises an error
     pub fn raiseErrorAux(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
-        @call(.{}, c.luaL_error, .{ lua.state, fmt } ++ args);
+        _ = @call(.{}, c.luaL_error, .{ lua.state, fmt } ++ args);
+        unreachable;
     }
 
     /// This function produces the return values for process-related functions in the standard library
-    pub fn exeResult(lua: *Lua, stat: i32) i32 {
+    pub fn execResult(lua: *Lua, stat: i32) i32 {
         return c.luaL_execresult(lua.state, stat);
     }
 
@@ -1439,8 +1445,8 @@ pub const Lua = struct {
     }
 
     /// Ensures that the value t[`field`], where t is the value at `index`, is a table, and pushes that table onto the stack.
-    pub fn getSubtable(lua: *Lua, index: i32, field: [:0]const u8) bool {
-        return c.luaL_getsubtable(lua.state, index, field) != 0;
+    pub fn getSubtable(lua: *Lua, index: i32, field: [:0]const u8) !void {
+        if (c.luaL_getsubtable(lua.state, index, field) == 0) return error.Fail;
     }
 
     /// Creates a copy of string `str`, replacing any occurrence of the string `pat` with the string `rep`
@@ -1455,7 +1461,7 @@ pub const Lua = struct {
         return c.luaL_len(lua.state, index);
     }
 
-    /// The same as `Lua.loadBufferX` with `mode` set to null
+    /// The same as `Lua.loadBufferX` with `mode` set to binary+text
     pub fn loadBuffer(lua: *Lua, buf: []const u8, name: [:0]const u8) !void {
         try lua.loadBufferX(buf, name, .binary_text);
     }
@@ -1476,21 +1482,17 @@ pub const Lua = struct {
         }
     }
 
-    /// Equivalent to `Lua.loadFileX()` with mode equal to null
+    /// Equivalent to `Lua.loadFileX()` with mode equal to binary+text
     pub fn loadFile(lua: *Lua, file_name: [:0]const u8) !void {
-        return loadFileX(lua, file_name, null);
+        try lua.loadFileX(file_name, .binary_text);
     }
 
     /// Loads a file as a Lua chunk
-    pub fn loadFileX(lua: *Lua, file_name: [:0]const u8, mode: ?Mode) !void {
-        const mode_str = blk: {
-            if (mode == null) break :blk "bt";
-
-            break :blk switch (mode.?) {
-                .binary => "b",
-                .text => "t",
-                .binary_text => "bt",
-            };
+    pub fn loadFileX(lua: *Lua, file_name: [:0]const u8, mode: Mode) !void {
+        const mode_str = switch (mode) {
+            .binary => "b",
+            .text => "t",
+            .binary_text => "bt",
         };
         const ret = c.luaL_loadfilex(lua.state, file_name, mode_str);
         switch (ret) {
@@ -1581,9 +1583,9 @@ pub const Lua = struct {
 
     /// Creates and returns a reference in the table at index `index` for the object on the top of the stack
     /// Pops the object
-    pub fn ref(lua: *Lua, index: i32) ?i32 {
+    pub fn ref(lua: *Lua, index: i32) !i32 {
         const ret = c.luaL_ref(lua.state, index);
-        return if (ret == ref_nil) null else ret;
+        return if (ret == ref_nil) error.Fail else ret;
     }
 
     /// If package.loaded[`mod_name`] is not true, calls the function `open_fn` with `mod_name`
@@ -1614,9 +1616,11 @@ pub const Lua = struct {
         c.luaL_setmetatable(lua.state, table_name);
     }
 
-    /// This function works like `Lua.checkUserdata()` except it returns null instead of raising an error on fail
-    pub fn testUserdata(lua: *Lua, arg: i32, type_name: [:0]const u8) ?*anyopaque {
-        return c.luaL_testudata(lua.state, arg, type_name);
+    /// This function works like `Lua.checkUserdata()` except it returns a Zig error instead of raising a Lua error on fail
+    pub fn testUserdata(lua: *Lua, arg: i32, type_name: [:0]const u8) !*anyopaque {
+        if (c.luaL_testudata(lua.state, arg, type_name)) |ptr| {
+            return ptr;
+        } else return error.Fail;
     }
 
     /// Converts any Lua value at the given index into a string in a reasonable format
@@ -1627,7 +1631,7 @@ pub const Lua = struct {
     }
 
     /// Creates and pushes a traceback of the stack of `other`
-    pub fn traceback(lua: *Lua, other: Lua, msg: [:0]const u8, level: i32) void {
+    pub fn traceback(lua: *Lua, other: *Lua, msg: [:0]const u8, level: i32) void {
         c.luaL_traceback(lua.state, other.state, msg, level);
     }
 
@@ -1638,8 +1642,7 @@ pub const Lua = struct {
     }
 
     /// Returns the name of the type of the value at the given `index`
-    /// TODO: maybe typeNameIndex?
-    pub fn typeNameAux(lua: *Lua, index: i32) [:0]const u8 {
+    pub fn typeNameIndex(lua: *Lua, index: i32) [:0]const u8 {
         return std.mem.span(c.luaL_typename(lua.state, index));
     }
 

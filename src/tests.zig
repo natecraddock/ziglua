@@ -299,6 +299,8 @@ test "type of and getting values" {
 
     try expectEqual(@as(Number, 0.1), try lua.toNumber(6));
     try expectEqual(@as(Integer, 1), try lua.toInteger(3));
+
+    try expectEqualStrings("number", lua.typeNameIndex(3));
 }
 
 test "typenames" {
@@ -1343,25 +1345,194 @@ test "loadBuffer" {
     try expectEqual(@as(Integer, 10), try lua.toInteger(-1));
 }
 
-test "refs" {
-    // temporary test that includes a reference to all functions so
-    // they will be type-checked
+test "where" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
 
-    // auxlib
-    _ = Lua.argCheck;
-    _ = Lua.argExpected;
-    _ = Lua.checkUserdata;
+    const whereFn = ziglua.wrap(struct {
+        fn inner(l: *Lua) i32 {
+            l.where(1);
+            return 1;
+        }
+    }.inner);
+
+    lua.pushFunction(whereFn);
+    lua.setGlobal("whereFn");
+
+    try lua.doString(
+        \\
+        \\ret = whereFn()
+    );
+
+    try lua.getGlobal("ret");
+    try expectEqualStrings("[string \"...\"]:2: ", try lua.toBytes(-1));
+}
+
+test "ref" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    lua.pushNil();
+    try expectError(error.Fail, lua.ref(ziglua.registry_index));
+    try expectEqual(@as(Integer, 0), lua.getTop());
+
+    lua.pushBytes("Hello there");
+    const ref = try lua.ref(ziglua.registry_index);
+
+    _ = lua.rawGetIndex(ziglua.registry_index, ref);
+    try expectEqualStrings("Hello there", try lua.toBytes(-1));
+
+    lua.unref(ziglua.registry_index, ref);
+}
+
+test "args and errors" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const argCheck = ziglua.wrap(struct {
+        fn inner(l: *Lua) i32 {
+            l.argCheck(true, 1, "error!");
+            return 0;
+        }
+    }.inner);
+
+    lua.pushFunction(argCheck);
+    try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
+
+    const argExpected = ziglua.wrap(struct {
+        fn inner(l: *Lua) i32 {
+            l.argExpected(true, 1, "string");
+            return 0;
+        }
+    }.inner);
+
+    lua.pushFunction(argExpected);
+    try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
+
+    const raisesError = ziglua.wrap(struct {
+        fn inner(l: *Lua) i32 {
+            l.raiseErrorAux("some error %s!", .{"zig"});
+            unreachable;
+        }
+    }.inner);
+
+    lua.pushFunction(raisesError);
+    try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
+    try expectEqualStrings("some error zig!", try lua.toBytes(-1));
+}
+
+test "traceback" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const tracebackFn = ziglua.wrap(struct {
+        fn inner(l: *Lua) i32 {
+            l.traceback(l, "", 1);
+            return 1;
+        }
+    }.inner);
+
+    lua.pushFunction(tracebackFn);
+    lua.setGlobal("tracebackFn");
+    try lua.doString("res = tracebackFn()");
+
+    try lua.getGlobal("res");
+    try expectEqualStrings("\nstack traceback:\n\t[string \"res = tracebackFn()\"]:1: in main chunk", try lua.toBytes(-1));
+}
+
+test "getSubtable" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    try lua.doString(
+        \\a = {
+        \\  b = {},
+        \\}
+    );
+    try lua.getGlobal("a");
+
+    // get the subtable a.b
+    try lua.getSubtable(-1, "b");
+
+    // fail to get the subtable a.c (but it is created)
+    try expectError(error.Fail, lua.getSubtable(-2, "c"));
+
+    // now a.c will pass
+    try lua.getSubtable(-3, "b");
+}
+
+test "userdata" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const Type = struct { a: i32, b: f32 };
+    try lua.newMetatable("Type");
+
+    var t = lua.newUserdataUV(Type, 0);
+    lua.setMetatableAux("Type");
+    t.a = 1234;
+    t.b = 3.14;
+
+    const checkUdata = ziglua.wrap(struct {
+        fn inner(l: *Lua) i32 {
+            const ptr = ziglua.opaqueCast(Type, l.checkUserdata(1, "Type"));
+            if (ptr.a != 1234) {
+                l.pushBytes("error!");
+                l.raiseError();
+            }
+            if (ptr.b != 3.14) {
+                l.pushBytes("error!");
+                l.raiseError();
+            }
+            return 1;
+        }
+    }.inner);
+
+    lua.pushFunction(checkUdata);
+    lua.rotate(-2, 1);
+
+    // call checkUdata asserting that the udata passed in with the
+    // correct metatable and values
+    try lua.protectedCall(1, 1, 0);
+
+    const testUdata = ziglua.wrap(struct {
+        fn inner(l: *Lua) i32 {
+            const ptr = ziglua.opaqueCast(Type, l.testUserdata(1, "Type") catch {
+                l.pushBytes("error!");
+                l.raiseError();
+            });
+            if (ptr.a != 1234) {
+                l.pushBytes("error!");
+                l.raiseError();
+            }
+            if (ptr.b != 3.14) {
+                l.pushBytes("error!");
+                l.raiseError();
+            }
+            return 0;
+        }
+    }.inner);
+
+    lua.pushFunction(testUdata);
+    lua.rotate(-2, 1);
+
+    // call checkUdata asserting that the udata passed in with the
+    // correct metatable and values
+    try lua.protectedCall(1, 0, 0);
+}
+
+test "refs" {
+    // tests for functions that aren't tested or will not be tested in ziglua
+    // but ensures that the signatures are at least type checked
+
+    // no need to test file loading
     _ = Lua.doFile;
-    _ = Lua.raiseErrorAux;
-    _ = Lua.exeResult;
-    _ = Lua.fileResult;
-    _ = Lua.getSubtable;
     _ = Lua.loadFile;
     _ = Lua.loadFileX;
+
+    // probably not needed in ziglua
+    _ = Lua.execResult;
+    _ = Lua.fileResult;
+
     _ = Lua.testUserdata;
-    _ = Lua.traceback;
-    _ = Lua.typeError;
-    _ = Lua.typeNameAux;
-    _ = Lua.unref;
-    _ = Lua.where;
 }
