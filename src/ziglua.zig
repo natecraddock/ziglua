@@ -324,8 +324,6 @@ pub const Lua = struct {
         // the memory allocated by this function should also be aligned for any type that Lua may
         // desire to allocate. use the largest alignment for the target
         const alignment = @alignOf(std.c.max_align_t);
-
-        // the data pointer is an Allocator, so the @alignCast is safe
         const allocator = opaqueCast(Allocator, data.?);
 
         if (@ptrCast(?[*]align(alignment) u8, @alignCast(alignment, ptr))) |prev_ptr| {
@@ -376,65 +374,81 @@ pub const Lua = struct {
     // Library functions are included in alphabetical order.
     // Each is kept similar to the original C API function while also making it easy to use from Zig
 
-    /// Converts the acceptable index `index` into an equivalent absolute index
+    /// Returns the acceptable index index converted into an equivalent absolute index
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_absindex
     pub fn absIndex(lua: *Lua, index: i32) i32 {
         return c.lua_absindex(lua.state, index);
     }
 
-    /// Performs an arithmetic or bitwise operation over the value(s) at the top of the stack
-    /// This function follows the semantics of the corresponding Lua operator
+    /// Performs an arithmetic or bitwise operation over the value(s) at the top of the stack,
+    /// with the value at the top being the second operand. Pushes the result of the operation.
+    /// This function follows the semantics of the corresponding Lua operator and may call metamethods
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_arith
     pub fn arith(lua: *Lua, op: ArithOperator) void {
         c.lua_arith(lua.state, @enumToInt(op));
     }
 
     /// Sets a new panic function and returns the old one
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_atpanic
     pub fn atPanic(lua: *Lua, panic_fn: CFn) ?CFn {
         return c.lua_atpanic(lua.state, panic_fn);
     }
 
     /// Calls a function (or any callable value)
+    /// First push the function to be called onto the stack. Then push any arguments onto the stack.
+    /// Then call this function. All arguments and the function value are popped, and any results
+    /// are pushed onto the stack.
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_call
     pub fn call(lua: *Lua, num_args: i32, num_results: i32) void {
         lua.callCont(num_args, num_results, 0, null);
     }
 
-    /// Like `call`, but allows the called function to yield
+    /// Like call, but allows the called function to yield
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_callk
     pub fn callCont(lua: *Lua, num_args: i32, num_results: i32, ctx: Context, k: ?CContFn) void {
         c.lua_callk(lua.state, num_args, num_results, ctx, k);
     }
 
-    /// Ensures that the stack has space for at least `n` extra arguments
-    /// Returns an error if it cannot fulfil the request
+    /// Ensures that the stack has space for at least n extra arguments
+    /// Returns an error if more stack space cannot be allocated
     /// Never shrinks the stack
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_checkstack
     pub fn checkStack(lua: *Lua, n: i32) !void {
         if (c.lua_checkstack(lua.state, n) == 0) return error.Fail;
     }
 
     /// Release all Lua objects in the state and free all dynamic memory
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_close
     pub fn close(lua: *Lua) void {
         c.lua_close(lua.state);
     }
 
-    /// Close the to-be-closed slot at the given `index` and set the value to nil
+    /// Close the to-be-closed slot at the given index and set the value to nil
+    /// The index must be the last index previously marked to be closed with toClose
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_closeslot
     pub fn closeSlot(lua: *Lua, index: i32) void {
         c.lua_closeslot(lua.state, index);
     }
 
     /// Compares two Lua values
-    /// Returns true if the value at `index1` satisfies `op` when compared with the value at `index2`
+    /// Returns true if the value at index1 satisisfies the comparison with the value at index2
     /// Returns false otherwise, or if any index is not valid
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_compare
     pub fn compare(lua: *Lua, index1: i32, index2: i32, op: CompareOperator) bool {
         // TODO: perhaps support gt/ge by swapping args...
         return c.lua_compare(lua.state, index1, index2, @enumToInt(op)) != 0;
     }
 
-    /// Concatenates the `n` values at the top of the stack, pops them, and leaves the result at the top
-    /// If `n` is 1, the result is a single value on the stack (nothing changes)
-    /// If `n` is 0, the result is the empty string
+    /// Concatenates the n values at the top of the stack, pops them, and leaves the result at the top
+    /// If the number of values is 1, the result is a single value on the stack (nothing changes)
+    /// If the number of values is 0, the result is the empty string
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_concat
     pub fn concat(lua: *Lua, n: i32) void {
         c.lua_concat(lua.state, n);
     }
 
-    /// Copies the element at `from_index` to the valid index `to_index`, replacing the value at that position
+    /// Copies the element at from_index to the valid index to_index, replacing the value at that position
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_copy
     pub fn copy(lua: *Lua, from_index: i32, to_index: i32) void {
         c.lua_copy(lua.state, from_index, to_index);
     }
