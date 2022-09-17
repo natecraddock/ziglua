@@ -307,16 +307,16 @@ test "typenames" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    try expectEqualStringsSentinel("no value", lua.typeName(.none));
-    try expectEqualStringsSentinel("nil", lua.typeName(.nil));
-    try expectEqualStringsSentinel("boolean", lua.typeName(.boolean));
-    try expectEqualStringsSentinel("userdata", lua.typeName(.light_userdata));
-    try expectEqualStringsSentinel("number", lua.typeName(.number));
-    try expectEqualStringsSentinel("string", lua.typeName(.string));
-    try expectEqualStringsSentinel("table", lua.typeName(.table));
-    try expectEqualStringsSentinel("function", lua.typeName(.function));
-    try expectEqualStringsSentinel("userdata", lua.typeName(.userdata));
-    try expectEqualStringsSentinel("thread", lua.typeName(.thread));
+    try expectEqualStrings("no value", lua.typeName(.none));
+    try expectEqualStrings("nil", lua.typeName(.nil));
+    try expectEqualStrings("boolean", lua.typeName(.boolean));
+    try expectEqualStrings("userdata", lua.typeName(.light_userdata));
+    try expectEqualStrings("number", lua.typeName(.number));
+    try expectEqualStrings("string", lua.typeName(.string));
+    try expectEqualStrings("table", lua.typeName(.table));
+    try expectEqualStrings("function", lua.typeName(.function));
+    try expectEqualStrings("userdata", lua.typeName(.userdata));
+    try expectEqualStrings("thread", lua.typeName(.thread));
 }
 
 test "executing string contents" {

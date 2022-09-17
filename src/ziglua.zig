@@ -1095,9 +1095,8 @@ pub const Lua = struct {
     }
 
     /// Returns the name of the given `LuaType` as a null-terminated slice
-    /// TODO: return a spanned string
-    pub fn typeName(lua: *Lua, t: LuaType) [*:0]const u8 {
-        return c.lua_typename(lua.state, @enumToInt(t));
+    pub fn typeName(lua: *Lua, t: LuaType) [:0]const u8 {
+        return std.mem.span(c.lua_typename(lua.state, @enumToInt(t)));
     }
 
     /// Returns the pseudo-index that represents the `i`th upvalue of the running function
