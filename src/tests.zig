@@ -96,11 +96,11 @@ test "alloc functions" {
 
     // get default allocator
     var data: *anyopaque = undefined;
-    try expectEqual(alloc, lua.getAllocF(&data));
+    try expectEqual(alloc, lua.getAllocFn(&data));
 
     // set a bad allocator
     lua.setAllocF(failing_alloc, null);
-    try expectEqual(failing_alloc, lua.getAllocF(&data));
+    try expectEqual(failing_alloc, lua.getAllocFn(&data));
 
     // reset the good one
     lua.setAllocF(alloc, null);

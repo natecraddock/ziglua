@@ -454,76 +454,90 @@ pub const Lua = struct {
     }
 
     /// Creates a new empty table and pushes onto the stack
-    /// `num_arr` is a hint for how many elements the table will have as a sequence
-    /// `num_rec` is a hint for how many other elements the table will have
+    /// num_arr is a hint for how many elements the table will have as a sequence
+    /// num_rec is a hint for how many other elements the table will have
     /// Lua may preallocate memory for the table based on the hints
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_createtable
     pub fn createTable(lua: *Lua, num_arr: i32, num_rec: i32) void {
         c.lua_createtable(lua.state, num_arr, num_rec);
     }
 
     /// Dumps a function as a binary chunk
+    /// Data is a pointer passed to the writer function
     /// Returns an error if writing was unsuccessful
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_dump
     pub fn dump(lua: *Lua, writer: CWriterFn, data: *anyopaque, strip: bool) !void {
         if (c.lua_dump(lua.state, writer, data, @boolToInt(strip)) != 0) return error.Fail;
     }
 
     /// Raises a Lua error using the value at the top of the stack as the error object
     /// Does a longjump and therefore never returns
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_error
     pub fn raiseError(lua: *Lua) noreturn {
         _ = c.lua_error(lua.state);
         unreachable;
     }
 
     /// Perform a full garbage-collection cycle
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcCollect(lua: *Lua) void {
         _ = c.lua_gc(lua.state, c.LUA_GCCOLLECT);
     }
 
     /// Stops the garbage collector
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcStop(lua: *Lua) void {
         _ = c.lua_gc(lua.state, c.LUA_GCSTOP);
     }
 
     /// Restarts the garbage collector
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcRestart(lua: *Lua) void {
         _ = c.lua_gc(lua.state, c.LUA_GCRESTART);
     }
 
-    /// Performs an incremental step of garbage collection corresponding to the allocation of `step_size` Kbytes
+    /// Performs an incremental step of garbage collection corresponding to the allocation of step_size Kbytes
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcStep(lua: *Lua, step_size: i32) void {
         _ = c.lua_gc(lua.state, c.LUA_GCSTEP, step_size);
     }
 
     /// Returns the current amount of memory (in Kbytes) in use by Lua
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcCount(lua: *Lua) i32 {
         return c.lua_gc(lua.state, c.LUA_GCCOUNT);
     }
 
     /// Returns the remainder of dividing the current amount of bytes of memory in use by Lua by 1024
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcCountB(lua: *Lua) i32 {
         return c.lua_gc(lua.state, c.LUA_GCCOUNTB);
     }
 
     /// Returns a boolean that tells whether the garbage collector is running
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcIsRunning(lua: *Lua) bool {
         return c.lua_gc(lua.state, c.LUA_GCISRUNNING) != 0;
     }
 
     /// Changes the collector to incremental mode
     /// Returns true if the previous mode was generational
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcSetIncremental(lua: *Lua, pause: i32, step_mul: i32, step_size: i32) bool {
         return c.lua_gc(lua.state, c.LUA_GCINC, pause, step_mul, step_size) == c.LUA_GCGEN;
     }
 
     /// Changes the collector to generational mode
     /// Returns true if the previous mode was incremental
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcSetGenerational(lua: *Lua, minor_mul: i32, major_mul: i32) bool {
         return c.lua_gc(lua.state, c.LUA_GCGEN, minor_mul, major_mul) == c.LUA_GCINC;
     }
 
     /// Returns the memory allocation function of a given state
-    /// If `data` is not null, it is set to the opaque pointer given when the allocator function was set
-    pub fn getAllocF(lua: *Lua, data: ?**anyopaque) AllocFn {
+    /// If data is not null, it is set to the opaque pointer given when the allocator function was set
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_getallocf
+    pub fn getAllocFn(lua: *Lua, data: ?**anyopaque) AllocFn {
         // Assert cannot be null because it is impossible (and not useful) to pass null
         // to the functions that set the allocator (setallocf and newstate)
         return c.lua_getallocf(lua.state, @ptrCast([*c]?*anyopaque, data)).?;
@@ -531,146 +545,174 @@ pub const Lua = struct {
 
     /// Returns a slice of a raw memory area associated with the given Lua state
     /// The application may use this area for any purpose; Lua does not use it for anything
+    /// This area has a size of a pointer to void
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_getextraspace
     pub fn getExtraSpace(lua: *Lua) []u8 {
         return @ptrCast([*]u8, c.lua_getextraspace(lua.state).?)[0..@sizeOf(isize)];
     }
 
-    /// Pushes onto the stack the value t[key] where t is the value at the given `index`
+    /// Pushes onto the stack the value t[key] where t is the value at the given index
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_getfield
     pub fn getField(lua: *Lua, index: i32, key: [:0]const u8) LuaType {
         return @intToEnum(LuaType, c.lua_getfield(lua.state, index, key));
     }
 
-    /// Pushes onto the stack the value of the global `name`
+    /// Pushes onto the stack the value of the global name
     /// Returns an error if the global does not exist (is nil)
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_getglobal
     pub fn getGlobal(lua: *Lua, name: [:0]const u8) !void {
         _ = try lua.getGlobalEx(name);
     }
 
-    /// Pushes onto the stack the value of the global `name`. Returns the type of that value
+    /// Pushes onto the stack the value of the global name and returns the type of that value
     /// Returns an error if the global does not exist (is nil)
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_getglobal
     pub fn getGlobalEx(lua: *Lua, name: [:0]const u8) !LuaType {
         const lua_type = @intToEnum(LuaType, c.lua_getglobal(lua.state, name));
         if (lua_type == .nil) return error.Fail;
         return lua_type;
     }
 
-    /// Pushes onto the stack the value t[`i`] where t is the value at the given `index`
+    /// Pushes onto the stack the value t[i] where t is the value at the given index
     /// Returns the type of the pushed value
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_geti
     pub fn getIndex(lua: *Lua, index: i32, i: Integer) LuaType {
         return @intToEnum(LuaType, c.lua_geti(lua.state, index, i));
     }
 
-    /// Pushes onto the stack the `n`th user value associated with the full userdata at the given `index`
-    /// Returns the type of the pushed value
-    /// Returns an error if the userdata does not have that value
+    /// Pushes onto the stack the nth user value associated with the full userdata at the given index
+    /// Returns the type of the pushed value or an error if the userdata does not have that value
+    /// Pushes nil if the userdata does not have that value
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_getiuservalue
     pub fn getIndexUserValue(lua: *Lua, index: i32, n: i32) !LuaType {
         const val_type = @intToEnum(LuaType, c.lua_getiuservalue(lua.state, index, n));
         if (val_type == .none) return error.Fail;
         return val_type;
     }
 
-    /// If the value at the given `index` has a metatable, the function pushes that metatable onto the stack
+    /// If the value at the given index has a metatable, the function pushes that metatable onto the stack
     /// Otherwise an error is returned
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_getmetatable
     pub fn getMetatable(lua: *Lua, index: i32) !void {
         if (c.lua_getmetatable(lua.state, index) == 0) return error.Fail;
     }
 
-    /// Pushes onto the stack the value t[k] where t is the value at the given `index` and k is the value on the top of the stack
+    /// Pushes onto the stack the value t[k] where t is the value at the given index and k is the value on the top of the stack
     /// Returns the type of the pushed value
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_gettable
     pub fn getTable(lua: *Lua, index: i32) LuaType {
         return @intToEnum(LuaType, c.lua_gettable(lua.state, index));
     }
 
     /// Returns the index of the top element in the stack
     /// Because indices start at 1, the result is also equal to the number of elements in the stack
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_gettop
     pub fn getTop(lua: *Lua) i32 {
         return c.lua_gettop(lua.state);
     }
 
     /// Moves the top element into the given valid `index` shifting up any elements to make room
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_insert
     pub fn insert(lua: *Lua, index: i32) void {
         // translate-c cannot translate this macro correctly
         // c.lua_insert(lua.state, index);
         lua.rotate(index, 1);
     }
 
-    /// Returns true if the value at the given `index` is a boolean
+    /// Returns true if the value at the given index is a boolean
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_isboolean
     pub fn isBoolean(lua: *Lua, index: i32) bool {
         return c.lua_isboolean(lua.state, index);
     }
 
-    /// Returns true if the value at the given `index` is a CFn
+    /// Returns true if the value at the given index is a CFn
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_iscfunction
     pub fn isCFunction(lua: *Lua, index: i32) bool {
         return c.lua_iscfunction(lua.state, index) != 0;
     }
 
-    /// Returns true if the value at the given `index` is a function (C or Lua)
+    /// Returns true if the value at the given index is a function (C or Lua)
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_isfunction
     pub fn isFunction(lua: *Lua, index: i32) bool {
         return c.lua_isfunction(lua.state, index);
     }
 
-    /// Returns true if the value at the given `index` is an integer
+    /// Returns true if the value at the given index is an integer
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_isinteger
     pub fn isInteger(lua: *Lua, index: i32) bool {
         return c.lua_isinteger(lua.state, index) != 0;
     }
 
-    /// Returns true if the value at the given `index` is a light userdata
+    /// Returns true if the value at the given index is a light userdata
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_islightuserdata
     pub fn isLightUserdata(lua: *Lua, index: i32) bool {
         return c.lua_islightuserdata(lua.state, index);
     }
 
-    /// Returns true if the value at the given `index` is nil
+    /// Returns true if the value at the given index is nil
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_isnil
     pub fn isNil(lua: *Lua, index: i32) bool {
         return c.lua_isnil(lua.state, index);
     }
 
-    /// Returns true if the given `index` is not valid
+    /// Returns true if the given index is not valid
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_isnone
     pub fn isNone(lua: *Lua, index: i32) bool {
         return c.lua_isnone(lua.state, index);
     }
 
-    /// Returns true if the given `index` is not valid or if the value at the `index` is nil
+    /// Returns true if the given index is not valid or if the value at the index is nil
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_isnoneornil
     pub fn isNoneOrNil(lua: *Lua, index: i32) bool {
         return c.lua_isnoneornil(lua.state, index);
     }
 
-    /// Returns true if the value at the given `index` is a number
+    /// Returns true if the value at the given index is a number
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_isnumber
     pub fn isNumber(lua: *Lua, index: i32) bool {
         return c.lua_isnumber(lua.state, index) != 0;
     }
 
-    /// Returns true if the value at the given `index` is a string
+    /// Returns true if the value at the given index is a string
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_isstring
     pub fn isString(lua: *Lua, index: i32) bool {
         return c.lua_isstring(lua.state, index) != 0;
     }
 
-    /// Returns true if the value at the given `index` is a table
+    /// Returns true if the value at the given index is a table
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_istable
     pub fn isTable(lua: *Lua, index: i32) bool {
         return c.lua_istable(lua.state, index);
     }
 
-    /// Returns true if the value at the given `index` is a thread
+    /// Returns true if the value at the given index is a thread
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_isthread
     pub fn isThread(lua: *Lua, index: i32) bool {
         return c.lua_isthread(lua.state, index);
     }
 
-    /// Returns true if the value at the given `index` is a userdata (full or light)
+    /// Returns true if the value at the given index is a userdata (full or light)
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_isuserdata
     pub fn isUserdata(lua: *Lua, index: i32) bool {
         return c.lua_isuserdata(lua.state, index) != 0;
     }
 
     /// Returns true if the given coroutine can yield
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_isyieldable
     pub fn isYieldable(lua: *Lua) bool {
         return c.lua_isyieldable(lua.state) != 0;
     }
 
-    /// Pushes the length of the value at the given `index` onto the stack
-    /// Equivalent to the `#` operator in Lua
+    /// Pushes the length of the value at the given index onto the stack
+    /// Equivalent to the # operator in Lua
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_len
     pub fn len(lua: *Lua, index: i32) void {
         c.lua_len(lua.state, index);
     }
 
     /// Loads a Lua chunk without running it
+    /// If there are no errors, pushes the compiled chunk on the top of the stack as a function
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_load
     pub fn load(lua: *Lua, reader: CReaderFn, data: *anyopaque, chunk_name: [:0]const u8, mode: Mode) !void {
         const mode_str = switch (mode) {
             .binary => "b",
@@ -682,7 +724,7 @@ pub const Lua = struct {
             StatusCode.ok => return,
             StatusCode.err_syntax => return error.Syntax,
             StatusCode.err_memory => return error.Memory,
-            // lua_load runs pcall, so can also return any result of an pcall error
+            // lua_load runs pcall, so can also return any result of a pcall error
             StatusCode.err_runtime => return error.Runtime,
             StatusCode.err_error => return error.MsgHandler,
             else => unreachable,
@@ -690,27 +732,31 @@ pub const Lua = struct {
     }
 
     /// Creates a new independent state and returns its main thread
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_newstate
     pub fn newState(alloc_fn: AllocFn, data: ?*anyopaque) !Lua {
         const state = c.lua_newstate(alloc_fn, data) orelse return error.Memory;
         return Lua{ .state = state };
     }
 
     /// Creates a new empty table and pushes it onto the stack
-    /// Equivalent to `Lua.createTable(lua, 0, 0)`
+    /// Equivalent to createTable(0, 0)
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_newtable
     pub fn newTable(lua: *Lua) void {
         c.lua_newtable(lua.state);
     }
 
-    /// Creates a new thread, pushes it on the stack, and returns a `Lua` state that represents the new thread
+    /// Creates a new thread, pushes it on the stack, and returns a Lua state that represents the new thread
     /// The new thread shares the global environment but has a separate execution stack
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_newthread
     pub fn newThread(lua: *Lua) Lua {
         const state = c.lua_newthread(lua.state).?;
         return .{ .state = state };
     }
 
     /// This function creates and pushes a new full userdata onto the stack
-    /// with `upvalues` associated Lua values, plus an associated block of raw memory with `size` bytes
+    /// with upvalues associated Lua values, plus an associated block of raw memory with size bytes
     /// Returns the address of the block of memory
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_newuserdatauv
     pub fn newUserdata(lua: *Lua, comptime T: type, upvalues: i32) *T {
         // safe to .? because this function throws a Lua error on out of memory
         // so the returned pointer should never be null
@@ -718,7 +764,8 @@ pub const Lua = struct {
         return opaqueCast(T, ptr);
     }
 
-    /// Pops a key from the stack, and pushes a key-value pair from the table at the given `index`
+    /// Pops a key from the stack, and pushes a key-value pair from the table at the given index
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_next
     pub fn next(lua: *Lua, index: i32) bool {
         return c.lua_next(lua.state, index) != 0;
     }
