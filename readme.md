@@ -26,16 +26,16 @@ If you want something higher-level (but doesn't expose the full API), perhaps tr
 Adding ziglua to your project is easy. First add this repo as a git submodule, or copy the source into your repo. Then add the following to your `build.zig` file (assuming cloned/copied into a `lib/` subdirectory):
 
 ```zig
+// use the path to the ziglua build.zig file
 const ziglua = @import("lib/ziglua/build.zig");
 
 pub fn build(b: *Builder) void {
     ...
-    exe.addPackagePath("ziglua", "lib/ziglua/src/ziglua.zig");
-    ziglua.link(b, exe, .{});
+    exe.addPackage(ziglua.linkAndPackage(b, exe, .{}));
 }
 ```
 
-This will compile the Lua C sources and statically link with your project. Then simply import the ziglua package into your code! Here is a simple example that pushes and inspects an integer on the Lua stack:
+This will compile the Lua C sources and statically link with your project. Then simply import the `ziglua` package into your code! Here is a simple example that pushes and inspects an integer on the Lua stack:
 
 ```zig
 const std = @import("std");

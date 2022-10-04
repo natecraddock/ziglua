@@ -1,4 +1,4 @@
-//! ziglua.zig: complete bindings around the Lua C API version 5.4.4
+//! complete bindings around the Lua C API version 5.1.5
 //! exposes all Lua functionality, with additional Zig helper functions
 
 const std = @import("std");
@@ -23,34 +23,9 @@ const Allocator = std.mem.Allocator;
 /// See https://www.lua.org/manual/5.4/manual.html#lua_Alloc for more details
 pub const AllocFn = fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque;
 
-/// Operations supported by `Lua.arith()`
-pub const ArithOperator = enum(u4) {
-    add = c.LUA_OPADD,
-    sub = c.LUA_OPSUB,
-    mul = c.LUA_OPMUL,
-    div = c.LUA_OPDIV,
-    int_div = c.LUA_OPIDIV,
-    mod = c.LUA_OPMOD,
-    pow = c.LUA_OPPOW,
-    negate = c.LUA_OPUNM,
-    bnot = c.LUA_OPBNOT,
-    band = c.LUA_OPBAND,
-    bor = c.LUA_OPBOR,
-    bxor = c.LUA_OPBXOR,
-    shl = c.LUA_OPSHL,
-    shr = c.LUA_OPSHR,
-};
-
 /// Type for C functions
 /// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
 pub const CFn = fn (state: ?*LuaState) callconv(.C) c_int;
-
-/// Operations supported by `Lua.compare()`
-pub const CompareOperator = enum(u2) {
-    eq = c.LUA_OPEQ,
-    lt = c.LUA_OPLT,
-    le = c.LUA_OPLE,
-};
 
 /// The internal Lua debug structure
 const Debug = c.lua_Debug;
@@ -69,16 +44,9 @@ pub const DebugInfo = struct {
     first_line_defined: ?i32 = null,
     last_line_defined: ?i32 = null,
 
-    num_upvalues: u8 = 0,
-    num_params: u8 = 0,
-
     is_vararg: bool = false,
-    is_tail_call: bool = false,
 
-    first_transfer: u16 = 0,
-    num_transfer: u16 = 0,
-
-    private: *anyopaque = undefined,
+    private: c_int = undefined,
 
     pub const NameType = enum { global, local, method, field, upvalue, other };
 
@@ -89,9 +57,7 @@ pub const DebugInfo = struct {
         f: bool = false,
         l: bool = false,
         n: bool = false,
-        r: bool = false,
         S: bool = false,
-        t: bool = false,
         u: bool = false,
         L: bool = false,
 
@@ -134,7 +100,6 @@ pub const Event = enum(u3) {
     ret = c.LUA_HOOKRET,
     line = c.LUA_HOOKLINE,
     count = c.LUA_HOOKCOUNT,
-    tail_call = c.LUA_HOOKTAILCALL,
 };
 
 /// Type for arrays of functions to be registered
@@ -184,16 +149,9 @@ pub const hook_tail_call = c.LUA_HOOKTAILCALL;
 /// Type of integers in Lua (typically an i64)
 pub const Integer = c.lua_Integer;
 
-/// Type for continuation-function contexts (usually isize)
-pub const Context = isize;
-
-/// Type for continuation functions
-pub const CContFn = fn (state: ?*LuaState, status: c_int, ctx: Context) callconv(.C) c_int;
-
 /// Bitflag for the Lua standard libraries
 pub const Libs = packed struct {
     base: bool = false,
-    coroutine: bool = false,
     package: bool = false,
     string: bool = false,
     utf8: bool = false,
@@ -222,9 +180,6 @@ pub const LuaType = enum(i5) {
     thread = c.LUA_TTHREAD,
 };
 
-/// Modes used for `Lua.load()`
-pub const Mode = enum(u2) { binary, text, binary_text };
-
 /// Event masks
 pub const mask_call = c.LUA_MASKCALL;
 pub const mask_count = c.LUA_MASKCOUNT;
@@ -234,8 +189,6 @@ pub const mask_ret = c.LUA_MASKRET;
 /// The maximum integer value that `Integer` can store
 pub const max_integer = c.LUA_MAXINTEGER;
 
-/// The minimum integer value that `Integer` can store
-pub const min_integer = c.LUA_MININTEGER;
 
 /// The minimum Lua stack available to a function
 pub const min_stack = c.LUA_MINSTACK;
@@ -262,9 +215,6 @@ pub const ref_no = c.LUA_NOREF;
 /// Index of the regsitry in the stack (pseudo-index)
 pub const registry_index = c.LUA_REGISTRYINDEX;
 
-/// Index of globals in the registry
-pub const ridx_globals = c.LUA_RIDX_GLOBALS;
-
 /// Index of the main thread in the registry
 pub const ridx_mainthread = c.LUA_RIDX_MAINTHREAD;
 
@@ -286,7 +236,8 @@ pub const Status = enum(u3) {
 /// In the rare case that the status code is required from a function, an enum is
 /// used for that specific function's return type
 const StatusCode = struct {
-    pub const ok = c.LUA_OK;
+    // Lua 5.1 doesn't have an explicit variable, but 0 represents OK
+    pub const ok = 0;
     pub const yield = c.LUA_YIELD;
     pub const err_runtime = c.LUA_ERRRUN;
     pub const err_syntax = c.LUA_ERRSYNTAX;
@@ -299,12 +250,6 @@ pub const err_file = c.LUA_ERRFILE;
 
 /// The standard representation for file handles used by the standard IO library
 pub const Stream = c.luaL_Stream;
-
-/// The unsigned version of Integer
-pub const Unsigned = c.lua_Unsigned;
-
-/// The type of warning functions used by Lua to emit warnings
-pub const CWarnFn = fn (data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.C) void;
 
 /// The type of the writer function used by `Lua.dump()`
 pub const CWriterFn = fn (state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int;
@@ -374,20 +319,6 @@ pub const Lua = struct {
     // Library functions are included in alphabetical order.
     // Each is kept similar to the original C API function while also making it easy to use from Zig
 
-    /// Returns the acceptable index index converted into an equivalent absolute index
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_absindex
-    pub fn absIndex(lua: *Lua, index: i32) i32 {
-        return c.lua_absindex(lua.state, index);
-    }
-
-    /// Performs an arithmetic or bitwise operation over the value(s) at the top of the stack,
-    /// with the value at the top being the second operand. Pushes the result of the operation.
-    /// This function follows the semantics of the corresponding Lua operator and may call metamethods
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_arith
-    pub fn arith(lua: *Lua, op: ArithOperator) void {
-        c.lua_arith(lua.state, @enumToInt(op));
-    }
-
     /// Sets a new panic function and returns the old one
     /// See https://www.lua.org/manual/5.4/manual.html#lua_atpanic
     pub fn atPanic(lua: *Lua, panic_fn: CFn) ?CFn {
@@ -400,13 +331,7 @@ pub const Lua = struct {
     /// are pushed onto the stack.
     /// See https://www.lua.org/manual/5.4/manual.html#lua_call
     pub fn call(lua: *Lua, num_args: i32, num_results: i32) void {
-        lua.callCont(num_args, num_results, 0, null);
-    }
-
-    /// Like call, but allows the called function to yield
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_callk
-    pub fn callCont(lua: *Lua, num_args: i32, num_results: i32, ctx: Context, k: ?CContFn) void {
-        c.lua_callk(lua.state, num_args, num_results, ctx, k);
+        c.lua_call(lua.state, num_args, num_results);
     }
 
     /// Ensures that the stack has space for at least n extra arguments
@@ -423,34 +348,12 @@ pub const Lua = struct {
         c.lua_close(lua.state);
     }
 
-    /// Close the to-be-closed slot at the given index and set the value to nil
-    /// The index must be the last index previously marked to be closed with toClose
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_closeslot
-    pub fn closeSlot(lua: *Lua, index: i32) void {
-        c.lua_closeslot(lua.state, index);
-    }
-
-    /// Compares two Lua values
-    /// Returns true if the value at index1 satisisfies the comparison with the value at index2
-    /// Returns false otherwise, or if any index is not valid
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_compare
-    pub fn compare(lua: *Lua, index1: i32, index2: i32, op: CompareOperator) bool {
-        // TODO: perhaps support gt/ge by swapping args...
-        return c.lua_compare(lua.state, index1, index2, @enumToInt(op)) != 0;
-    }
-
     /// Concatenates the n values at the top of the stack, pops them, and leaves the result at the top
     /// If the number of values is 1, the result is a single value on the stack (nothing changes)
     /// If the number of values is 0, the result is the empty string
     /// See https://www.lua.org/manual/5.4/manual.html#lua_concat
     pub fn concat(lua: *Lua, n: i32) void {
         c.lua_concat(lua.state, n);
-    }
-
-    /// Copies the element at from_index to the valid index to_index, replacing the value at that position
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_copy
-    pub fn copy(lua: *Lua, from_index: i32, to_index: i32) void {
-        c.lua_copy(lua.state, from_index, to_index);
     }
 
     /// Creates a new empty table and pushes onto the stack
@@ -466,8 +369,8 @@ pub const Lua = struct {
     /// Data is a pointer passed to the writer function
     /// Returns an error if writing was unsuccessful
     /// See https://www.lua.org/manual/5.4/manual.html#lua_dump
-    pub fn dump(lua: *Lua, writer: CWriterFn, data: *anyopaque, strip: bool) !void {
-        if (c.lua_dump(lua.state, writer, data, @boolToInt(strip)) != 0) return error.Fail;
+    pub fn dump(lua: *Lua, writer: CWriterFn, data: *anyopaque) !void {
+        if (c.lua_dump(lua.state, writer, data) != 0) return error.Fail;
     }
 
     /// Raises a Lua error using the value at the top of the stack as the error object
@@ -481,57 +384,51 @@ pub const Lua = struct {
     /// Perform a full garbage-collection cycle
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcCollect(lua: *Lua) void {
-        _ = c.lua_gc(lua.state, c.LUA_GCCOLLECT);
+        _ = c.lua_gc(lua.state, c.LUA_GCCOLLECT, 0);
     }
 
     /// Stops the garbage collector
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcStop(lua: *Lua) void {
-        _ = c.lua_gc(lua.state, c.LUA_GCSTOP);
+        _ = c.lua_gc(lua.state, c.LUA_GCSTOP, 0);
     }
 
     /// Restarts the garbage collector
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcRestart(lua: *Lua) void {
-        _ = c.lua_gc(lua.state, c.LUA_GCRESTART);
+        _ = c.lua_gc(lua.state, c.LUA_GCRESTART, 0);
     }
 
     /// Performs an incremental step of garbage collection corresponding to the allocation of step_size Kbytes
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
-    pub fn gcStep(lua: *Lua, step_size: i32) void {
-        _ = c.lua_gc(lua.state, c.LUA_GCSTEP, step_size);
+    pub fn gcStep(lua: *Lua) void {
+        _ = c.lua_gc(lua.state, c.LUA_GCSTEP, 0);
     }
 
     /// Returns the current amount of memory (in Kbytes) in use by Lua
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcCount(lua: *Lua) i32 {
-        return c.lua_gc(lua.state, c.LUA_GCCOUNT);
+        return c.lua_gc(lua.state, c.LUA_GCCOUNT, 0);
     }
 
     /// Returns the remainder of dividing the current amount of bytes of memory in use by Lua by 1024
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcCountB(lua: *Lua) i32 {
-        return c.lua_gc(lua.state, c.LUA_GCCOUNTB);
-    }
-
-    /// Returns a boolean that tells whether the garbage collector is running
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
-    pub fn gcIsRunning(lua: *Lua) bool {
-        return c.lua_gc(lua.state, c.LUA_GCISRUNNING) != 0;
+        return c.lua_gc(lua.state, c.LUA_GCCOUNTB, 0);
     }
 
     /// Changes the collector to incremental mode
     /// Returns true if the previous mode was generational
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
-    pub fn gcSetIncremental(lua: *Lua, pause: i32, step_mul: i32, step_size: i32) bool {
-        return c.lua_gc(lua.state, c.LUA_GCINC, pause, step_mul, step_size) == c.LUA_GCGEN;
+    pub fn gcSetPause(lua: *Lua, pause: i32) i32 {
+        return c.lua_gc(lua.state, c.LUA_GCSETPAUSE, pause);
     }
 
     /// Changes the collector to generational mode
     /// Returns true if the previous mode was incremental
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
-    pub fn gcSetGenerational(lua: *Lua, minor_mul: i32, major_mul: i32) bool {
-        return c.lua_gc(lua.state, c.LUA_GCGEN, minor_mul, major_mul) == c.LUA_GCINC;
+    pub fn gcSetStepMul(lua: *Lua, multiplier: i32) i32 {
+        return c.lua_gc(lua.state, c.LUA_GCSETSTEPMUL, multiplier);
     }
 
     /// Returns the memory allocation function of a given state
@@ -543,51 +440,23 @@ pub const Lua = struct {
         return c.lua_getallocf(lua.state, @ptrCast([*c]?*anyopaque, data)).?;
     }
 
-    /// Returns a slice of a raw memory area associated with the given Lua state
-    /// The application may use this area for any purpose; Lua does not use it for anything
-    /// This area has a size of a pointer to void
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_getextraspace
-    pub fn getExtraSpace(lua: *Lua) []u8 {
-        return @ptrCast([*]u8, c.lua_getextraspace(lua.state).?)[0..@sizeOf(isize)];
-    }
-
     /// Pushes onto the stack the value t[key] where t is the value at the given index
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getfield
-    pub fn getField(lua: *Lua, index: i32, key: [:0]const u8) LuaType {
-        return @intToEnum(LuaType, c.lua_getfield(lua.state, index, key));
+    pub fn getField(lua: *Lua, index: i32, key: [:0]const u8) void {
+        c.lua_getfield(lua.state, index, key);
     }
 
     /// Pushes onto the stack the value of the global name
-    /// Returns an error if the global does not exist (is nil)
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getglobal
-    pub fn getGlobal(lua: *Lua, name: [:0]const u8) !void {
-        _ = try lua.getGlobalEx(name);
+    pub fn getGlobal(lua: *Lua, name: [:0]const u8) void {
+        c.lua_getglobal(lua.state, name);
     }
 
-    /// Pushes onto the stack the value of the global name and returns the type of that value
-    /// Returns an error if the global does not exist (is nil)
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_getglobal
-    pub fn getGlobalEx(lua: *Lua, name: [:0]const u8) !LuaType {
-        const lua_type = @intToEnum(LuaType, c.lua_getglobal(lua.state, name));
-        if (lua_type == .nil) return error.Fail;
-        return lua_type;
-    }
-
-    /// Pushes onto the stack the value t[i] where t is the value at the given index
-    /// Returns the type of the pushed value
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_geti
-    pub fn getIndex(lua: *Lua, index: i32, i: Integer) LuaType {
-        return @intToEnum(LuaType, c.lua_geti(lua.state, index, i));
-    }
-
-    /// Pushes onto the stack the nth user value associated with the full userdata at the given index
-    /// Returns the type of the pushed value or an error if the userdata does not have that value
-    /// Pushes nil if the userdata does not have that value
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_getiuservalue
-    pub fn getIndexUserValue(lua: *Lua, index: i32, n: i32) !LuaType {
-        const val_type = @intToEnum(LuaType, c.lua_getiuservalue(lua.state, index, n));
-        if (val_type == .none) return error.Fail;
-        return val_type;
+    /// Pushes onto the stack the Lua value associated with the full userdata at the given index.
+    /// Returns the type of the pushed value.
+    /// See https://www.lua.org/manual/5.3/manual.html#lua_getuservalue
+    pub fn getUserValue(lua: *Lua, index: i32) void {
+        c.lua_getuservalue(lua.state, index);
     }
 
     /// If the value at the given index has a metatable, the function pushes that metatable onto the stack
@@ -600,8 +469,8 @@ pub const Lua = struct {
     /// Pushes onto the stack the value t[k] where t is the value at the given index and k is the value on the top of the stack
     /// Returns the type of the pushed value
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gettable
-    pub fn getTable(lua: *Lua, index: i32) LuaType {
-        return @intToEnum(LuaType, c.lua_gettable(lua.state, index));
+    pub fn getTable(lua: *Lua, index: i32) void {
+        c.lua_gettable(lua.state, index);
     }
 
     /// Returns the index of the top element in the stack
@@ -615,8 +484,7 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_insert
     pub fn insert(lua: *Lua, index: i32) void {
         // translate-c cannot translate this macro correctly
-        // c.lua_insert(lua.state, index);
-        lua.rotate(index, 1);
+        c.lua_insert(lua.state, index);
     }
 
     /// Returns true if the value at the given index is a boolean
@@ -635,12 +503,6 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_isfunction
     pub fn isFunction(lua: *Lua, index: i32) bool {
         return c.lua_isfunction(lua.state, index);
-    }
-
-    /// Returns true if the value at the given index is an integer
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_isinteger
-    pub fn isInteger(lua: *Lua, index: i32) bool {
-        return c.lua_isinteger(lua.state, index) != 0;
     }
 
     /// Returns true if the value at the given index is a light userdata
@@ -697,29 +559,11 @@ pub const Lua = struct {
         return c.lua_isuserdata(lua.state, index) != 0;
     }
 
-    /// Returns true if the given coroutine can yield
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_isyieldable
-    pub fn isYieldable(lua: *Lua) bool {
-        return c.lua_isyieldable(lua.state) != 0;
-    }
-
-    /// Pushes the length of the value at the given index onto the stack
-    /// Equivalent to the # operator in Lua
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_len
-    pub fn len(lua: *Lua, index: i32) void {
-        c.lua_len(lua.state, index);
-    }
-
     /// Loads a Lua chunk without running it
     /// If there are no errors, pushes the compiled chunk on the top of the stack as a function
     /// See https://www.lua.org/manual/5.4/manual.html#lua_load
-    pub fn load(lua: *Lua, reader: CReaderFn, data: *anyopaque, chunk_name: [:0]const u8, mode: Mode) !void {
-        const mode_str = switch (mode) {
-            .binary => "b",
-            .text => "t",
-            .binary_text => "bt",
-        };
-        const ret = c.lua_load(lua.state, reader, data, chunk_name, mode_str);
+    pub fn load(lua: *Lua, reader: CReaderFn, data: *anyopaque, chunk_name: [:0]const u8) !void {
+        const ret = c.lua_load(lua.state, reader, data, chunk_name);
         switch (ret) {
             StatusCode.ok => return,
             StatusCode.err_syntax => return error.Syntax,
@@ -753,14 +597,15 @@ pub const Lua = struct {
         return .{ .state = state };
     }
 
-    /// This function creates and pushes a new full userdata onto the stack
-    /// with upvalues associated Lua values, plus an associated block of raw memory with size bytes
-    /// Returns the address of the block of memory
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_newuserdatauv
-    pub fn newUserdata(lua: *Lua, comptime T: type, upvalues: i32) *T {
+
+    /// This function allocates a new block of memory with the given size,
+    /// pushes onto the stack a new full userdata with the block address,
+    /// and returns this address. The host program can freely use this memory
+    /// See https://www.lua.org/manual/5.3/manual.html#lua_newuserdata
+    pub fn newUserdata(lua: *Lua, comptime T: type) *T {
         // safe to .? because this function throws a Lua error on out of memory
         // so the returned pointer should never be null
-        const ptr = c.lua_newuserdatauv(lua.state, @sizeOf(T), upvalues).?;
+        const ptr = c.lua_newuserdata(lua.state, @sizeOf(T)).?;
         return opaqueCast(T, ptr);
     }
 
@@ -770,34 +615,12 @@ pub const Lua = struct {
         return c.lua_next(lua.state, index) != 0;
     }
 
-    /// Tries to convert a Lua float into a Lua integer
-    /// Returns an error if the conversion was unsuccessful
-    pub fn numberToInteger(n: Number, i: *Integer) !void {
-        // translate-c failure
-        // return c.lua_numbertointeger(n, i) != 0;
-        if (n >= @intToFloat(Number, min_integer) and n < -@intToFloat(Number, min_integer)) {
-            i.* = @floatToInt(Integer, n);
-        } else return error.Fail;
-    }
-
     /// Calls a function (or callable object) in protected mode
     /// NOTE: it might be good to make the args named struct params?
     pub fn protectedCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) !void {
         // The translate-c version of lua_pcall does not type-check so we must rewrite it
         // (macros don't always translate well with translate-c)
-        const ret = c.lua_pcallk(lua.state, num_args, num_results, msg_handler, 0, null);
-        switch (ret) {
-            StatusCode.ok => return,
-            StatusCode.err_runtime => return error.Runtime,
-            StatusCode.err_memory => return error.Memory,
-            StatusCode.err_error => return error.MsgHandler,
-            else => unreachable,
-        }
-    }
-
-    /// Behaves exactly like `Lua.protectedCall()` except that it allows the called function to yield
-    pub fn protectedCallCont(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: Context, k: CContFn) !void {
-        const ret = c.lua_pcallk(lua.state, num_args, num_results, msg_handler, ctx, k);
+        const ret = c.lua_pcall(lua.state, num_args, num_results, msg_handler);
         switch (ret) {
             StatusCode.ok => return,
             StatusCode.err_runtime => return error.Runtime,
@@ -840,14 +663,6 @@ pub const Lua = struct {
         return @ptrCast([*:0]const u8, ptr);
     }
 
-    /// Pushes the global environment onto the stack
-    pub fn pushGlobalTable(lua: *Lua) void {
-        // lua_pushglobaltable is a macro and c-translate assumes it returns opaque
-        // so just reimplement the macro here
-        // c.lua_pushglobaltable(lua.state);
-        _ = lua.rawGetIndex(registry_index, ridx_globals);
-    }
-
     /// Pushes an integer with value `n` onto the stack
     pub fn pushInteger(lua: *Lua, n: Integer) void {
         c.lua_pushinteger(lua.state, n);
@@ -858,14 +673,9 @@ pub const Lua = struct {
         c.lua_pushlightuserdata(lua.state, ptr);
     }
 
-    /// Pushes a slice of bytes onto the stack
+    /// Pushes the bytes onto the stack
     pub fn pushBytes(lua: *Lua, bytes: []const u8) void {
-        _ = lua.pushBytesEx(bytes);
-    }
-
-    /// Pushes the bytes onto the stack. Returns a slice pointing to Lua's internal copy of the string
-    pub fn pushBytesEx(lua: *Lua, bytes: []const u8) []const u8 {
-        return c.lua_pushlstring(lua.state, bytes.ptr, bytes.len)[0..bytes.len];
+        c.lua_pushlstring(lua.state, bytes.ptr, bytes.len);
     }
 
     /// Pushes a nil value onto the stack
@@ -886,8 +696,8 @@ pub const Lua = struct {
     /// Pushes a zero-terminated string onto the stack
     /// Lua makes a copy of the string so `str` may be freed immediately after return
     /// Returns a pointer to the internal Lua string
-    pub fn pushStringEx(lua: *Lua, str: [:0]const u8) [:0]const u8 {
-        return c.lua_pushstring(lua.state, str.ptr).?[0..str.len :0];
+    pub fn pushStringEx(lua: *Lua, str: [:0]const u8) void {
+        c.lua_pushstring(lua.state, str.ptr);
     }
 
     /// Pushes this thread onto the stack
@@ -914,28 +724,14 @@ pub const Lua = struct {
     }
 
     /// Similar to `Lua.getTable()` but does a raw access (without metamethods)
-    pub fn rawGetTable(lua: *Lua, index: i32) LuaType {
-        return @intToEnum(LuaType, c.lua_rawget(lua.state, index));
+    pub fn rawGetTable(lua: *Lua, index: i32) void {
+        c.lua_rawget(lua.state, index);
     }
 
     /// Pushes onto the stack the value t[n], where `t` is the table at the given `index`
     /// Returns the `LuaType` of the pushed value
-    pub fn rawGetIndex(lua: *Lua, index: i32, n: Integer) LuaType {
-        return @intToEnum(LuaType, c.lua_rawgeti(lua.state, index, n));
-    }
-
-    /// Pushes onto the stack the value t[k] where t is the table at the given `index` and
-    /// k is the pointer `p` represented as a light userdata
-    pub fn rawGetPtr(lua: *Lua, index: i32, p: *const anyopaque) LuaType {
-        return @intToEnum(LuaType, c.lua_rawgetp(lua.state, index, p));
-    }
-
-    /// Returns the raw length of the value at the given index
-    /// For strings it is the length; for tables it is the result of the `#` operator
-    /// For userdata it is the size of the block of memory
-    /// For other values the call returns 0
-    pub fn rawLen(lua: *Lua, index: i32) Unsigned {
-        return c.lua_rawlen(lua.state, index);
+    pub fn rawGetIndex(lua: *Lua, index: i32, n: i32) void {
+        c.lua_rawgeti(lua.state, index, n);
     }
 
     /// Similar to `Lua.setTable()` but does a raw assignment (without metamethods)
@@ -946,62 +742,38 @@ pub const Lua = struct {
     /// Does the equivalent of t[`i`] = v where t is the table at the given `index`
     /// and v is the value at the top of the stack
     /// Pops the value from the stack. Does not use __newindex metavalue
-    pub fn rawSetIndex(lua: *Lua, index: i32, i: Integer) void {
+    pub fn rawSetIndex(lua: *Lua, index: i32, i: i32) void {
         c.lua_rawseti(lua.state, index, i);
-    }
-
-    /// Does the equivalent of t[p] = v where t is the table at the given `index`
-    /// `p` is encoded as a light user data, and v is the value at the top of the stack
-    /// Pops the value from the stack. Does not use __newindex metavalue
-    pub fn rawSetPtr(lua: *Lua, index: i32, p: *const anyopaque) void {
-        c.lua_rawsetp(lua.state, index, p);
     }
 
     /// Sets the C function f as the new value of global name
     pub fn register(lua: *Lua, name: [:0]const u8, c_fn: CFn) void {
-        c.lua_register(lua.state, name, c_fn);
+        // translate-c failure
+        // c.lua_register(lua.state, name, c_fn);
+        lua.pushFunction(c_fn);
+        lua.setGlobal(name);
     }
 
     /// Removes the element at the given valid `index` shifting down elements to fill the gap
     pub fn remove(lua: *Lua, index: i32) void {
-        // translate-c cannot translate this macro correctly
-        // c.lua_remove(lua.state, index);
-        lua.rotate(index, -1);
-        lua.pop(1);
+        c.lua_remove(lua.state, index);
     }
 
     /// Moves the top element into the given valid `index` without shifting any elements,
     /// then pops the top element
     pub fn replace(lua: *Lua, index: i32) void {
-        // translate-c cannot translate this macro correctly
-        // c.lua_replace(lua.state, index);
-        lua.copy(-1, index);
-        lua.pop(1);
-    }
-
-    /// Resets a thread, cleaning its call stack and closing all pending to-be-closed variables
-    /// Returns an error if an error occured and leaves an error object on top of the stack
-    pub fn resetThread(lua: *Lua) !void {
-        if (c.lua_resetthread(lua.state) != StatusCode.ok) return error.Fail;
+        c.lua_replace(lua.state, index);
     }
 
     /// Starts and resumes a coroutine in the given thread
-    pub fn resumeThread(lua: *Lua, from: ?Lua, num_args: i32, num_results: *i32) !ResumeStatus {
-        const from_state = if (from) |from_val| from_val.state else null;
-        const thread_status = c.lua_resume(lua.state, from_state, num_args, num_results);
+    pub fn resumeThread(lua: *Lua, num_args: i32) !ResumeStatus {
+        const thread_status = c.lua_resume(lua.state, num_args);
         switch (thread_status) {
             StatusCode.err_runtime => return error.Runtime,
             StatusCode.err_memory => return error.Memory,
             StatusCode.err_error => return error.MsgHandler,
             else => return @intToEnum(ResumeStatus, thread_status),
         }
-    }
-
-    /// Rotates the stack elements between the valid `index` and the top of the stack
-    /// The elements are rotated `n` positions in the direction of the top for positive `n`,
-    /// and `n` positions in the direction of the bottom for negative `n`
-    pub fn rotate(lua: *Lua, index: i32, n: i32) void {
-        c.lua_rotate(lua.state, index, n);
     }
 
     /// Changes the allocator function of a given state to `alloc_fn` with userdata `data`
@@ -1018,19 +790,6 @@ pub const Lua = struct {
     /// Pops a value from the stack and sets it as the new value of global `name`
     pub fn setGlobal(lua: *Lua, name: [:0]const u8) void {
         c.lua_setglobal(lua.state, name);
-    }
-
-    /// Does the equivalent to t[`n`] = v where t is the value at the given `index`
-    /// and v is the value on the top of the stack. Pops the value from the stack
-    pub fn setIndex(lua: *Lua, index: i32, n: Integer) void {
-        c.lua_seti(lua.state, index, n);
-    }
-
-    /// Pops a value from the stack and sets it as the new `n`th user value associated to
-    /// the full userdata at the given index
-    /// Returns an error if the userdata does not have that value
-    pub fn setIndexUserValue(lua: *Lua, index: i32, n: i32) !void {
-        if (c.lua_setiuservalue(lua.state, index, n) == 0) return error.Fail;
     }
 
     /// Pops a table or nil from the stack and sets that value as the new metatable for the
@@ -1053,22 +812,9 @@ pub const Lua = struct {
         c.lua_settop(lua.state, index);
     }
 
-    /// Sets the warning function to be used by Lua to emit warnings
-    /// The `data` parameter sets the value `data` passed to the warning function
-    pub fn setWarnF(lua: *Lua, warn_fn: CWarnFn, data: ?*anyopaque) void {
-        c.lua_setwarnf(lua.state, warn_fn, data);
-    }
-
     /// Returns the status of this thread
     pub fn status(lua: *Lua) Status {
         return @intToEnum(Status, c.lua_status(lua.state));
-    }
-
-    /// Converts the zero-terminated string `str` to a number, pushes that number onto the stack,
-    /// Returns an error if conversion failed
-    pub fn stringToNumber(lua: *Lua, str: [:0]const u8) !void {
-        const size = c.lua_stringtonumber(lua.state, str);
-        if (size == 0) return error.Fail;
     }
 
     /// Converts the Lua value at the given `index` into a boolean
@@ -1083,19 +829,11 @@ pub const Lua = struct {
         return c.lua_tocfunction(lua.state, index) orelse return error.Fail;
     }
 
-    /// Marks the given index in the stack as a to-be-closed slot
-    pub fn toClose(lua: *Lua, index: i32) void {
-        c.lua_toclose(lua.state, index);
-    }
-
     /// Converts the Lua value at the given `index` to a signed integer
     /// The Lua value must be an integer, or a number, or a string convertible to an integer otherwise toIntegerX returns 0
     /// Returns an error if the conversion failed
-    pub fn toInteger(lua: *Lua, index: i32) !Integer {
-        var success: c_int = undefined;
-        const result = c.lua_tointegerx(lua.state, index, &success);
-        if (success == 0) return error.Fail;
-        return result;
+    pub fn toInteger(lua: *Lua, index: i32) Integer {
+        return c.lua_tointeger(lua.state, index);
     }
 
     /// Returns a slice of bytes at the given index
@@ -1109,12 +847,8 @@ pub const Lua = struct {
 
     /// Converts the Lua value at the given `index` to a float
     /// The Lua value must be a number or a string convertible to a number otherwise toNumberX returns 0
-    /// Returns an error if the conversion failed
-    pub fn toNumber(lua: *Lua, index: i32) !Number {
-        var success: c_int = undefined;
-        const result = c.lua_tonumberx(lua.state, index, &success);
-        if (success == 0) return error.Fail;
-        return result;
+    pub fn toNumber(lua: *Lua, index: i32) Number {
+        return c.lua_tonumber(lua.state, index);
     }
 
     /// Converts the value at the given `index` to an opaque pointer
@@ -1165,17 +899,6 @@ pub const Lua = struct {
         return c.lua_upvalueindex(i);
     }
 
-    /// Returns the version number of this core
-    pub fn version(lua: *Lua) Number {
-        return c.lua_version(lua.state);
-    }
-
-    /// Emits a warning with the given `msg`
-    /// A message with `to_cont` as true should be continued in a subsequent call to the function
-    pub fn warning(lua: *Lua, msg: [:0]const u8, to_cont: bool) void {
-        c.lua_warning(lua.state, msg, @boolToInt(to_cont));
-    }
-
     /// Pops `num` values from the current stack and pushes onto the stack of `to`
     pub fn xMove(lua: *Lua, to: Lua, num: i32) void {
         c.lua_xmove(lua.state, to.state, num);
@@ -1186,12 +909,6 @@ pub const Lua = struct {
     pub fn yield(lua: *Lua, num_results: i32) noreturn {
         // translate-c failed to pass NULL correctly
         _ = c.lua_yieldk(lua.state, num_results, 0, null);
-        unreachable;
-    }
-
-    /// Yields this coroutine (thread)
-    pub fn yieldCont(lua: *Lua, num_results: i32, ctx: Context, k: CContFn) noreturn {
-        _ = c.lua_yieldk(lua.state, num_results, ctx, k);
         unreachable;
     }
 
@@ -1222,7 +939,7 @@ pub const Lua = struct {
         const str = options.toString();
 
         var ar: Debug = undefined;
-        ar.i_ci = @ptrCast(*c.struct_CallInfo, info.private);
+        ar.i_ci = info.private;
 
         // should never fail because we are controlling options with the struct param
         _ = c.lua_getinfo(lua.state, &str, &ar);
@@ -1243,10 +960,6 @@ pub const Lua = struct {
                 unreachable;
             };
         }
-        if (options.r) {
-            info.first_transfer = ar.ftransfer;
-            info.num_transfer = ar.ntransfer;
-        }
         if (options.S) {
             info.source = std.mem.span(ar.source);
             std.mem.copy(u8, &info.short_src, &ar.short_src);
@@ -1260,12 +973,6 @@ pub const Lua = struct {
                 unreachable;
             };
         }
-        if (options.t) info.is_tail_call = ar.istailcall != 0;
-        if (options.u) {
-            info.num_upvalues = ar.nups;
-            info.num_params = ar.nparams;
-            info.is_vararg = ar.isvararg != 0;
-        }
     }
 
     /// Gets information about a local variable
@@ -1277,7 +984,7 @@ pub const Lua = struct {
     /// Returns the name of the local variable
     pub fn getLocalEx(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
         var ar: Debug = undefined;
-        ar.i_ci = @ptrCast(*c.struct_CallInfo, info.private);
+        ar.i_ci = info.private;
         if (c.lua_getlocal(lua.state, &ar, n)) |name| {
             return std.mem.span(name);
         }
@@ -1288,7 +995,7 @@ pub const Lua = struct {
     pub fn getStack(lua: *Lua, level: i32) !DebugInfo {
         var ar: Debug = undefined;
         if (c.lua_getstack(lua.state, level, &ar) == 0) return error.Fail;
-        return DebugInfo{ .private = ar.i_ci.? };
+        return DebugInfo{ .private = ar.i_ci };
     }
 
     /// Gets information about the `n`th upvalue of the closure at index `func_index`
@@ -1302,7 +1009,7 @@ pub const Lua = struct {
     /// Sets the debugging hook function
     pub fn setHook(lua: *Lua, hook_fn: CHookFn, mask: HookMask, count: i32) void {
         const hook_mask = HookMask.toInt(mask);
-        c.lua_sethook(lua.state, hook_fn, hook_mask, count);
+        _ = c.lua_sethook(lua.state, hook_fn, hook_mask, count);
     }
 
     /// Sets the value of a local variable
@@ -1315,7 +1022,7 @@ pub const Lua = struct {
     /// Returns the name of the local variable
     pub fn setLocalEx(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
         var ar: Debug = undefined;
-        ar.i_ci = @ptrCast(*c.struct_CallInfo, info.private);
+        ar.i_ci = info.private;
         if (c.lua_setlocal(lua.state, &ar, n)) |name| {
             return std.mem.span(name);
         }
@@ -1337,18 +1044,6 @@ pub const Lua = struct {
         return error.Fail;
     }
 
-    /// Returns a unique identifier for the upvalue numbered `n` from the closure index `func_index`
-    pub fn upvalueId(lua: *Lua, func_index: i32, n: i32) !*anyopaque {
-        if (c.lua_upvalueid(lua.state, func_index, n)) |ptr| return ptr;
-        return error.Fail;
-    }
-
-    /// Make the `n1`th upvalue of the Lua closure at index `func_index1` refer to the `n2`th upvalue
-    /// of the Lua closure at index `func_index2`
-    pub fn upvalueJoin(lua: *Lua, func_index1: i32, n1: i32, func_index2: i32, n2: i32) void {
-        c.lua_upvaluejoin(lua.state, func_index1, n1, func_index2, n2);
-    }
-
     // Auxiliary library functions
     //
     // Auxiliary library functions are included in alphabetical order.
@@ -1365,13 +1060,6 @@ pub const Lua = struct {
     pub fn argError(lua: *Lua, arg: i32, extra_msg: [*:0]const u8) noreturn {
         _ = c.luaL_argerror(lua.state, arg, extra_msg);
         unreachable;
-    }
-
-    /// Checks whether `cond` is true. Raises an error using `Lua.typeError()` if not
-    /// Possibly never returns
-    pub fn argExpected(lua: *Lua, cond: bool, arg: i32, type_name: [:0]const u8) void {
-        // translate-c failed
-        if (cond) lua.typeError(arg, type_name);
     }
 
     /// Calls a metamethod
@@ -1449,12 +1137,6 @@ pub const Lua = struct {
         return opaqueCast(T, c.luaL_checkudata(lua.state, arg, @typeName(T)).?);
     }
 
-    /// Checks whether the code making the call and the Lua library being called are using
-    /// the same version of Lua and the same numeric types.
-    pub fn checkVersion(lua: *Lua) void {
-        return c.luaL_checkversion(lua.state);
-    }
-
     /// Loads and runs the given file
     pub fn doFile(lua: *Lua, file_name: [:0]const u8) !void {
         // translate-c failure
@@ -1475,16 +1157,6 @@ pub const Lua = struct {
         unreachable;
     }
 
-    /// This function produces the return values for process-related functions in the standard library
-    pub fn execResult(lua: *Lua, stat: i32) i32 {
-        return c.luaL_execresult(lua.state, stat);
-    }
-
-    /// This function produces the return values for file-related functions in the standard library
-    pub fn fileResult(lua: *Lua, stat: i32, file_name: [:0]const u8) i32 {
-        return c.luaL_fileresult(lua.state, stat, file_name);
-    }
-
     /// Pushes onto the stack the field `e` from the metatable of the object at index `obj`
     /// and returns the type of the pushed value
     /// TODO: possibly return an error if nil
@@ -1497,13 +1169,8 @@ pub const Lua = struct {
     /// Pushes onto the stack the metatable associated with the name `type_name` in the registry
     /// or nil if there is no metatable associated with that name. Returns the type of the pushed value
     /// TODO: return error when type is nil?
-    pub fn getMetatableAux(lua: *Lua, type_name: [:0]const u8) LuaType {
-        return @intToEnum(LuaType, c.luaL_getmetatable(lua.state, type_name));
-    }
-
-    /// Ensures that the value t[`field`], where t is the value at `index`, is a table, and pushes that table onto the stack.
-    pub fn getSubtable(lua: *Lua, index: i32, field: [:0]const u8) !void {
-        if (c.luaL_getsubtable(lua.state, index, field) == 0) return error.Fail;
+    pub fn getMetatableAux(lua: *Lua, type_name: [:0]const u8) void {
+        c.luaL_getmetatable(lua.state, type_name);
     }
 
     /// Creates a copy of string `str`, replacing any occurrence of the string `pat` with the string `rep`
@@ -1512,25 +1179,9 @@ pub const Lua = struct {
         return std.mem.span(c.luaL_gsub(lua.state, str, pat, rep));
     }
 
-    /// Returns the "length" of the value at the given index as a number
-    /// it is equivalent to the '#' operator in Lua
-    pub fn lenAux(lua: *Lua, index: i32) i64 {
-        return c.luaL_len(lua.state, index);
-    }
-
-    /// The same as `Lua.loadBufferX` with `mode` set to binary+text
-    pub fn loadBuffer(lua: *Lua, buf: []const u8, name: [:0]const u8) !void {
-        try lua.loadBufferX(buf, name, .binary_text);
-    }
-
     /// Loads a buffer as a Lua chunk
-    pub fn loadBufferX(lua: *Lua, buf: []const u8, name: [:0]const u8, mode: Mode) !void {
-        const mode_str = switch (mode) {
-            .binary => "b",
-            .text => "t",
-            .binary_text => "bt",
-        };
-        switch (c.luaL_loadbufferx(lua.state, buf.ptr, buf.len, name, mode_str)) {
+    pub fn loadBuffer(lua: *Lua, buf: []const u8, name: [:0]const u8) !void {
+        switch (c.luaL_loadbuffer(lua.state, buf.ptr, buf.len, name)) {
             StatusCode.ok => return,
             StatusCode.err_syntax => return error.Syntax,
             StatusCode.err_memory => return error.Memory,
@@ -1540,17 +1191,7 @@ pub const Lua = struct {
 
     /// Equivalent to `Lua.loadFileX()` with mode equal to binary+text
     pub fn loadFile(lua: *Lua, file_name: [:0]const u8) !void {
-        try lua.loadFileX(file_name, .binary_text);
-    }
-
-    /// Loads a file as a Lua chunk
-    pub fn loadFileX(lua: *Lua, file_name: [:0]const u8, mode: Mode) !void {
-        const mode_str = switch (mode) {
-            .binary => "b",
-            .text => "t",
-            .binary_text => "bt",
-        };
-        const ret = c.luaL_loadfilex(lua.state, file_name, mode_str);
+        const ret = c.luaL_loadfile(lua.state, file_name);
         switch (ret) {
             StatusCode.ok => return,
             StatusCode.err_syntax => return error.Syntax,
@@ -1573,14 +1214,6 @@ pub const Lua = struct {
             StatusCode.err_error => return error.MsgHandler,
             else => unreachable,
         }
-    }
-
-    /// Creates a new table and registers there the functions in `list`
-    pub fn newLib(lua: *Lua, list: []const FnReg) void {
-        // translate-c failure
-        lua.checkVersion();
-        lua.newLibTable(list);
-        lua.setFuncs(list, 0);
     }
 
     /// Creates a new table with a size optimized to store all entries in the array `list`
@@ -1632,11 +1265,6 @@ pub const Lua = struct {
         return c.luaL_optlstring(lua.state, arg, default, null);
     }
 
-    /// Pushes the fail value onto the stack
-    pub fn pushFail(lua: *Lua) void {
-        c.luaL_pushfail(lua.state);
-    }
-
     /// Creates and returns a reference in the table at index `index` for the object on the top of the stack
     /// Pops the object
     pub fn ref(lua: *Lua, index: i32) !i32 {
@@ -1644,11 +1272,6 @@ pub const Lua = struct {
         return if (ret == ref_nil) error.Fail else ret;
     }
 
-    /// If package.loaded[`mod_name`] is not true, calls the function `open_fn` with `mod_name`
-    /// as an argument and sets the call result to package.loaded[`mod_name`]
-    pub fn requireF(lua: *Lua, mod_name: [:0]const u8, open_fn: CFn, global: bool) void {
-        c.luaL_requiref(lua.state, mod_name, open_fn, @boolToInt(global));
-    }
 
     /// Registers all functions in the array `fns` into the table on the top of the stack
     /// All functions are created with `num_upvalues` upvalues
@@ -1664,37 +1287,6 @@ pub const Lua = struct {
             lua.setField(-(num_upvalues + 2), f.name);
         }
         lua.pop(num_upvalues);
-    }
-
-    /// Sets the metatable of the object on the top of the stack as the metatable associated
-    /// with `table_name` in the registry
-    pub fn setMetatableAux(lua: *Lua, table_name: [:0]const u8) void {
-        c.luaL_setmetatable(lua.state, table_name);
-    }
-
-    /// This function works like `Lua.checkUserdata()` except it returns a Zig error instead of raising a Lua error on fail
-    pub fn testUserdata(lua: *Lua, comptime T: type, arg: i32) !*T {
-        if (c.luaL_testudata(lua.state, arg, @typeName(T))) |ptr| {
-            return opaqueCast(T, ptr);
-        } else return error.Fail;
-    }
-
-    /// Converts any Lua value at the given index into a string in a reasonable format
-    pub fn toBytesAux(lua: *Lua, index: i32) [:0]const u8 {
-        var length: usize = undefined;
-        const ptr = c.luaL_tolstring(lua.state, index, &length);
-        return ptr[0..length :0];
-    }
-
-    /// Creates and pushes a traceback of the stack of `other`
-    pub fn traceback(lua: *Lua, other: *Lua, msg: [:0]const u8, level: i32) void {
-        c.luaL_traceback(lua.state, other.state, msg, level);
-    }
-
-    /// Raises a type error for the argument `arg` of the C function that called it
-    pub fn typeError(lua: *Lua, arg: i32, type_name: [:0]const u8) noreturn {
-        _ = c.luaL_typeerror(lua.state, arg, type_name);
-        unreachable;
     }
 
     /// Returns the name of the type of the value at the given `index`
@@ -1719,16 +1311,20 @@ pub const Lua = struct {
     /// Behaves like openLibs, but allows specifying which libraries
     /// to expose to the global table rather than all of them
     pub fn open(lua: *Lua, libs: Libs) void {
-        if (libs.base) lua.requireF(c.LUA_GNAME, c.luaopen_base, true);
-        if (libs.coroutine) lua.requireF(c.LUA_COLIBNAME, c.luaopen_coroutine, true);
-        if (libs.package) lua.requireF(c.LUA_LOADLIBNAME, c.luaopen_package, true);
-        if (libs.string) lua.requireF(c.LUA_STRLIBNAME, c.luaopen_string, true);
-        if (libs.utf8) lua.requireF(c.LUA_UTF8LIBNAME, c.luaopen_utf8, true);
-        if (libs.table) lua.requireF(c.LUA_TABLIBNAME, c.luaopen_table, true);
-        if (libs.math) lua.requireF(c.LUA_MATHLIBNAME, c.luaopen_math, true);
-        if (libs.io) lua.requireF(c.LUA_IOLIBNAME, c.luaopen_io, true);
-        if (libs.os) lua.requireF(c.LUA_OSLIBNAME, c.luaopen_os, true);
-        if (libs.debug) lua.requireF(c.LUA_DBLIBNAME, c.luaopen_debug, true);
+        if (libs.base) lua.requireF("", c.luaopen_base);
+        if (libs.package) lua.requireF(c.LUA_LOADLIBNAME, c.luaopen_package);
+        if (libs.string) lua.requireF(c.LUA_STRLIBNAME, c.luaopen_string);
+        if (libs.table) lua.requireF(c.LUA_TABLIBNAME, c.luaopen_table);
+        if (libs.math) lua.requireF(c.LUA_MATHLIBNAME, c.luaopen_math);
+        if (libs.io) lua.requireF(c.LUA_IOLIBNAME, c.luaopen_io);
+        if (libs.os) lua.requireF(c.LUA_OSLIBNAME, c.luaopen_os);
+        if (libs.debug) lua.requireF(c.LUA_DBLIBNAME, c.luaopen_debug);
+    }
+
+    fn requireF(lua: *Lua, name: [:0]const u8, func: CFn) void {
+        lua.pushFunction(func);
+        lua.pushString(name);
+        lua.call(1, 0);
     }
 
     /// Open all standard libraries
@@ -1741,11 +1337,6 @@ pub const Lua = struct {
         _ = c.luaopen_base(lua.state);
     }
 
-    /// Open the coroutine standard library
-    pub fn openCoroutine(lua: *Lua) void {
-        _ = c.luaopen_coroutine(lua.state);
-    }
-
     /// Open the package standard library
     pub fn openPackage(lua: *Lua) void {
         _ = c.luaopen_package(lua.state);
@@ -1754,11 +1345,6 @@ pub const Lua = struct {
     /// Open the string standard library
     pub fn openString(lua: *Lua) void {
         _ = c.luaopen_string(lua.state);
-    }
-
-    /// Open the UTF-8 standard library
-    pub fn openUtf8(lua: *Lua) void {
-        _ = c.luaopen_utf8(lua.state);
     }
 
     /// Open the table standard library
@@ -1797,11 +1383,6 @@ pub const Buffer = struct {
         c.luaL_buffinit(lua.state, &buf.b);
     }
 
-    /// Initialize a Lua string buffer with an initial size
-    pub fn initSize(buf: *Buffer, lua: Lua, size: usize) []u8 {
-        return c.luaL_buffinitsize(lua.state, &buf.b, size)[0..size];
-    }
-
     /// Internal Lua type for a string buffer
     pub const LuaBuffer = c.luaL_Buffer;
 
@@ -1811,14 +1392,9 @@ pub const Buffer = struct {
     pub fn addChar(buf: *Buffer, byte: u8) void {
         // could not be translated by translate-c
         var lua_buf = &buf.b;
-        if (lua_buf.n >= lua_buf.size) _ = buf.prepSize(1);
-        lua_buf.b[lua_buf.n] = byte;
-        lua_buf.n += 1;
-    }
-
-    /// Adds a copy of the string `str` to the buffer
-    pub fn addGSub(buf: *Buffer, str: [:0]const u8, pat: [:0]const u8, rep: [:0]const u8) void {
-        c.luaL_addgsub(&buf.b, str, pat, rep);
+        if (lua_buf.p > &lua_buf.buffer[buffer_size - 1]) _ = buf.prep();
+        lua_buf.p.* = byte;
+        lua_buf.p += 1;
     }
 
     /// Adds the string to the buffer
@@ -1831,7 +1407,7 @@ pub const Buffer = struct {
         // another function translate-c couldn't handle
         // c.luaL_addsize(&buf.b, length);
         var lua_buf = &buf.b;
-        lua_buf.n += length;
+        lua_buf.p += length;
     }
 
     /// Adds the zero-terminated string pointed to by `str` to the buffer
@@ -1845,47 +1421,14 @@ pub const Buffer = struct {
         c.luaL_addvalue(&buf.b);
     }
 
-    /// Returns a slice of the current content of the buffer
-    /// Any changes to the buffer may invalidate this slice
-    pub fn addr(buf: *Buffer) []u8 {
-        const length = buf.b.n;
-        return c.luaL_buffaddr(&buf.b)[0..length];
-    }
-
-    /// Returns the length of the buffer
-    pub fn len(buf: *Buffer) usize {
-        return c.luaL_bufflen(&buf.b);
-    }
-
-    /// Removes `num` bytes from the buffer
-    /// TODO: perhaps error check?
-    pub fn sub(buf: *Buffer, num: usize) void {
-        // Another bug with translate-c
-        // c.luaL_buffsub(&buf.b, num);
-        var lua_buf = &buf.b;
-        lua_buf.n -= num;
-    }
-
     /// Equivalent to prepSize with a buffer size of Buffer.buffer_size
     pub fn prep(buf: *Buffer) []u8 {
-        return buf.prepSize(buffer_size)[0..buffer_size];
-    }
-
-    /// Returns an address to a space of `size` where you can copy a string
-    /// to be added to the buffer
-    /// you must call `Buffer.addSize` to actually add it to the buffer
-    pub fn prepSize(buf: *Buffer, size: usize) []u8 {
-        return c.luaL_prepbuffsize(&buf.b, size)[0..size];
+        return c.luaL_prepbuffer(&buf.b)[0..buffer_size];
     }
 
     /// Finishes the use of the buffer leaving the final string on the top of the stack
     pub fn pushResult(buf: *Buffer) void {
         c.luaL_pushresult(&buf.b);
-    }
-
-    /// Equivalent to `Buffer.addSize()` followed by `Buffer.pushResult()`
-    pub fn pushResultSize(buf: *Buffer, size: usize) void {
-        c.luaL_pushresultsize(&buf.b, size);
     }
 };
 
@@ -1899,9 +1442,8 @@ pub inline fn opaqueCast(comptime T: type, ptr: *anyopaque) *T {
 
 pub const ZigFn = fn (lua: *Lua) i32;
 pub const ZigHookFn = fn (lua: *Lua, event: Event, info: *DebugInfo) void;
-pub const ZigContFn = fn (lua: *Lua, status: Status, ctx: Context) i32;
+pub const ZigContFn = fn (lua: *Lua, status: Status, ctx: i32) i32;
 pub const ZigReaderFn = fn (lua: *Lua, data: *anyopaque) ?[]const u8;
-pub const ZigWarnFn = fn (data: ?*anyopaque, msg: []const u8, to_cont: bool) void;
 pub const ZigWriterFn = fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool;
 
 fn TypeOfWrap(comptime T: type) type {
@@ -1909,9 +1451,7 @@ fn TypeOfWrap(comptime T: type) type {
         LuaState => Lua,
         ZigFn => CFn,
         ZigHookFn => CHookFn,
-        ZigContFn => CContFn,
         ZigReaderFn => CReaderFn,
-        ZigWarnFn => CWarnFn,
         ZigWriterFn => CWriterFn,
         else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
     };
@@ -1927,9 +1467,7 @@ pub fn wrap(comptime value: anytype) TypeOfWrap(@TypeOf(value)) {
         LuaState => Lua{ .state = value },
         ZigFn => wrapZigFn(value),
         ZigHookFn => wrapZigHookFn(value),
-        ZigContFn => wrapZigContFn(value),
         ZigReaderFn => wrapZigReaderFn(value),
-        ZigWarnFn => wrapZigWarnFn(value),
         ZigWriterFn => wrapZigWriterFn(value),
         else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
     };
@@ -1954,20 +1492,9 @@ fn wrapZigHookFn(comptime f: ZigHookFn) CHookFn {
             var lua: Lua = .{ .state = state.? };
             var info: DebugInfo = .{
                 .current_line = if (ar.?.currentline == -1) null else ar.?.currentline,
-                .private = @ptrCast(*anyopaque, ar.?.i_ci),
+                .private = ar.?.i_ci,
             };
             @call(.{ .modifier = .always_inline }, f, .{ &lua, @intToEnum(Event, ar.?.event), &info });
-        }
-    }.inner;
-}
-
-/// Wrap a ZigContFn in a CContFn for passing to the API
-fn wrapZigContFn(comptime f: ZigContFn) CContFn {
-    return struct {
-        fn inner(state: ?*LuaState, status: c_int, ctx: Context) callconv(.C) c_int {
-            // this is called by Lua, state should never be null
-            var lua: Lua = .{ .state = state.? };
-            return @call(.{ .modifier = .always_inline }, f, .{ &lua, @intToEnum(Status, status), ctx });
         }
     }.inner;
 }
@@ -1984,17 +1511,6 @@ fn wrapZigReaderFn(comptime f: ZigReaderFn) CReaderFn {
                 size.* = 0;
                 return null;
             }
-        }
-    }.inner;
-}
-
-/// Wrap a ZigWarnFn in a CWarnFn for passing to the API
-fn wrapZigWarnFn(comptime f: ZigWarnFn) CWarnFn {
-    return struct {
-        fn inner(data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.C) void {
-            // warning messages emitted from Lua should be null-terminated for display
-            var message = std.mem.span(@ptrCast([*:0]const u8, msg));
-            @call(.{ .modifier = .always_inline }, f, .{ data, message, to_cont != 0 });
         }
     }.inner;
 }

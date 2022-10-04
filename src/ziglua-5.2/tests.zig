@@ -1,8 +1,6 @@
-//! tests.zig
-
 const std = @import("std");
 const testing = std.testing;
-const ziglua = @import("ziglua.zig");
+const ziglua = @import("lib.zig");
 
 const Buffer = ziglua.Buffer;
 const DebugInfo = ziglua.DebugInfo;
@@ -12,6 +10,7 @@ const Integer = ziglua.Integer;
 const Lua = ziglua.Lua;
 const LuaType = ziglua.LuaType;
 const Number = ziglua.Number;
+const Unsigned = ziglua.Unsigned;
 
 const expect = testing.expect;
 const expectEqual = testing.expectEqual;
@@ -116,12 +115,12 @@ test "standard library loading" {
             .coroutine = true,
             .package = true,
             .string = true,
-            .utf8 = true,
             .table = true,
             .math = true,
             .io = true,
             .os = true,
             .debug = true,
+            .bit = true,
         });
     }
 
@@ -142,12 +141,12 @@ test "standard library loading" {
         lua.openCoroutine();
         lua.openPackage();
         lua.openString();
-        lua.openUtf8();
         lua.openTable();
         lua.openMath();
         lua.openIO();
         lua.openOS();
         lua.openDebug();
+        lua.openBit32();
     }
 }
 
@@ -173,47 +172,19 @@ test "arithmetic (lua_arith)" {
     lua.arith(.div);
     try expectEqual(@as(f64, 10), try lua.toNumber(1));
 
-    // prep for idiv
-    lua.pushNumber(1);
-    lua.arith(.add);
-    lua.pushNumber(2);
-    lua.arith(.int_div);
-    try expectEqual(@as(f64, 5), try lua.toNumber(1));
-
-    lua.pushNumber(2);
+    lua.pushNumber(3);
     lua.arith(.mod);
     try expectEqual(@as(f64, 1), try lua.toNumber(1));
 
     lua.arith(.negate);
     try expectEqual(@as(f64, -1), try lua.toNumber(1));
 
-    lua.arith(.negate);
-    lua.pushNumber(2);
-    lua.arith(.shl);
-    try expectEqual(@as(i64, 4), try lua.toInteger(1));
-
-    lua.pushNumber(1);
-    lua.arith(.shr);
-    try expectEqual(@as(i64, 2), try lua.toInteger(1));
-
-    lua.pushNumber(4);
-    lua.arith(.bor);
-    try expectEqual(@as(i64, 6), try lua.toInteger(1));
-
-    lua.pushNumber(1);
-    lua.arith(.band);
-    try expectEqual(@as(i64, 0), try lua.toInteger(1));
-
-    lua.pushNumber(1);
-    lua.arith(.bxor);
-    try expectEqual(@as(i64, 1), try lua.toInteger(1));
-
-    lua.arith(.bnot); // 0xFFFFFFFFFFFFFFFE which is -2
-    try expectEqual(@as(i64, -2), try lua.toInteger(1));
+    lua.pushNumber(11);
+    lua.arith(.add);
 
     lua.pushNumber(3);
     lua.arith(.pow);
-    try expectEqual(@as(i64, -8), try lua.toInteger(1));
+    try expectEqual(@as(f64, 1000), try lua.toNumber(1));
 }
 
 test "compare" {
@@ -231,6 +202,17 @@ test "compare" {
     try expect(!lua.rawEqual(-1, -2));
     lua.pushNumber(2);
     try expect(lua.rawEqual(-1, -2));
+}
+
+test "unsigned" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    lua.pushUnsigned(123456);
+    try expectEqual(@as(Unsigned, 123456), try lua.toUnsigned(-1));
+
+    lua.pushBytes("hello");
+    try expectError(error.Fail, lua.toUnsigned(-1));
 }
 
 test "type of and getting values" {
@@ -329,9 +311,11 @@ test "executing string contents" {
     try lua.loadString("a = f(2)");
     try lua.protectedCall(0, 0, 0);
 
-    try expectEqual(LuaType.function, try lua.getGlobalEx("f"));
+    lua.getGlobal("f");
+    try expectEqual(LuaType.function, lua.typeOf(-1));
     lua.pop(1);
-    try expectEqual(LuaType.number, try lua.getGlobalEx("a"));
+    lua.getGlobal("a");
+    try expectEqual(LuaType.number, lua.typeOf(-1));
     try expectEqual(@as(i64, 12), try lua.toInteger(1));
 
     try expectError(error.Syntax, lua.loadString("bad syntax"));
@@ -383,28 +367,15 @@ test "stack manipulation" {
     try expectEqual(@as(i32, 12), lua.getTop());
     try expect(lua.isNil(-1));
 
-    // rotate the two nils to the bottom of the stack
-    lua.rotate(1, 2);
-    try expect(lua.isNil(1));
-    try expect(lua.isNil(2));
-
-    lua.remove(2);
-    try expect(lua.isNil(1));
-    try expect(lua.isInteger(2));
+    lua.remove(1);
+    try expect(lua.isNil(-1));
 
     lua.insert(1);
-    try expect(lua.isInteger(1));
-    try expect(lua.isNil(2));
-
-    lua.replace(2);
-    try expect(lua.isInteger(2));
-    try expectEqual(@as(i32, 10), lua.getTop());
+    try expect(lua.isNil(1));
 
     lua.copy(1, 2);
-    try expectEqual(@as(i64, 10), try lua.toInteger(1));
-    try expectEqual(@as(i64, 10), try lua.toInteger(2));
-    try expectEqual(@as(i64, 1), try lua.toInteger(3));
-    try expectEqual(@as(i64, 8), try lua.toInteger(-1));
+    try expectEqual(@as(i64, 3), try lua.toInteger(3));
+    try expectEqual(@as(i64, 10), try lua.toInteger(-2));
 
     lua.setTop(0);
     try expectEqual(@as(i32, 0), lua.getTop());
@@ -415,7 +386,7 @@ test "calling a function" {
     defer lua.deinit();
 
     lua.register("zigadd", ziglua.wrap(add));
-    try lua.getGlobal("zigadd");
+    lua.getGlobal("zigadd");
     lua.pushInteger(10);
     lua.pushInteger(32);
 
@@ -430,7 +401,7 @@ test "version" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    try expectEqual(@as(f64, 504), lua.version());
+    try expectEqual(@as(f64, 502), lua.version().*);
     lua.checkVersion();
 }
 
@@ -440,42 +411,25 @@ test "string buffers" {
 
     var buffer: Buffer = undefined;
     buffer.init(lua);
-    try expectEqual(@as(usize, 0), buffer.len());
 
     buffer.addChar('z');
     buffer.addChar('i');
     buffer.addChar('g');
     buffer.addString("lua");
-    try expectEqual(@as(usize, 6), buffer.len());
-
     buffer.sub(3);
-    try expectEqual(@as(usize, 3), buffer.len());
 
     var str = buffer.prepSize(3);
     str[0] = 'l';
     str[1] = 'u';
     str[2] = 'a';
-    try expectEqual(@as(usize, 3), buffer.len());
     buffer.addSize(3);
-    try expectEqual(@as(usize, 6), buffer.len());
-    try expectEqualStrings("ziglua", buffer.addr());
 
     buffer.addLString(" api ");
-    try expectEqualStrings("ziglua api ", buffer.addr());
-
     lua.pushNumber(5.4);
     buffer.addValue();
-    try expectEqual(@as(usize, 14), buffer.len());
-    try expectEqualStrings("ziglua api 5.4", buffer.addr());
-
     buffer.sub(4);
-    try expectEqualStrings("ziglua api", buffer.addr());
-
-    buffer.addGSub(" some string here", "string", "text");
-    try expectEqualStrings("ziglua api some text here", buffer.addr());
-
     buffer.pushResult();
-    try expectEqualStrings("ziglua api some text here", try lua.toBytes(-1));
+    try expectEqualStrings("ziglua api", try lua.toBytes(-1));
 
     // now test a small buffer
     buffer = undefined;
@@ -504,18 +458,23 @@ test "global table" {
 
     // find the print function
     lua.pushString("print");
-    try expectEqual(LuaType.function, lua.getTable(-2));
+    lua.getTable(-2);
+    try expectEqual(LuaType.function, lua.typeOf(-1));
 
     // index the global table in the global table
-    try expectEqual(LuaType.table, lua.getField(-2, "_G"));
+    lua.getField(-2, "_G");
+    try expectEqual(LuaType.table, lua.typeOf(-1));
 
     // find pi in the math table
-    try expectEqual(LuaType.table, lua.getField(-1, "math"));
-    try expectEqual(LuaType.number, lua.getField(-1, "pi"));
+    lua.getField(-1, "math");
+    try expectEqual(LuaType.table, lua.typeOf(-1));
+    lua.getField(-1, "pi");
+    try expectEqual(LuaType.number, lua.typeOf(-1));
 
     // but the string table should be nil
     lua.pop(2);
-    try expectEqual(LuaType.nil, lua.getField(-1, "string"));
+    lua.getField(-1, "string");
+    try expectEqual(LuaType.nil, lua.typeOf(-1));
 }
 
 test "function registration" {
@@ -531,11 +490,14 @@ test "function registration" {
     lua.newTable();
     lua.setFuncs(&funcs, 0);
 
-    try expectEqual(LuaType.boolean, lua.getField(-1, "placeholder"));
+    lua.getField(-1, "placeholder");
+    try expectEqual(LuaType.boolean, lua.typeOf(-1));
     lua.pop(1);
-    try expectEqual(LuaType.function, lua.getField(-1, "add"));
+    lua.getField(-1, "add");
+    try expectEqual(LuaType.function, lua.typeOf(-1));
     lua.pop(1);
-    try expectEqual(LuaType.function, lua.getField(-1, "sub"));
+    lua.getField(-1, "sub");
+    try expectEqual(LuaType.function, lua.typeOf(-1));
 
     // also try calling the sub function sub(42, 40)
     lua.pushInteger(42);
@@ -570,24 +532,6 @@ test "panic fn" {
     try expectEqual(@as(?ziglua.CFn, null), lua.atPanic(panicFn));
 }
 
-test "warn fn" {
-    var lua = try Lua.init(testing.allocator);
-    defer lua.deinit();
-
-    lua.warning("this message is going to the void", false);
-
-    const warnFn = ziglua.wrap(struct {
-        fn inner(data: ?*anyopaque, msg: []const u8, to_cont: bool) void {
-            _ = data;
-            _ = to_cont;
-            if (!std.mem.eql(u8, msg, "this will be caught by the warnFn")) panic("test failed", .{});
-        }
-    }.inner);
-
-    lua.setWarnF(warnFn, null);
-    lua.warning("this will be caught by the warnFn", false);
-}
-
 test "concat" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -597,7 +541,7 @@ test "concat" {
     lua.pushString(" wow!");
     lua.concat(3);
 
-    try expectEqualStrings("hello 10.0 wow!", try lua.toBytes(-1));
+    try expectEqualStrings("hello 10 wow!", try lua.toBytes(-1));
 }
 
 test "garbage collector" {
@@ -609,25 +553,12 @@ test "garbage collector" {
     lua.gcStop();
     lua.gcCollect();
     lua.gcRestart();
-    lua.gcStep(10);
+    lua.gcStep();
     _ = lua.gcCount();
     _ = lua.gcCountB();
     _ = lua.gcIsRunning();
-
-    try expect(lua.gcSetGenerational(0, 10));
-    try expect(lua.gcSetIncremental(0, 0, 0));
-    try expect(!lua.gcSetIncremental(0, 0, 0));
-}
-
-test "extra space" {
-    var lua = try Lua.init(testing.allocator);
-    defer lua.deinit();
-
-    var space = @ptrCast(*align(1) usize, lua.getExtraSpace().ptr);
-    space.* = 1024;
-    // each new thread is initialized with a copy of the extra space from the main thread
-    var thread = lua.newThread();
-    try expectEqual(@as(usize, 1024), @ptrCast(*align(1) usize, thread.getExtraSpace()).*);
+    _ = lua.gcSetPause(2);
+    _ = lua.gcSetStepMul(2);
 }
 
 test "table access" {
@@ -635,20 +566,24 @@ test "table access" {
     defer lua.deinit();
 
     try lua.doString("a = { [1] = 'first', key = 'value', ['other one'] = 1234 }");
-    try lua.getGlobal("a");
+    lua.getGlobal("a");
 
-    try expectEqual(LuaType.string, lua.getIndex(1, 1));
+    lua.rawGetIndex(1, 1);
+    try expectEqual(LuaType.string, lua.typeOf(-1));
     try expectEqualStrings("first", try lua.toBytes(-1));
 
-    try expectEqual(LuaType.string, lua.rawGetIndex(1, 1));
+    lua.rawGetIndex(1, 1);
+    try expectEqual(LuaType.string, lua.typeOf(-1));
     try expectEqualStrings("first", try lua.toBytes(-1));
 
     lua.pushString("key");
-    try expectEqual(LuaType.string, lua.getTable(1));
+    lua.getTable(1);
+    try expectEqual(LuaType.string, lua.typeOf(-1));
     try expectEqualStrings("value", try lua.toBytes(-1));
 
     lua.pushString("other one");
-    try expectEqual(LuaType.number, lua.rawGetTable(1));
+    lua.rawGetTable(1);
+    try expectEqual(LuaType.number, lua.typeOf(-1));
     try expectEqual(@as(Integer, 1234), try lua.toInteger(-1));
 
     // a.name = "ziglua"
@@ -677,17 +612,18 @@ test "table access" {
     lua.setField(1, "bool");
 
     try lua.doString("b = a.bool");
-    try expectEqual(LuaType.boolean, try lua.getGlobalEx("b"));
+    lua.getGlobal("b");
+    try expectEqual(LuaType.boolean, lua.typeOf(-1));
     try expect(lua.toBoolean(-1));
 
     // create array [1, 2, 3, 4, 5]
     lua.createTable(0, 0);
-    var index: Integer = 1;
+    var index: i32 = 1;
     while (index <= 5) : (index += 1) {
         lua.pushInteger(index);
-        lua.setIndex(-2, index);
+        lua.rawSetIndex(-2, index);
     }
-    try expectEqual(@as(ziglua.Unsigned, 5), lua.rawLen(-1));
+    try expectEqual(@as(usize, 5), lua.rawLen(-1));
     try expectEqual(@as(Integer, 5), lua.lenAux(-1));
 
     // add a few more
@@ -695,33 +631,15 @@ test "table access" {
         lua.pushInteger(index);
         lua.rawSetIndex(-2, index);
     }
-    try expectEqual(@as(ziglua.Unsigned, 10), lua.rawLen(-1));
+    try expectEqual(@as(usize, 10), lua.rawLen(-1));
 }
 
-test "conversions" {
+test "absIndex" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    // number conversion
-    var value: Integer = undefined;
-    try Lua.numberToInteger(3.14, &value);
-    try expectEqual(@as(Integer, 3), value);
-    try expectError(error.Fail, Lua.numberToInteger(@intToFloat(Number, ziglua.max_integer) + 10, &value));
+    lua.setTop(2);
 
-    // string conversion
-    try lua.stringToNumber("1");
-    try expect(lua.isInteger(-1));
-    try expectEqual(@as(Integer, 1), try lua.toInteger(1));
-
-    try lua.stringToNumber("  1.0  ");
-    try expect(lua.isNumber(-1));
-    try expectEqual(@as(Number, 1.0), try lua.toNumber(-1));
-
-    try expectError(error.Fail, lua.stringToNumber("a"));
-    try expectError(error.Fail, lua.stringToNumber("1.a"));
-    try expectError(error.Fail, lua.stringToNumber(""));
-
-    // index conversion
     try expectEqual(@as(i32, 2), lua.absIndex(-1));
     try expectEqual(@as(i32, 1), lua.absIndex(-2));
 }
@@ -733,7 +651,7 @@ test "dump and load" {
     // store a function in a global
     try lua.doString("f = function(x) return function(n) return n + x end end");
     // put the function on the stack
-    try lua.getGlobal("f");
+    lua.getGlobal("f");
 
     const writer = struct {
         fn inner(l: *Lua, buf: []const u8, data: *anyopaque) bool {
@@ -748,10 +666,10 @@ test "dump and load" {
     defer buffer.deinit();
 
     // save the function as a binary chunk in the buffer
-    try lua.dump(ziglua.wrap(writer), &buffer, false);
+    try lua.dump(ziglua.wrap(writer), &buffer);
 
     // clear the stack
-    try lua.resetThread();
+    lua.setTop(0);
 
     const reader = struct {
         fn inner(l: *Lua, data: *anyopaque) ?[]const u8 {
@@ -799,25 +717,17 @@ test "userdata and uservalues" {
         code: [4]u8,
     };
 
-    // create a Lua-owned pointer to a Data with 2 associated user values
-    var data = lua.newUserdata(Data, 2);
+    // create a Lua-owned pointer to a Data
+    var data = lua.newUserdata(Data);
     data.val = 1;
     std.mem.copy(u8, &data.code, "abcd");
 
-    // assign the user values
-    lua.pushNumber(1234.56);
-    try lua.setIndexUserValue(1, 1);
+    // assign the associated uservalue
+    lua.pushNil();
+    try lua.setUserValue(1);
 
-    lua.pushString("test string");
-    try lua.setIndexUserValue(1, 2);
-
-    try expectEqual(LuaType.number, try lua.getIndexUserValue(1, 1));
-    try expectEqual(@as(Number, 1234.56), try lua.toNumber(-1));
-    try expectEqual(LuaType.string, try lua.getIndexUserValue(1, 2));
-    try expectEqualStrings("test string", try lua.toBytes(-1));
-
-    try expectError(error.Fail, lua.setIndexUserValue(1, 3));
-    try expectError(error.Fail, lua.getIndexUserValue(1, 3));
+    lua.getUserValue(1);
+    try expectEqual(LuaType.nil, lua.typeOf(-1));
 
     try expectEqual(data, ziglua.opaqueCast(Data, try lua.toUserdata(1)));
     try expectEqual(@ptrCast(*const anyopaque, data), @alignCast(@alignOf(Data), try lua.toPointer(1)));
@@ -846,7 +756,7 @@ test "upvalues" {
     // call the function repeatedly, each time ensuring the result increases by one
     var expected: Integer = 1;
     while (expected <= 10) : (expected += 1) {
-        try lua.getGlobal("counter");
+        lua.getGlobal("counter");
         lua.call(0, 1);
         try expectEqual(expected, try lua.toInteger(-1));
         lua.pop(1);
@@ -858,7 +768,7 @@ test "table traversal" {
     defer lua.deinit();
 
     try lua.doString("t = { key = 'value', second = true, third = 1 }");
-    try lua.getGlobal("t");
+    lua.getGlobal("t");
 
     lua.pushNil();
 
@@ -897,37 +807,6 @@ test "registry" {
     try expectEqualStrings("hello there", try lua.toBytes(-1));
 }
 
-test "closing vars" {
-    var lua = try Lua.init(testing.allocator);
-    defer lua.deinit();
-
-    lua.open(.{ .base = true });
-
-    // do setup in Lua for ease
-    try lua.doString(
-        \\closed_vars = 0
-        \\mt = { __close = function() closed_vars = closed_vars + 1 end }
-    );
-
-    lua.newTable();
-    try lua.getGlobal("mt");
-    lua.setMetatable(-2);
-    lua.toClose(-1);
-    lua.closeSlot(-1);
-    lua.pop(1);
-
-    lua.newTable();
-    try lua.getGlobal("mt");
-    lua.setMetatable(-2);
-    lua.toClose(-1);
-    lua.closeSlot(-1);
-    lua.pop(1);
-
-    // this should have incremented "closed_vars" to 2
-    try lua.getGlobal("closed_vars");
-    try expectEqual(@as(Number, 2), try lua.toNumber(-1));
-}
-
 test "raise error" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -945,9 +824,9 @@ test "raise error" {
     try expectEqualStrings("makeError made an error", try lua.toBytes(-1));
 }
 
-fn continuation(l: *Lua, status: ziglua.Status, ctx: isize) i32 {
-    _ = status;
-
+fn continuation(l: *Lua) i32 {
+    const ctxOrNull = l.getCtx() catch unreachable;
+    const ctx = ctxOrNull orelse 0;
     if (ctx == 5) {
         l.pushString("done");
         return 1;
@@ -966,24 +845,21 @@ test "yielding" {
     // yielding a count until it finally returns the string "done"
     const willYield = struct {
         fn inner(l: *Lua) i32 {
-            return continuation(l, .ok, 0);
+            return continuation(l);
         }
     }.inner;
+
 
     var thread = lua.newThread();
     thread.pushFunction(ziglua.wrap(willYield));
 
-    try expect(!lua.isYieldable());
-    try expect(thread.isYieldable());
-
-    var results: i32 = undefined;
     var i: i32 = 0;
     while (i < 5) : (i += 1) {
-        try expectEqual(ziglua.ResumeStatus.yield, try thread.resumeThread(lua, 0, &results));
+        try expectEqual(ziglua.ResumeStatus.yield, try thread.resumeThread(lua, 0));
         try expectEqual(@as(Integer, i), try thread.toInteger(-1));
-        thread.pop(results);
+        lua.pop(lua.getTop());
     }
-    try expectEqual(ziglua.ResumeStatus.ok, try thread.resumeThread(lua, 0, &results));
+    try expectEqual(ziglua.ResumeStatus.ok, try thread.resumeThread(lua, 0));
     try expectEqualStrings("done", try thread.toBytes(-1));
 }
 
@@ -998,7 +874,7 @@ test "debug interface" {
         \\  return x + y
         \\end
     );
-    try lua.getGlobal("f");
+    lua.getGlobal("f");
 
     var info: DebugInfo = undefined;
     lua.getInfo(.{
@@ -1027,9 +903,9 @@ test "debug interface" {
         fn inner(l: *Lua, event: Event, i: *DebugInfo) void {
             switch (event) {
                 .call => {
-                    l.getInfo(.{ .l = true, .r = true }, i);
+                    l.getInfo(.{ .l = true }, i);
                     if (i.current_line.? != 2) panic("Expected line to be 2", .{});
-                    l.getLocal(i, i.first_transfer) catch unreachable;
+                    l.getLocal(i, 1) catch unreachable;
                     if ((l.toNumber(-1) catch unreachable) != 3) panic("Expected x to equal 3", .{});
                 },
                 .line => if (i.current_line.? == 4) {
@@ -1038,9 +914,9 @@ test "debug interface" {
                     l.setLocal(i, 2) catch unreachable;
                 },
                 .ret => {
-                    l.getInfo(.{ .l = true, .r = true }, i);
+                    l.getInfo(.{ .l = true }, i);
                     if (i.current_line.? != 4) panic("Expected line to be 4", .{});
-                    l.getLocal(i, i.first_transfer) catch unreachable;
+                    l.getLocal(i, 1) catch unreachable;
                     if ((l.toNumber(-1) catch unreachable) != 3) panic("Expected result to equal 3", .{});
                 },
                 else => unreachable,
@@ -1057,7 +933,7 @@ test "debug interface" {
     try expectEqual(@as(?ziglua.CHookFn, ziglua.wrap(hook)), lua.getHook());
     try expectEqual(ziglua.HookMask{ .call = true, .line = true, .ret = true }, lua.getHookMask());
 
-    try lua.getGlobal("f");
+    lua.getGlobal("f");
     lua.pushNumber(3);
     try lua.protectedCall(1, 1, 0);
 }
@@ -1074,7 +950,7 @@ test "debug upvalues" {
         \\end
         \\addone = f(1)
     );
-    try lua.getGlobal("addone");
+    lua.getGlobal("addone");
 
     // index doesn't exist
     try expectError(error.Fail, lua.getUpvalue(1, 2));
@@ -1088,9 +964,6 @@ test "debug upvalues" {
     lua.pushNumber(5);
     try lua.setUpvalue(-2, 1);
 
-    // test a bad index (the valid one's result is unpredicable)
-    try expectError(error.Fail, lua.upvalueId(-1, 2));
-
     // call the new function (should return 7)
     lua.pushNumber(2);
     try lua.protectedCall(1, 1, 0);
@@ -1101,8 +974,8 @@ test "debug upvalues" {
         \\addthree = f(3)
     );
 
-    try lua.getGlobal("addone");
-    try lua.getGlobal("addthree");
+    lua.getGlobal("addone");
+    lua.getGlobal("addthree");
 
     // now addone and addthree share the same upvalue
     lua.upvalueJoin(-2, 1, -1, 1);
@@ -1148,6 +1021,7 @@ test "aux check functions" {
             _ = l.checkNumber(4);
             _ = l.checkString(5);
             l.checkType(6, .boolean);
+            _ = l.checkUnsigned(7);
             return 0;
         }
     }.inner);
@@ -1211,26 +1085,27 @@ test "aux check functions" {
     lua.pushString("hello world");
     lua.pushBoolean(true);
     lua.protectedCall(6, 0, 0) catch {
-        try expectEqualStrings("bad argument #6 to '?' (boolean expected, got no value)", try lua.toBytes(-1));
+        try expectEqualStrings("bad argument #7 to '?' (number expected, got no value)", try lua.toBytes(-1));
         lua.pop(-1);
     };
 
     lua.pushFunction(function);
-    // test pushFail here (currently acts the same as pushNil)
-    lua.pushFail();
+    lua.pushNil();
     lua.pushInteger(3);
     lua.pushBytes("hello world");
     lua.pushNumber(4);
     lua.pushString("hello world");
     lua.pushBoolean(true);
-    try lua.protectedCall(6, 0, 0);
+    lua.pushUnsigned(1);
+    try lua.protectedCall(7, 0, 0);
 }
 
-test "get global fail" {
+test "get global nil" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    try expectError(error.Fail, lua.getGlobal("foo"));
+    lua.getGlobal("foo");
+    try expectEqual(LuaType.nil, lua.typeOf(-1));
 }
 
 test "metatables" {
@@ -1245,7 +1120,7 @@ test "metatables" {
     lua.pop(1);
 
     // set the len metamethod to the function f
-    try lua.getGlobal("f");
+    lua.getGlobal("f");
     lua.setField(1, "__len");
 
     lua.newTable();
@@ -1265,6 +1140,7 @@ test "aux opt functions" {
             expectEqualStrings("zig", l.optBytes(2, "zig")) catch unreachable;
             expectEqual(@as(Number, 1.23), l.optNumber(3, 1.23)) catch unreachable;
             expectEqualStringsSentinel("lang", l.optString(4, "lang")) catch unreachable;
+            expectEqual(@as(Unsigned, 1), l.optUnsigned(5, 1)) catch unreachable;
             return 0;
         }
     }.inner);
@@ -1277,7 +1153,8 @@ test "aux opt functions" {
     lua.pushBytes("zig");
     lua.pushNumber(1.23);
     lua.pushString("lang");
-    try lua.protectedCall(4, 0, 0);
+    lua.pushUnsigned(1);
+    try lua.protectedCall(5, 0, 0);
 }
 
 test "checkOption" {
@@ -1341,7 +1218,7 @@ test "loadBuffer" {
 
     _ = try lua.loadBuffer("global = 10", "chunkname");
     try lua.protectedCall(0, ziglua.mult_return, 0);
-    try lua.getGlobal("global");
+    lua.getGlobal("global");
     try expectEqual(@as(Integer, 10), try lua.toInteger(-1));
 }
 
@@ -1364,7 +1241,7 @@ test "where" {
         \\ret = whereFn()
     );
 
-    try lua.getGlobal("ret");
+    lua.getGlobal("ret");
     try expectEqualStrings("[string \"...\"]:2: ", try lua.toBytes(-1));
 }
 
@@ -1399,16 +1276,6 @@ test "args and errors" {
     lua.pushFunction(argCheck);
     try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
 
-    const argExpected = ziglua.wrap(struct {
-        fn inner(l: *Lua) i32 {
-            l.argExpected(true, 1, "string");
-            return 0;
-        }
-    }.inner);
-
-    lua.pushFunction(argExpected);
-    try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
-
     const raisesError = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
             l.raiseErrorAux("some error %s!", .{"zig"});
@@ -1436,7 +1303,7 @@ test "traceback" {
     lua.setGlobal("tracebackFn");
     try lua.doString("res = tracebackFn()");
 
-    try lua.getGlobal("res");
+    lua.getGlobal("res");
     try expectEqualStrings("\nstack traceback:\n\t[string \"res = tracebackFn()\"]:1: in main chunk", try lua.toBytes(-1));
 }
 
@@ -1449,7 +1316,7 @@ test "getSubtable" {
         \\  b = {},
         \\}
     );
-    try lua.getGlobal("a");
+    lua.getGlobal("a");
 
     // get the subtable a.b
     try lua.getSubtable(-1, "b");
@@ -1468,11 +1335,6 @@ test "userdata" {
     const Type = struct { a: i32, b: f32 };
     try lua.newMetatable("Type");
 
-    var t = lua.newUserdata(Type, 0);
-    lua.setMetatableAux("Type");
-    t.a = 1234;
-    t.b = 3.14;
-
     const checkUdata = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
             const ptr = l.checkUserdata(Type, 1);
@@ -1489,11 +1351,17 @@ test "userdata" {
     }.inner);
 
     lua.pushFunction(checkUdata);
-    lua.rotate(-2, 1);
 
-    // call checkUdata asserting that the udata passed in with the
-    // correct metatable and values
-    try lua.protectedCall(1, 1, 0);
+    {
+        var t = lua.newUserdata(Type);
+        lua.setMetatableAux("Type");
+        t.a = 1234;
+        t.b = 3.14;
+
+        // call checkUdata asserting that the udata passed in with the
+        // correct metatable and values
+        try lua.protectedCall(1, 1, 0);
+    }
 
     const testUdata = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
@@ -1514,11 +1382,19 @@ test "userdata" {
     }.inner);
 
     lua.pushFunction(testUdata);
-    lua.rotate(-2, 1);
 
-    // call checkUdata asserting that the udata passed in with the
-    // correct metatable and values
-    try lua.protectedCall(1, 0, 0);
+    {
+        var t = lua.newUserdata(Type);
+        lua.setMetatableAux("Type");
+        t.a = 1234;
+        t.b = 3.14;
+
+        // call checkUdata asserting that the udata passed in with the
+        // correct metatable and values
+        try lua.protectedCall(1, 0, 0);
+    }
+
+
 }
 
 test "refs" {
