@@ -218,7 +218,6 @@ pub const mask_ret = c.LUA_MASKRET;
 /// The maximum integer value that `Integer` can store
 pub const max_integer = c.LUA_MAXINTEGER;
 
-
 /// The minimum Lua stack available to a function
 pub const min_stack = c.LUA_MINSTACK;
 
@@ -698,7 +697,6 @@ pub const Lua = struct {
         const state = c.lua_newthread(lua.state).?;
         return .{ .state = state };
     }
-
 
     /// This function allocates a new block of memory with the given size,
     /// pushes onto the stack a new full userdata with the block address,

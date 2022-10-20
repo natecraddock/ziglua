@@ -849,7 +849,6 @@ test "yielding" {
         }
     }.inner;
 
-
     var thread = lua.newThread();
     thread.pushFunction(ziglua.wrap(willYield));
 
@@ -1393,8 +1392,6 @@ test "userdata" {
         // correct metatable and values
         try lua.protectedCall(1, 0, 0);
     }
-
-
 }
 
 test "refs" {

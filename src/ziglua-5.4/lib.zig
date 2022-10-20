@@ -2014,3 +2014,9 @@ fn wrapZigWriterFn(comptime f: ZigWriterFn) CWriterFn {
         }
     }.inner;
 }
+
+/// Export a Zig function to be used as a Zig (C) Module
+pub fn exportFn(comptime name: []const u8, comptime func: ZigFn) void {
+    const declaration = wrap(func);
+    @export(declaration, .{ .name = "luaopen_" ++ name, .linkage = .Strong });
+}

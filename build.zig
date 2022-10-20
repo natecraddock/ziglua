@@ -119,7 +119,7 @@ fn buildLua(b: *Builder, step: *LibExeObjStep, options: Options) *LibExeObjStep 
     return lua;
 }
 
-const lua_51_source_files = [_][]const u8 {
+const lua_51_source_files = [_][]const u8{
     "lapi.c",
     "lcode.c",
     "ldebug.c",
@@ -151,7 +151,7 @@ const lua_51_source_files = [_][]const u8 {
     "linit.c",
 };
 
-const lua_52_source_files = [_][]const u8 {
+const lua_52_source_files = [_][]const u8{
     "lapi.c",
     "lcode.c",
     "lctype.c",

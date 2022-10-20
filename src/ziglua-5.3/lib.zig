@@ -740,7 +740,6 @@ pub const Lua = struct {
         return .{ .state = state };
     }
 
-
     /// This function allocates a new block of memory with the given size,
     /// pushes onto the stack a new full userdata with the block address,
     /// and returns this address. The host program can freely use this memory

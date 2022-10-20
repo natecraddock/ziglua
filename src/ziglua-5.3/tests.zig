@@ -892,7 +892,6 @@ test "yielding" {
         }
     }.inner;
 
-
     var thread = lua.newThread();
     thread.pushFunction(ziglua.wrap(willYield));
 
