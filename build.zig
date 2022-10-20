@@ -8,7 +8,7 @@ const LuaVersion = enum {
     lua_52,
     lua_53,
     lua_54,
-    lua_jit,
+    // lua_jit,
 };
 
 fn libPath(version: LuaVersion) []const u8 {
@@ -17,8 +17,6 @@ fn libPath(version: LuaVersion) []const u8 {
         .lua_52 => "src/ziglua-5.2/lib.zig",
         .lua_53 => "src/ziglua-5.3/lib.zig",
         .lua_54 => "src/ziglua-5.4/lib.zig",
-        else => unreachable,
-        // .lua_jit => "src/ziglua-jit/lib.zig",
     };
 }
 
@@ -30,9 +28,8 @@ pub fn build(b: *Builder) void {
         .lua_52 => "src/ziglua-5.2/tests.zig",
         .lua_53 => "src/ziglua-5.3/tests.zig",
         .lua_54 => "src/ziglua-5.4/tests.zig",
-        else => unreachable,
     });
-    link(b, tests, libPath(version), .{ .use_apicheck = true, .version = version });
+    link(b, tests, .{ .use_apicheck = true, .version = version });
 
     const test_step = b.step("test", "Run ziglua library tests");
     test_step.dependOn(&tests.step);
@@ -47,12 +44,14 @@ const Options = struct {
     use_apicheck: bool = false,
     /// Defines the Lua version to build and link
     version: LuaVersion = .lua_54,
+
+    shared: bool = false,
 };
 
 pub fn linkAndPackage(b: *Builder, step: *LibExeObjStep, options: Options) std.build.Pkg {
-    const lib_path = libPath(options.version);
-    link(b, step, lib_path, options);
+    link(b, step, options);
 
+    const lib_path = libPath(options.version);
     return .{
         .name = "ziglua",
         .path = .{ .path = std.fs.path.join(b.allocator, &.{ dir(), lib_path }) catch unreachable },
@@ -60,34 +59,34 @@ pub fn linkAndPackage(b: *Builder, step: *LibExeObjStep, options: Options) std.b
 }
 
 // TODO: expose the link and package steps separately for advanced use cases?
-fn link(b: *Builder, step: *LibExeObjStep, lib_path: []const u8, options: Options) void {
-    const lib = buildLua(b, step, lib_path, options);
+fn link(b: *Builder, step: *LibExeObjStep, options: Options) void {
+    const lib = buildLua(b, step, options);
     step.linkLibrary(lib);
     step.linkLibC();
 }
 
 // TODO: how to test all versions? May need a make/help script to test all
 // versions separately because there might be name collisions
-fn buildLua(b: *Builder, step: *LibExeObjStep, lib_path: []const u8, options: Options) *LibExeObjStep {
+fn buildLua(b: *Builder, step: *LibExeObjStep, options: Options) *LibExeObjStep {
     const lib_dir = switch (options.version) {
         .lua_51 => "lib/lua-5.1.5/src/",
         .lua_52 => "lib/lua-5.2.4/src/",
         .lua_53 => "lib/lua-5.3.6/src/",
         .lua_54 => "lib/lua-5.4.4/src/",
-        else => unreachable,
-        // .lua_jit => "lib/lua-5.4.4/src/",
     };
 
-    const absolute_lib_path = std.fs.path.join(b.allocator, &.{ dir(), lib_path }) catch unreachable;
-    const lib = b.addStaticLibrary("lua", absolute_lib_path);
-    lib.setBuildMode(step.build_mode);
-    lib.setTarget(step.target);
+    const lua = brk: {
+        if (options.shared) break :brk b.addSharedLibrary("lua", null, .unversioned);
+        break :brk b.addStaticLibrary("lua", null);
+    };
+    lua.setBuildMode(step.build_mode);
+    lua.setTarget(step.target);
 
     const apicheck = step.build_mode == .Debug and options.use_apicheck;
 
     step.addIncludeDir(std.fs.path.join(b.allocator, &.{ dir(), lib_dir }) catch unreachable);
 
-    const target = (std.zig.system.NativeTargetInfo.detect(b.allocator, lib.target) catch unreachable).target;
+    const target = (std.zig.system.NativeTargetInfo.detect(b.allocator, step.target) catch unreachable).target;
 
     const flags = [_][]const u8{
         // Standard version used in Lua Makefile
@@ -110,16 +109,14 @@ fn buildLua(b: *Builder, step: *LibExeObjStep, lib_path: []const u8, options: Op
         .lua_52 => &lua_52_source_files,
         .lua_53 => &lua_53_source_files,
         .lua_54 => &lua_54_source_files,
-        else => unreachable,
-        // .lua_jit => &lua_jit_source_files,
     };
 
     for (lua_source_files) |file| {
         const path = std.fs.path.join(b.allocator, &.{ dir(), lib_dir, file }) catch unreachable;
-        step.addCSourceFile(path, &flags);
+        lua.addCSourceFile(path, &flags);
     }
 
-    return lib;
+    return lua;
 }
 
 const lua_51_source_files = [_][]const u8 {

@@ -1,15 +1,19 @@
-# ziglua
+# Ziglua
 
-A Zig library that provides a lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4) to embed the Lua virtual machine into your Zig programs. Currently tracks the latest Lua version (5.4.4).
+A Zig library that provides a complete yet lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, and 5.4.
 
-Like the Lua C API, the ziglua API "emphasizes flexibility and simplicity... common tasks may involve several API calls. This may be boring, but it gives us full control over all the details" (_Programming In Lua 4th Edition_). However, ziglua takes advantage of Zig's features to make it easier and safer to interact with the Lua API.
+Ziglua offers two approaches as a library:
+* **embedded**: used to embed the Lua VM in a Zig program
+* **module**: used to create shared Lua modules that can be loaded at runtime in other Lua-based software
+
+Like the Lua C API, the Ziglua API "emphasizes flexibility and simplicity... common tasks may involve several API calls. This may be boring, but it gives us full control over all the details" (_Programming In Lua 4th Edition_). However, Ziglua takes advantage of Zig's features to make it easier and safer to interact with the Lua API.
 
 * [Docs](https://github.com/natecraddock/ziglua/blob/master/docs.md)
 * [Examples](https://github.com/natecraddock/ziglua/blob/master/docs.md#examples)
 
-## Why use ziglua?
+## Why use Ziglua?
 
-In a nutshell, ziglua is a simple wrapper around the C API you would get by using Zig's `@cImport()`. ziglua aims to mirror the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4) as closely as possible, while improving ergonomics using Zig's features. For example:
+In a nutshell, Ziglua is a simple wrapper around the C API you would get by using Zig's `@cImport()`. Ziglua aims to mirror the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4) as closely as possible, while improving ergonomics using Zig's features. For example:
 
 * Zig error unions to require failure state handling
 * Null-terminated slices instead of C strings
@@ -17,16 +21,16 @@ In a nutshell, ziglua is a simple wrapper around the C API you would get by usin
 * Compiler-enforced checking of optional pointers
 * More precise types (e.g. `bool` instead of `int`)
 
-While there are some helper functions added to complement the C API, ziglua aims to remain low-level. This allows full access to the Lua API through a layer of Zig's improvements over C.
+While there are some helper functions added to complement the C API, Ziglua aims to remain low-level. This allows full access to the Lua API through a layer of Zig's improvements over C.
 
 If you want something higher-level (but doesn't expose the full API), perhaps try [zoltan](https://github.com/ranciere/zoltan).
 
 ## Getting Started
 
-Adding ziglua to your project is easy. First add this repo as a git submodule, or copy the source into your repo. Then add the following to your `build.zig` file (assuming cloned/copied into a `lib/` subdirectory):
+Adding Ziglua to your project is easy. First add this repo as a git submodule, or copy the source into your repo. Then add the following to your `build.zig` file (assuming cloned/copied into a `lib/` subdirectory):
 
 ```zig
-// use the path to the ziglua build.zig file
+// use the path to the Ziglua build.zig file
 const ziglua = @import("lib/ziglua/build.zig");
 
 pub fn build(b: *Builder) void {
@@ -56,13 +60,13 @@ pub fn main() anyerror!void {
 }
 ```
 
-See [docs.md](https://github.com/natecraddock/ziglua/blob/master/docs.md) for documentation and detailed [examples](https://github.com/natecraddock/ziglua/blob/master/docs.md#examples) of using ziglua.
+See [docs.md](https://github.com/natecraddock/ziglua/blob/master/docs.md) for documentation and detailed [examples](https://github.com/natecraddock/ziglua/blob/master/docs.md#examples) of using Ziglua.
 
 ## Status
 
-Nearly all functions, types, and constants in the C API have been wrapped in ziglua. Only a few exceptions have been made when the function doesn't make sense in Zig (like functions using `va_list`).
+Nearly all functions, types, and constants in the C API have been wrapped in Ziglua. Only a few exceptions have been made when the function doesn't make sense in Zig (like functions using `va_list`).
 
-All functions have been type checked, but only the standard C API has been tested fully. ziglua should be relatively stable and safe to use now, but is still new and changing frequently.
+All functions have been type checked, but only the standard C API has been tested fully. Ziglua should be relatively stable and safe to use now, but is still new and changing frequently.
 
 ## Acknowledgements
 

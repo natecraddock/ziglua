@@ -126,11 +126,13 @@ pub fn build(b: *Builder) void {
 
 This makes the `ziglua` package available in your project. Access with `@import("ziglua")`.
 
-There are currently two options that can be passed in the third argument to `ziglua.link()`:
+There are currently three options that can be passed in the third argument to `ziglua.link()`:
 
 * `.use_apicheck`: defaults to **false**. When **true** defines the macro `LUA_USE_APICHECK` in debug builds. See [The C API docs](https://www.lua.org/manual/5.4/manual.html#4) for more information on this macro.
 
 * `.version`: Set the Lua version to build and embed. Defaults to `.lua_54`. Possible values are `.lua_51`, `.lua_52`, `.lua_53`, and `.lua_54`.
+
+* `.shared`: Defaults to `false` for embedding in a Zig program. Set to `true` to dynamically link the Lua source code (useful for creating shared modules).
 
 For example, here is a `ziglua.linkAndPackage()` call that enables api check and embeds Lua 5.2:
 
