@@ -1,4 +1,4 @@
-name: Tests
+name: tests
 
 on:
   push:
@@ -13,11 +13,11 @@ jobs:
     steps:
     - name: Clone Ziglua
       uses: actions/checkout@v3
-    
+
     - name: Setup Zig
       uses: goto-bus-stop/setup-zig@v1
       with:
         version: master
-      
+
     - name: Run tests
       run: make test
