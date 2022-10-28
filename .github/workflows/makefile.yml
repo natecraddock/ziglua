@@ -1,0 +1,23 @@
+name: Tests
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Clone Ziglua
+      uses: actions/checkout@v3
+    
+    - name: Setup Zig
+      uses: goto-bus-stop/setup-zig@v1
+      with:
+        version: master
+      
+    - name: Run tests
+      run: make test
