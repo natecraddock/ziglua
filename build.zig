@@ -60,9 +60,8 @@ pub fn linkAndPackage(b: *Builder, step: *LibExeObjStep, options: Options) std.b
 
 // TODO: expose the link and package steps separately for advanced use cases?
 fn link(b: *Builder, step: *LibExeObjStep, options: Options) void {
-    const lib = buildLua(b, step, options);
-    step.linkLibrary(lib);
-    step.linkLibC();
+    const lua = buildLua(b, step, options);
+    step.linkLibrary(lua);
 }
 
 // TODO: how to test all versions? May need a make/help script to test all
@@ -81,6 +80,7 @@ fn buildLua(b: *Builder, step: *LibExeObjStep, options: Options) *LibExeObjStep 
     };
     lua.setBuildMode(step.build_mode);
     lua.setTarget(step.target);
+    lua.linkLibC();
 
     const apicheck = step.build_mode == .Debug and options.use_apicheck;
 
