@@ -2,6 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 const ziglua = @import("lib.zig");
 
+const AllocFn = ziglua.AllocFn;
 const Buffer = ziglua.Buffer;
 const DebugInfo = ziglua.DebugInfo;
 const Error = ziglua.Error;
@@ -43,7 +44,6 @@ const sub = struct {
 
 fn alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque {
     _ = data;
-    _ = osize;
 
     const alignment = @alignOf(std.c.max_align_t);
     if (@ptrCast(?[*]align(alignment) u8, @alignCast(alignment, ptr))) |prev_ptr| {
@@ -54,6 +54,8 @@ fn alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callco
         }
         const new_ptr = testing.allocator.reallocAdvanced(prev_slice, alignment, nsize, .exact) catch return null;
         return new_ptr.ptr;
+    } else if (nsize == 0) {
+        return null;
     } else {
         const new_ptr = testing.allocator.alignedAlloc(u8, alignment, nsize) catch return null;
         return new_ptr.ptr;
@@ -95,11 +97,11 @@ test "alloc functions" {
 
     // get default allocator
     var data: *anyopaque = undefined;
-    try expectEqual(alloc, lua.getAllocFn(&data));
+    try expectEqual(@as(AllocFn, alloc), lua.getAllocFn(&data));
 
     // set a bad allocator
     lua.setAllocF(failing_alloc, null);
-    try expectEqual(failing_alloc, lua.getAllocFn(&data));
+    try expectEqual(@as(AllocFn, failing_alloc), lua.getAllocFn(&data));
 
     // reset the good one
     lua.setAllocF(alloc, null);
@@ -1332,7 +1334,7 @@ test "userdata" {
     defer lua.deinit();
 
     const Type = struct { a: i32, b: f32 };
-    try lua.newMetatable("Type");
+    try lua.newMetatable(@typeName(Type));
 
     const checkUdata = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
@@ -1353,7 +1355,7 @@ test "userdata" {
 
     {
         var t = lua.newUserdata(Type);
-        lua.setMetatableAux("Type");
+        lua.setMetatableAux(@typeName(Type));
         t.a = 1234;
         t.b = 3.14;
 
@@ -1384,7 +1386,7 @@ test "userdata" {
 
     {
         var t = lua.newUserdata(Type);
-        lua.setMetatableAux("Type");
+        lua.setMetatableAux(@typeName(Type));
         t.a = 1234;
         t.b = 3.14;
 

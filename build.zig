@@ -54,7 +54,7 @@ pub fn linkAndPackage(b: *Builder, step: *LibExeObjStep, options: Options) std.b
     const lib_path = libPath(options.version);
     return .{
         .name = "ziglua",
-        .path = .{ .path = std.fs.path.join(b.allocator, &.{ dir(), lib_path }) catch unreachable },
+        .source = .{ .path = std.fs.path.join(b.allocator, &.{ dir(), lib_path }) catch unreachable },
     };
 }
 
@@ -84,9 +84,9 @@ fn buildLua(b: *Builder, step: *LibExeObjStep, options: Options) *LibExeObjStep 
 
     const apicheck = step.build_mode == .Debug and options.use_apicheck;
 
-    step.addIncludeDir(std.fs.path.join(b.allocator, &.{ dir(), lib_dir }) catch unreachable);
+    step.addIncludePath(std.fs.path.join(b.allocator, &.{ dir(), lib_dir }) catch unreachable);
 
-    const target = (std.zig.system.NativeTargetInfo.detect(b.allocator, step.target) catch unreachable).target;
+    const target = (std.zig.system.NativeTargetInfo.detect(step.target) catch unreachable).target;
 
     const flags = [_][]const u8{
         // Standard version used in Lua Makefile

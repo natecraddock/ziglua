@@ -21,11 +21,11 @@ const Allocator = std.mem.Allocator;
 /// `osize` is the original size or a code, and `nsize` is the new size
 ///
 /// See https://www.lua.org/manual/5.4/manual.html#lua_Alloc for more details
-pub const AllocFn = fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque;
+pub const AllocFn = *const fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque;
 
 /// Type for C functions
 /// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
-pub const CFn = fn (state: ?*LuaState) callconv(.C) c_int;
+pub const CFn = *const fn (state: ?*LuaState) callconv(.C) c_int;
 
 /// The internal Lua debug structure
 const Debug = c.lua_Debug;
@@ -109,7 +109,7 @@ pub const FnReg = struct {
 };
 
 /// Type for debugging hook functions
-pub const CHookFn = fn (state: ?*LuaState, ar: ?*Debug) callconv(.C) void;
+pub const CHookFn = *const fn (state: ?*LuaState, ar: ?*Debug) callconv(.C) void;
 
 /// Specifies on which events the hook will be called
 pub const HookMask = packed struct {
@@ -199,7 +199,7 @@ pub const mult_return = c.LUA_MULTRET;
 pub const Number = c.lua_Number;
 
 /// The type of the reader function used by `Lua.load()`
-pub const CReaderFn = fn (state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.C) [*c]const u8;
+pub const CReaderFn = *const fn (state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.C) [*c]const u8;
 
 /// The possible status of a call to `Lua.resumeThread`
 pub const ResumeStatus = enum(u1) {
@@ -251,7 +251,7 @@ pub const err_file = c.LUA_ERRFILE;
 pub const Stream = c.luaL_Stream;
 
 /// The type of the writer function used by `Lua.dump()`
-pub const CWriterFn = fn (state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int;
+pub const CWriterFn = *const fn (state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int;
 
 /// A Zig wrapper around the Lua C API
 /// Represents a Lua state or thread and contains the entire state of the Lua interpreter
@@ -262,8 +262,6 @@ pub const Lua = struct {
     /// Allows Lua to allocate memory using a Zig allocator passed in via data.
     /// See https://www.lua.org/manual/5.4/manual.html#lua_Alloc for more details
     fn alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque {
-        _ = osize; // unused
-
         // just like malloc() returns a pointer "which is suitably aligned for any built-in type",
         // the memory allocated by this function should also be aligned for any type that Lua may
         // desire to allocate. use the largest alignment for the target
@@ -282,6 +280,8 @@ pub const Lua = struct {
             // when nsize is not zero the allocator must behave like realloc
             const new_ptr = allocator.reallocAdvanced(prev_slice, alignment, nsize, .exact) catch return null;
             return new_ptr.ptr;
+        } else if (nsize == 0) {
+            return null;
         } else {
             // ptr is null, allocate a new block of memory
             const new_ptr = allocator.alignedAlloc(u8, alignment, nsize) catch return null;
