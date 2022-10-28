@@ -1,10 +1,12 @@
 # Ziglua
 
-A Zig library that provides a complete yet lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, and 5.4.
+A Zig library that provides a complete and lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, and 5.4.
 
-Ziglua offers two approaches as a library:
-* **embedded**: used to embed the Lua VM in a Zig program
+The Ziglua library offers two use cases:
+* **embedded**: used to statically embed the Lua VM in a Zig program
 * **module**: used to create shared Lua modules that can be loaded at runtime in other Lua-based software
+
+In both cases, Ziglua will compile Lua from source and link against your Zig code making it easy to create software that integrates with Lua without requiring Lua libraries installed on your system.
 
 Like the Lua C API, the Ziglua API "emphasizes flexibility and simplicity... common tasks may involve several API calls. This may be boring, but it gives us full control over all the details" (_Programming In Lua 4th Edition_). However, Ziglua takes advantage of Zig's features to make it easier and safer to interact with the Lua API.
 
@@ -19,7 +21,7 @@ In a nutshell, Ziglua is a simple wrapper around the C API you would get by usin
 * Null-terminated slices instead of C strings
 * Type-checked enums for parameters and return values
 * Compiler-enforced checking of optional pointers
-* More precise types (e.g. `bool` instead of `int`)
+* Better types in many cases (e.g. `bool` instead of `int`)
 
 While there are some helper functions added to complement the C API, Ziglua aims to remain low-level. This allows full access to the Lua API through a layer of Zig's improvements over C.
 
@@ -27,7 +29,7 @@ If you want something higher-level (but doesn't expose the full API), perhaps tr
 
 ## Getting Started
 
-Adding Ziglua to your project is easy. First add this repo as a git submodule, or copy the source into your repo. Then add the following to your `build.zig` file (assuming cloned/copied into a `lib/` subdirectory):
+Adding Ziglua to your project takes only a couple of steps. First add this repo as a git submodule, or copy the source into your project (one day the Zig package manager will make this easier). Then add the following to your `build.zig` file (assuming cloned/copied into a `lib/` subdirectory):
 
 ```zig
 // use the path to the Ziglua build.zig file
@@ -39,7 +41,7 @@ pub fn build(b: *Builder) void {
 }
 ```
 
-This will compile the Lua C sources and statically link with your project. Then simply import the `ziglua` package into your code! Here is a simple example that pushes and inspects an integer on the Lua stack:
+This will compile the Lua C sources and statically link with your project. Then simply import the `ziglua` package into your code. Here is a simple example that pushes and inspects an integer on the Lua stack:
 
 ```zig
 const std = @import("std");
@@ -56,7 +58,7 @@ pub fn main() anyerror!void {
     defer lua.deinit();
 
     lua.pushInteger(42);
-    std.debug.print("{}\n", .{lua.toInteger(1)});
+    std.debug.print("{}\n", .{try lua.toInteger(1)});
 }
 ```
 
@@ -66,7 +68,7 @@ See [docs.md](https://github.com/natecraddock/ziglua/blob/master/docs.md) for do
 
 Nearly all functions, types, and constants in the C API have been wrapped in Ziglua. Only a few exceptions have been made when the function doesn't make sense in Zig (like functions using `va_list`).
 
-All functions have been type checked, but only the standard C API has been tested fully. Ziglua should be relatively stable and safe to use now, but is still new and changing frequently.
+Nearly all functions have associated Zig tests. Ziglua should be relatively stable and safe to use now, but I am still polishing things and function signatures may change from time to time.
 
 ## Acknowledgements
 
