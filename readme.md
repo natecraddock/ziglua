@@ -2,18 +2,19 @@
 
 [![shield showing current tests status](https://github.com/natecraddock/ziglua/actions/workflows/tests.yml/badge.svg)](https://github.com/natecraddock/ziglua/actions/workflows/tests.yml)
 
-A Zig library that provides a complete and lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, and 5.4.
+A Zig library that provides a complete and lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, and 5.4 and targets Zig 0.10.0.
 
-The Ziglua library offers two use cases:
-* **embedded**: used to statically embed the Lua VM in a Zig program
-* **module**: used to create shared Lua modules that can be loaded at runtime in other Lua-based software
+Ziglua can be used in two ways, either
+* **embedded** to statically embed the Lua VM in a Zig program,
+* or as a shared **module** to create Lua libraries that can be loaded at runtime in other Lua-based software.
 
-In both cases, Ziglua will compile Lua from source and link against your Zig code making it easy to create software that integrates with Lua without requiring Lua libraries installed on your system.
+In both cases, Ziglua will compile Lua from source and link against your Zig code making it easy to create software that integrates with Lua without requiring any system Lua libraries.
 
 Like the Lua C API, the Ziglua API "emphasizes flexibility and simplicity... common tasks may involve several API calls. This may be boring, but it gives us full control over all the details" (_Programming In Lua 4th Edition_). However, Ziglua takes advantage of Zig's features to make it easier and safer to interact with the Lua API.
 
 * [Docs](https://github.com/natecraddock/ziglua/blob/master/docs.md)
 * [Examples](https://github.com/natecraddock/ziglua/blob/master/docs.md#examples)
+* [Changelog](https://github.com/natecraddock/ziglua/blob/master/changelog.md)
 
 ## Why use Ziglua?
 
@@ -72,6 +73,10 @@ Nearly all functions, types, and constants in the C API have been wrapped in Zig
 
 Nearly all functions have associated Zig tests. Ziglua should be relatively stable and safe to use now, but I am still polishing things and function signatures may change from time to time.
 
+## Contributing
+
+Please make suggestions, report bugs, and create pull requests. Anyone is welcome to contribute!
+
 ## Acknowledgements
 
 Thanks to the following sources:
@@ -80,4 +85,4 @@ Thanks to the following sources:
 * [zig-autolua](https://github.com/daurnimator/zig-autolua) for help on writing an alloc function
 * [mach-glfw](https://github.com/hexops/mach-glfw) for inspiration on a clean `build.zig`
 
-And finally [Lua](https://lua.org). Thank you to the Lua team for providing a great language!
+And finally [Lua](https://lua.org). Thank you to the Lua team for creating and sharing such a great language!
