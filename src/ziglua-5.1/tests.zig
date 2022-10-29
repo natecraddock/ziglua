@@ -2,6 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 const ziglua = @import("lib.zig");
 
+const AllocFn = ziglua.AllocFn;
 const Buffer = ziglua.Buffer;
 const DebugInfo = ziglua.DebugInfo;
 const Error = ziglua.Error;
@@ -95,11 +96,11 @@ test "alloc functions" {
 
     // get default allocator
     var data: *anyopaque = undefined;
-    try expectEqual(alloc, lua.getAllocFn(&data));
+    try expectEqual(@as(AllocFn, alloc), lua.getAllocFn(&data));
 
     // set a bad allocator
     lua.setAllocF(failing_alloc, null);
-    try expectEqual(failing_alloc, lua.getAllocFn(&data));
+    try expectEqual(@as(AllocFn, failing_alloc), lua.getAllocFn(&data));
 
     // reset the good one
     lua.setAllocF(alloc, null);
