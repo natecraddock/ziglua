@@ -3,7 +3,7 @@ const std = @import("std");
 const Builder = std.build.Builder;
 const LibExeObjStep = std.build.LibExeObjStep;
 
-const LuaVersion = enum {
+pub const LuaVersion = enum {
     lua_51,
     lua_52,
     lua_53,
@@ -39,7 +39,7 @@ fn dir() []const u8 {
     return std.fs.path.dirname(@src().file) orelse ".";
 }
 
-const Options = struct {
+pub const Options = struct {
     /// Defines the macro LUA_USE_APICHECK in debug builds
     use_apicheck: bool = false,
     /// Defines the Lua version to build and link
