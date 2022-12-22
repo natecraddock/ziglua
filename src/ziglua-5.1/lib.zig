@@ -253,6 +253,8 @@ pub const Stream = c.luaL_Stream;
 /// The type of the writer function used by `Lua.dump()`
 pub const CWriterFn = *const fn (state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int;
 
+const alignment = @alignOf(std.c.max_align_t);
+
 /// A Zig wrapper around the Lua C API
 /// Represents a Lua state or thread and contains the entire state of the Lua interpreter
 pub const Lua = struct {
@@ -261,7 +263,7 @@ pub const Lua = struct {
 
     /// Allows Lua to allocate memory using a Zig allocator passed in via data.
     /// See https://www.lua.org/manual/5.4/manual.html#lua_Alloc for more details
-    fn alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque {
+    fn alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*align(alignment) anyopaque {
         // just like malloc() returns a pointer "which is suitably aligned for any built-in type",
         // the memory allocated by this function should also be aligned for any type that Lua may
         // desire to allocate. use the largest alignment for the target
@@ -278,8 +280,8 @@ pub const Lua = struct {
             }
 
             // when nsize is not zero the allocator must behave like realloc
-            const new_ptr = allocator.reallocAdvanced(prev_slice, alignment, nsize, .exact) catch return null;
-            return new_ptr.ptr;
+            const new_ptr = allocator.realloc(prev_slice, nsize) catch return null;
+            return @ptrCast(*align(alignment) u8, new_ptr);
         } else if (nsize == 0) {
             return null;
         } else {
