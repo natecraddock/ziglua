@@ -335,7 +335,7 @@ pub const Lua = struct {
             }
 
             // when nsize is not zero the allocator must behave like realloc
-            const new_ptr = allocator.reallocAdvanced(prev_slice, alignment, nsize, .exact) catch return null;
+            const new_ptr = allocator.realloc(prev_slice, nsize) catch return null;
             return new_ptr.ptr;
         } else if (nsize == 0) {
             return null;
@@ -837,7 +837,7 @@ pub const Lua = struct {
 
     /// Push a formatted string onto the stack and return a pointer to the string
     pub fn pushFStringEx(lua: *Lua, fmt: [:0]const u8, args: anytype) [*:0]const u8 {
-        const ptr = @call(.{}, c.lua_pushfstring, .{ lua.state, fmt.ptr } ++ args);
+        const ptr = @call(.auto, c.lua_pushfstring, .{ lua.state, fmt.ptr } ++ args);
         return @ptrCast([*:0]const u8, ptr);
     }
 
@@ -1472,7 +1472,7 @@ pub const Lua = struct {
 
     /// Raises an error
     pub fn raiseErrorAux(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
-        _ = @call(.{}, c.luaL_error, .{ lua.state, fmt.ptr } ++ args);
+        _ = @call(.auto, c.luaL_error, .{ lua.state, fmt.ptr } ++ args);
         unreachable;
     }
 
@@ -1942,7 +1942,7 @@ fn wrapZigFn(comptime f: ZigFn) CFn {
         fn inner(state: ?*LuaState) callconv(.C) c_int {
             // this is called by Lua, state should never be null
             var lua: Lua = .{ .state = state.? };
-            return @call(.{ .modifier = .always_inline }, f, .{&lua});
+            return @call(.always_inline, f, .{&lua});
         }
     }.inner;
 }
@@ -1957,7 +1957,7 @@ fn wrapZigHookFn(comptime f: ZigHookFn) CHookFn {
                 .current_line = if (ar.?.currentline == -1) null else ar.?.currentline,
                 .private = @ptrCast(*anyopaque, ar.?.i_ci),
             };
-            @call(.{ .modifier = .always_inline }, f, .{ &lua, @intToEnum(Event, ar.?.event), &info });
+            @call(.always_inline, f, .{ &lua, @intToEnum(Event, ar.?.event), &info });
         }
     }.inner;
 }
@@ -1968,7 +1968,7 @@ fn wrapZigContFn(comptime f: ZigContFn) CContFn {
         fn inner(state: ?*LuaState, status: c_int, ctx: Context) callconv(.C) c_int {
             // this is called by Lua, state should never be null
             var lua: Lua = .{ .state = state.? };
-            return @call(.{ .modifier = .always_inline }, f, .{ &lua, @intToEnum(Status, status), ctx });
+            return @call(.always_inline, f, .{ &lua, @intToEnum(Status, status), ctx });
         }
     }.inner;
 }
@@ -1978,7 +1978,7 @@ fn wrapZigReaderFn(comptime f: ZigReaderFn) CReaderFn {
     return struct {
         fn inner(state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.C) [*c]const u8 {
             var lua: Lua = .{ .state = state.? };
-            if (@call(.{ .modifier = .always_inline }, f, .{ &lua, data.? })) |buffer| {
+            if (@call(.always_inline, f, .{ &lua, data.? })) |buffer| {
                 size.* = buffer.len;
                 return buffer.ptr;
             } else {
@@ -1995,7 +1995,7 @@ fn wrapZigWarnFn(comptime f: ZigWarnFn) CWarnFn {
         fn inner(data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.C) void {
             // warning messages emitted from Lua should be null-terminated for display
             var message = std.mem.span(@ptrCast([*:0]const u8, msg));
-            @call(.{ .modifier = .always_inline }, f, .{ data, message, to_cont != 0 });
+            @call(.always_inline, f, .{ data, message, to_cont != 0 });
         }
     }.inner;
 }
@@ -2007,7 +2007,7 @@ fn wrapZigWriterFn(comptime f: ZigWriterFn) CWriterFn {
             // this is called by Lua, state should never be null
             var lua: Lua = .{ .state = state.? };
             const buffer = @ptrCast([*]const u8, buf)[0..size];
-            const result = @call(.{ .modifier = .always_inline }, f, .{ &lua, buffer, data.? });
+            const result = @call(.always_inline, f, .{ &lua, buffer, data.? });
             // it makes more sense for the inner writer function to return false for failure,
             // so negate the result here
             return @boolToInt(!result);

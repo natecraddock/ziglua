@@ -48,14 +48,13 @@ pub const Options = struct {
     shared: bool = false,
 };
 
-pub fn linkAndPackage(b: *Builder, step: *LibExeObjStep, options: Options) std.build.Pkg {
+pub fn linkAndPackage(b: *Builder, step: *LibExeObjStep, options: Options) *std.build.Module {
     link(b, step, options);
 
     const lib_path = libPath(options.version);
-    return .{
-        .name = "ziglua",
-        .source = .{ .path = std.fs.path.join(b.allocator, &.{ dir(), lib_path }) catch unreachable },
-    };
+    return b.createModule(.{
+        .source_file = .{ .path = std.fs.path.join(b.allocator, &.{ dir(), lib_path }) catch unreachable },
+    });
 }
 
 // TODO: expose the link and package steps separately for advanced use cases?
@@ -75,14 +74,25 @@ fn buildLua(b: *Builder, step: *LibExeObjStep, options: Options) *LibExeObjStep 
     };
 
     const lua = brk: {
-        if (options.shared) break :brk b.addSharedLibrary("lua", null, .unversioned);
-        break :brk b.addStaticLibrary("lua", null);
+        if (options.shared) break :brk b.addSharedLibrary(.{
+            .name = "lua",
+            .root_source_file = null,
+            .version = null,
+            .target = step.target,
+            .optimize = step.optimize,
+        });
+        break :brk b.addStaticLibrary(.{
+            .name = "lua",
+            .root_source_file = null,
+            .target = step.target,
+            .optimize = step.optimize,
+        });
     };
-    lua.setBuildMode(step.build_mode);
-    lua.setTarget(step.target);
+    // lua.setBuildMode(step.build_mode);
+    // lua.setTarget(step.target);
     lua.linkLibC();
 
-    const apicheck = step.build_mode == .Debug and options.use_apicheck;
+    const apicheck = step.optimize == .Debug and options.use_apicheck;
 
     step.addIncludePath(std.fs.path.join(b.allocator, &.{ dir(), lib_dir }) catch unreachable);
 
