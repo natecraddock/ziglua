@@ -50,14 +50,13 @@ pub const Options = struct {
     shared: bool = false,
 };
 
-pub fn linkAndPackage(b: *Build, step: *CompileStep, options: Options) std.build.Pkg {
+pub fn compileAndCreateModule(b: *Build, step: *CompileStep, options: Options) *std.build.Module {
     link(b, step, options);
 
     const lib_path = libPath(options.version);
-    return .{
-        .name = "ziglua",
-        .source = .{ .path = std.fs.path.join(b.allocator, &.{ dir(), lib_path }) catch unreachable },
-    };
+    return b.createModule(.{
+        .source_file = .{ .path = std.fs.path.join(b.allocator, &.{ dir(), lib_path }) catch unreachable },
+    });
 }
 
 // TODO: expose the link and package steps separately for advanced use cases?
