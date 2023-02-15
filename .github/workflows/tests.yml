@@ -2,22 +2,25 @@ name: tests
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "main" ]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{matrix.os}}
 
     steps:
     - name: Clone Ziglua
       uses: actions/checkout@v3
 
     - name: Setup Zig
-      uses: goto-bus-stop/setup-zig@v1
+      uses: goto-bus-stop/setup-zig@v2
       with:
-        version: 0.10.0
+        version: master
 
     - name: Run tests
       run: make test
