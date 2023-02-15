@@ -2,7 +2,7 @@
 
 [![shield showing current tests status](https://github.com/natecraddock/ziglua/actions/workflows/tests.yml/badge.svg)](https://github.com/natecraddock/ziglua/actions/workflows/tests.yml)
 
-A Zig library that provides a complete and lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, and 5.4 and targets Zig 0.10.0.
+A Zig module that provides a complete and lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, and 5.4 and targets Zig master. The [`zig-0.10.0`](https://github.com/natecraddock/ziglua/tree/zig-0.10.0) branch supports the latest stable Zig, but will only be updated with bugfixes.
 
 Ziglua can be used in two ways, either
 * **embedded** to statically embed the Lua VM in a Zig program,
@@ -32,15 +32,17 @@ If you want something higher-level (but doesn't expose the full API), perhaps tr
 
 ## Getting Started
 
-Adding Ziglua to your project takes only a couple of steps. First add this repo as a git submodule, or copy the source into your project (one day the Zig package manager will make this easier). Then add the following to your `build.zig` file (assuming cloned/copied into a `lib/` subdirectory):
+Currently the Zig package manager is in flux and things may change a lot. This may not be the "best" way, but here's the current install instructions.
+
+First add this repo as a git submodule, or copy the source into your project (one day the Zig package manager will make this easier). Then add the following to your `build.zig` file (assuming cloned/copied into a `lib/` subdirectory):
 
 ```zig
 // use the path to the Ziglua build.zig file
 const ziglua = @import("lib/ziglua/build.zig");
 
-pub fn build(b: *Builder) void {
+pub fn build(b: *std.Build) void {
     ...
-    exe.addPackage(ziglua.linkAndPackage(b, exe, .{}));
+    exe.addModule("ziglua", ziglua.compileAndCreateModule(b, exe, .{}));
 }
 ```
 

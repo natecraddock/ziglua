@@ -110,7 +110,7 @@ Both `lua_pcall` and `lua_pcallk` are expanded to `protectedCall` and `protected
 When integrating Ziglua into your projects, the following two statements are required:
 
 1. `@import()` the `build.zig` file
-2. `addPackage()` the Ziglua api
+2. `addModule()` the Ziglua api
 
 Note that this _must_ be done after setting the target and build mode, otherwise Ziglua will not know that information.
 
@@ -119,13 +119,13 @@ const ziglua = @import("lib/ziglua/build.zig");
 
 pub fn build(b: *Builder) void {
     ...
-    exe.addPackage(ziglua.linkAndPackage(b, exe, .{}));
+    exe.addModule(ziglua.compileAndCreateModule(b, exe, .{}));
 }
 ```
 
 This makes the `ziglua` package available in your project. Access with `@import("ziglua")`.
 
-There are currently three options that can be passed in the third argument to `ziglua.linkAndPackage()`:
+There are currently three options that can be passed in the third argument to `ziglua.compileAndCreateModule()`:
 
 * `.use_apicheck`: defaults to **false**. When **true** defines the macro `LUA_USE_APICHECK` in debug builds. See [The C API docs](https://www.lua.org/manual/5.4/manual.html#4) for more information on this macro.
 
@@ -133,10 +133,10 @@ There are currently three options that can be passed in the third argument to `z
 
 * `.shared`: Defaults to `false` for embedding in a Zig program. Set to `true` to dynamically link the Lua source code (useful for creating shared modules).
 
-For example, here is a `ziglua.linkAndPackage()` call that enables api check and embeds Lua 5.2:
+For example, here is a `ziglua.compileAndCreateModule()` call that enables api check and embeds Lua 5.2:
 
 ```
-exe.addPackage(ziglua.linkAndPackage(b, exe, .{ .use_apicheck = true, .version = .lua_52 }));
+exe.addModule("ziglua", ziglua.compileAndCreateModule(b, exe, .{ .use_apicheck = true, .version = .lua_52 }));
 ```
 
 ## Examples

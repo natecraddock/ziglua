@@ -33,7 +33,7 @@ pub fn build(b: *Build) void {
     });
     link(b, tests, .{ .use_apicheck = true, .version = version });
 
-    const test_step = b.step("test", "Run ziglua library tests");
+    const test_step = b.step("test", "Run ziglua tests");
     test_step.dependOn(&tests.step);
 }
 
