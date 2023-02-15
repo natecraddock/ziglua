@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const Builder = std.build.Builder;
-const LibExeObjStep = std.build.LibExeObjStep;
+const Build = std.Build;
+const CompileStep = std.build.CompileStep;
 
 pub const LuaVersion = enum {
     lua_51,
@@ -20,14 +20,16 @@ fn libPath(version: LuaVersion) []const u8 {
     };
 }
 
-pub fn build(b: *Builder) void {
+pub fn build(b: *Build) void {
     const version = b.option(LuaVersion, "version", "lua version to test") orelse .lua_54;
 
-    const tests = b.addTest(switch (version) {
-        .lua_51 => "src/ziglua-5.1/tests.zig",
-        .lua_52 => "src/ziglua-5.2/tests.zig",
-        .lua_53 => "src/ziglua-5.3/tests.zig",
-        .lua_54 => "src/ziglua-5.4/tests.zig",
+    const tests = b.addTest(.{
+        .root_source_file = switch (version) {
+            .lua_51 => .{ .path = "src/ziglua-5.1/tests.zig" },
+            .lua_52 => .{ .path = "src/ziglua-5.2/tests.zig" },
+            .lua_53 => .{ .path = "src/ziglua-5.3/tests.zig" },
+            .lua_54 => .{ .path = "src/ziglua-5.4/tests.zig" },
+        },
     });
     link(b, tests, .{ .use_apicheck = true, .version = version });
 
@@ -48,7 +50,7 @@ pub const Options = struct {
     shared: bool = false,
 };
 
-pub fn linkAndPackage(b: *Builder, step: *LibExeObjStep, options: Options) std.build.Pkg {
+pub fn linkAndPackage(b: *Build, step: *CompileStep, options: Options) std.build.Pkg {
     link(b, step, options);
 
     const lib_path = libPath(options.version);
@@ -59,14 +61,14 @@ pub fn linkAndPackage(b: *Builder, step: *LibExeObjStep, options: Options) std.b
 }
 
 // TODO: expose the link and package steps separately for advanced use cases?
-fn link(b: *Builder, step: *LibExeObjStep, options: Options) void {
+fn link(b: *Build, step: *CompileStep, options: Options) void {
     const lua = buildLua(b, step, options);
     step.linkLibrary(lua);
 }
 
 // TODO: how to test all versions? May need a make/help script to test all
 // versions separately because there might be name collisions
-fn buildLua(b: *Builder, step: *LibExeObjStep, options: Options) *LibExeObjStep {
+fn buildLua(b: *Build, step: *CompileStep, options: Options) *CompileStep {
     const lib_dir = switch (options.version) {
         .lua_51 => "lib/lua-5.1.5/src/",
         .lua_52 => "lib/lua-5.2.4/src/",
@@ -75,14 +77,22 @@ fn buildLua(b: *Builder, step: *LibExeObjStep, options: Options) *LibExeObjStep 
     };
 
     const lua = brk: {
-        if (options.shared) break :brk b.addSharedLibrary("lua", null, .unversioned);
-        break :brk b.addStaticLibrary("lua", null);
+        if (options.shared) break :brk b.addSharedLibrary(.{
+            .name = "lua",
+            .target = step.target,
+            .optimize = step.optimize,
+        });
+
+        break :brk b.addStaticLibrary(.{
+            .name = "lua",
+            .target = step.target,
+            .optimize = step.optimize,
+        });
     };
-    lua.setBuildMode(step.build_mode);
-    lua.setTarget(step.target);
+
     lua.linkLibC();
 
-    const apicheck = step.build_mode == .Debug and options.use_apicheck;
+    const apicheck = step.optimize == .Debug and options.use_apicheck;
 
     step.addIncludePath(std.fs.path.join(b.allocator, &.{ dir(), lib_dir }) catch unreachable);
 

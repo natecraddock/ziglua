@@ -52,7 +52,7 @@ fn alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callco
             testing.allocator.free(prev_slice);
             return null;
         }
-        const new_ptr = testing.allocator.reallocAdvanced(prev_slice, alignment, nsize, .exact) catch return null;
+        const new_ptr = testing.allocator.realloc(prev_slice, nsize) catch return null;
         return new_ptr.ptr;
     } else if (nsize == 0) {
         return null;
