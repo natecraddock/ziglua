@@ -731,7 +731,7 @@ test "userdata and uservalues" {
     lua.getUserValue(1);
     try expectEqual(LuaType.nil, lua.typeOf(-1));
 
-    try expectEqual(data, ziglua.opaqueCast(Data, try lua.toUserdata(1)));
+    try expectEqual(data, try lua.toUserdata(Data, 1));
     try expectEqual(@ptrCast(*const anyopaque, data), @alignCast(@alignOf(Data), try lua.toPointer(1)));
 }
 

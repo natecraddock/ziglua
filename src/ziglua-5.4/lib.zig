@@ -1143,11 +1143,10 @@ pub const Lua = struct {
         return error.Fail;
     }
 
-    /// If the value at the given `index` is a full userdata, returns its memory-block address
-    /// If the value is a light userdata, returns its value (a pointer)
-    /// Otherwise returns an error
-    pub fn toUserdata(lua: *Lua, index: i32) !*anyopaque {
-        if (c.lua_touserdata(lua.state, index)) |ptr| return ptr;
+    /// Returns a pointer of the given type to the userdata at the given index.
+    /// Works for both full and light userdata. Otherwise returns an error.
+    pub fn toUserdata(lua: *Lua, comptime T: type, index: i32) !*T {
+        if (c.lua_touserdata(lua.state, index)) |ptr| return opaqueCast(T, ptr);
         return error.Fail;
     }
 

@@ -819,7 +819,7 @@ test "userdata and uservalues" {
     try expectError(error.Fail, lua.setIndexUserValue(1, 3));
     try expectError(error.Fail, lua.getIndexUserValue(1, 3));
 
-    try expectEqual(data, ziglua.opaqueCast(Data, try lua.toUserdata(1)));
+    try expectEqual(data, try lua.toUserdata(Data, 1));
     try expectEqual(@ptrCast(*const anyopaque, data), @alignCast(@alignOf(Data), try lua.toPointer(1)));
 }
 
