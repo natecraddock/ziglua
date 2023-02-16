@@ -461,6 +461,12 @@ pub const Lua = struct {
         return c.lua_getallocf(lua.state, @ptrCast([*c]?*anyopaque, data)).?;
     }
 
+    /// Pushes onto the stack the environment table of the value at the given index.
+    /// See https://www.lua.org/manual/5.1/manual.html#lua_getfenv
+    pub fn getFnEnvironment(lua: *Lua, index: i32) void {
+        c.lua_getfenv(lua.state, index);
+    }
+
     /// Pushes onto the stack the value t[key] where t is the value at the given index
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getfield
     pub fn getField(lua: *Lua, index: i32, key: [:0]const u8) void {
@@ -805,6 +811,13 @@ pub const Lua = struct {
     /// Changes the allocator function of a given state to `alloc_fn` with userdata `data`
     pub fn setAllocF(lua: *Lua, alloc_fn: AllocFn, data: ?*anyopaque) void {
         c.lua_setallocf(lua.state, alloc_fn, data);
+    }
+
+    /// Pops a table from the stack and sets it as the new environment for the value at the
+    /// given index. Returns an error if the value at that index is not a function or thread or userdata.
+    /// See https://www.lua.org/manual/5.1/manual.html#setfenv
+    pub fn setFnEnvironment(lua: *Lua, index: i32) !void {
+        if (c.lua_setfenv(lua.state, index) == 0) return error.Fail;
     }
 
     /// Does the equivalent to t[`k`] = v where t is the value at the given `index`

@@ -1116,3 +1116,35 @@ test "refs" {
     _ = Lua.doFile;
     _ = Lua.loadFile;
 }
+
+test "function environments" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    try lua.doString("function test() return x end");
+
+    // set the global _G.x to be 10
+    lua.pushInteger(10);
+    lua.setGlobal("x");
+
+    lua.getGlobal("test");
+    try lua.protectedCall(0, 1, 0);
+    try testing.expectEqual(@as(Integer, 10), lua.toInteger(1));
+    lua.pop(1);
+
+    // now set the functions table to have a different value of x
+    lua.getGlobal("test");
+    lua.newTable();
+    lua.pushInteger(20);
+    lua.setField(2, "x");
+    try lua.setFnEnvironment(1);
+
+    try lua.protectedCall(0, 1, 0);
+    try testing.expectEqual(@as(Integer, 20), lua.toInteger(1));
+    lua.pop(1);
+
+    lua.getGlobal("test");
+    lua.getFnEnvironment(1);
+    lua.getField(2, "x");
+    try testing.expectEqual(@as(Integer, 20), lua.toInteger(3));
+}
