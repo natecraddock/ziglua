@@ -356,6 +356,20 @@ pub const Lua = struct {
         c.lua_concat(lua.state, n);
     }
 
+    /// Calls the C function c_fn in protected mode. The function starts with only one element on its
+    /// stack, the userdata given to this function.
+    /// See https://www.lua.org/manual/5.1/manual.html#lua_cpcall
+    pub fn cProtectedCall(lua: *Lua, c_fn: CFn, userdata: *anyopaque) !void {
+        const ret = c.lua_cpcall(lua.state, c_fn, userdata);
+        switch (ret) {
+            StatusCode.ok => return,
+            StatusCode.err_runtime => return error.Runtime,
+            StatusCode.err_memory => return error.Memory,
+            StatusCode.err_error => return error.MsgHandler,
+            else => unreachable,
+        }
+    }
+
     /// Creates a new empty table and pushes onto the stack
     /// num_arr is a hint for how many elements the table will have as a sequence
     /// num_rec is a hint for how many other elements the table will have

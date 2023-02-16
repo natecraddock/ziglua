@@ -322,6 +322,25 @@ test "calling a function" {
     try expectEqual(@as(i64, 42), lua.toInteger(1));
 }
 
+test "calling a function with cProtectedCall" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    var value: i32 = 1234;
+
+    const testFn = struct {
+        fn inner(l: *Lua) i32 {
+            const passedValue = l.toUserdata(i32, 1) catch unreachable;
+            if (passedValue.* != 1234) unreachable;
+            return 0;
+        }
+    }.inner;
+
+    // cProtectedCall doesn't return values on the stack, so the test just makes
+    // sure things work!
+    try lua.cProtectedCall(ziglua.wrap(testFn), &value);
+}
+
 test "string buffers" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
