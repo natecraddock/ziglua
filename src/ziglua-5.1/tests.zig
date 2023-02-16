@@ -1148,3 +1148,11 @@ test "function environments" {
     lua.getField(2, "x");
     try testing.expectEqual(@as(Integer, 20), lua.toInteger(3));
 }
+
+test "objectLen" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    lua.pushString("lua");
+    try testing.expectEqual(@as(usize, 3), lua.objectLen(-1));
+}

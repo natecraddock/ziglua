@@ -647,6 +647,12 @@ pub const Lua = struct {
         return c.lua_next(lua.state, index) != 0;
     }
 
+    /// Returns the length of the value at the given index
+    /// See https://www.lua.org/manual/5.1/manual.html#lua_objlen
+    pub fn objectLen(lua: *Lua, index: i32) usize {
+        return c.lua_objlen(lua.state, index);
+    }
+
     /// Calls a function (or callable object) in protected mode
     /// NOTE: it might be good to make the args named struct params?
     pub fn protectedCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) !void {
