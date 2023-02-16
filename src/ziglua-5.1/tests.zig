@@ -281,6 +281,21 @@ test "filling and checking the stack" {
     try expectEqual(@as(i32, 40), lua.getTop());
 }
 
+test "comparisions" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    lua.pushInteger(1);
+    lua.pushInteger(2);
+
+    try testing.expect(!lua.equal(1, 2));
+    try testing.expect(lua.lessThan(1, 2));
+
+    lua.pushInteger(2);
+
+    try testing.expect(lua.equal(2, 3));
+}
+
 test "stack manipulation" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();

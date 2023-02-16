@@ -387,6 +387,13 @@ pub const Lua = struct {
         if (c.lua_dump(lua.state, writer, data) != 0) return error.Fail;
     }
 
+    /// Returns true if the two values at the indexes are equal following the semantics of the
+    /// Lua == operator.
+    /// See https://www.lua.org/manual/5.1/manual.html#lua_equal
+    pub fn equal(lua: *Lua, index1: i32, index2: i32) bool {
+        return c.lua_equal(lua.state, index1, index2) == 1;
+    }
+
     /// Raises a Lua error using the value at the top of the stack as the error object
     /// Does a longjump and therefore never returns
     /// See https://www.lua.org/manual/5.4/manual.html#lua_error
@@ -571,6 +578,12 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_isuserdata
     pub fn isUserdata(lua: *Lua, index: i32) bool {
         return c.lua_isuserdata(lua.state, index) != 0;
+    }
+
+    /// Returns true if the value at index1 is smaller than the value at index2, following the
+    /// semantics of the Lua < operator.
+    pub fn lessThan(lua: *Lua, index1: i32, index2: i32) bool {
+        return c.lua_lessthan(lua.state, index1, index2) == 1;
     }
 
     /// Loads a Lua chunk without running it
