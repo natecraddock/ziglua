@@ -1116,7 +1116,12 @@ pub const Lua = struct {
         c.luaL_checkany(lua.state, arg);
     }
 
-    /// Checks whether the function argument `arg` is an integer (or can be converted to an integer) and returns the integer
+    /// Checks whether the function argument `arg` is a number and returns this number cast to an i32
+    /// See https://www.lua.org/manual/5.1/manual.html#luaL_checkint
+    pub fn checkInt(lua: *Lua, arg: i32) i32 {
+        return c.luaL_checkint(lua.state, arg);
+    }
+
     pub fn checkInteger(lua: *Lua, arg: i32) Integer {
         return c.luaL_checkinteger(lua.state, arg);
     }
@@ -1279,6 +1284,13 @@ pub const Lua = struct {
     }
 
     // luaL_opt (a macro) really isn't that useful, so not going to implement for now
+
+    /// If the function argument `arg` is a number, returns this number cast to an i32.
+    /// If the argument is absent or nil returns `default`
+    /// /// See https://www.lua.org/manual/5.1/manual.html#luaL_optint
+    pub fn optInt(lua: *Lua, arg: i32, default: i32) i32 {
+        return c.luaL_optint(lua.state, arg, default);
+    }
 
     /// If the function argument `arg` is an integer, returns the integer
     /// If the argument is absent or nil returns `default`

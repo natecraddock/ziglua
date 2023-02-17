@@ -805,6 +805,7 @@ test "aux check functions" {
     const function = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
             l.checkAny(1);
+            _ = l.checkInt(2);
             _ = l.checkInteger(2);
             _ = l.checkBytes(3);
             _ = l.checkNumber(4);
@@ -921,6 +922,7 @@ test "aux opt functions" {
 
     const function = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
+            expectEqual(@as(i32, 10), l.optInt(1, 10)) catch unreachable;
             expectEqual(@as(Integer, 10), l.optInteger(1, 10)) catch unreachable;
             expectEqualStrings("zig", l.optBytes(2, "zig")) catch unreachable;
             expectEqual(@as(Number, 1.23), l.optNumber(3, 1.23)) catch unreachable;
