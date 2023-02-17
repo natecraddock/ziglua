@@ -1224,8 +1224,7 @@ pub const Lua = struct {
             }
         }
 
-        // NOTE: ptrCast is required because a slice is not supported ziglang/zig/issues/1481
-        return lua.argError(arg, lua.pushFStringEx("invalid option '%s'", .{@ptrCast([*c]const u8, name)}));
+        return lua.argError(arg, lua.pushFStringEx("invalid option '%s'", .{name.ptr}));
     }
 
     /// Grows the stack size to top + `size` elements, raising an error if the stack cannot grow to that size

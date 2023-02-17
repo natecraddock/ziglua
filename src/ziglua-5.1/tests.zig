@@ -987,6 +987,12 @@ test "checkOption" {
     try lua.protectedCall(0, 1, 0);
     try expectEqual(@as(Integer, 1), lua.toInteger(-1));
     lua.pop(1);
+
+    // check the raised error
+    lua.pushFunction(function);
+    lua.pushString("unknown");
+    try expectError(error.Runtime, lua.protectedCall(1, 1, 0));
+    try expectEqualStrings("bad argument #1 to '?' (invalid option 'unknown')", try lua.toBytes(-1));
 }
 
 test "gSub" {
