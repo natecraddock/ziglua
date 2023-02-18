@@ -1463,7 +1463,7 @@ pub const Lua = struct {
 
     /// Creates a copy of string `str`, replacing any occurrence of the string `pat` with the string `rep`
     /// Pushes the resulting string on the stack and returns it.
-    pub fn gSub(lua: *Lua, str: [:0]const u8, pat: [:0]const u8, rep: [:0]const u8) [:0]const u8 {
+    pub fn globalSub(lua: *Lua, str: [:0]const u8, pat: [:0]const u8, rep: [:0]const u8) [:0]const u8 {
         return std.mem.span(c.luaL_gsub(lua.state, str.ptr, pat.ptr, rep.ptr));
     }
 

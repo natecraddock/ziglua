@@ -1321,11 +1321,11 @@ test "checkOption" {
     try expectEqualStrings("bad argument #1 to '?' (invalid option 'unknown')", try lua.toBytes(-1));
 }
 
-test "gSub" {
+test "globalSub" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    _ = lua.gSub("-gity -!", "-", "zig");
+    _ = lua.globalSub("-gity -!", "-", "zig");
     try expectEqualStrings("ziggity zig!", try lua.toBytes(-1));
 }
 
