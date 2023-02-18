@@ -106,7 +106,7 @@ pub const Event = enum(u3) {
 /// Type for arrays of functions to be registered
 pub const FnReg = struct {
     name: [:0]const u8,
-    func: ?CFn,
+    func: CFn,
 };
 
 /// The index of the global environment table
@@ -1407,28 +1407,27 @@ pub const Lua = struct {
     }
 
     /// Opens a library
-    /// TODO: finish this function
-    // pub fn registerFns(lua: *Lua, libname: ?[:0]const u8, funcs: []const FnReg) void {
-    //     if (libname) |name| {
-    //         lua.findTable
-    //     }
-
-    // }
-
-    /// Registers all functions in the array `fns` into the table on the top of the stack
-    /// All functions are created with `num_upvalues` upvalues
-    pub fn setFuncs(lua: *Lua, funcs: []const FnReg, num_upvalues: i32) void {
-        lua.checkStackAux(num_upvalues, "too many upvalues");
-        for (funcs) |f| {
-            if (f.func) |func| {
-                var i: i32 = 0;
-                // copy upvalues to the top
-                while (i < num_upvalues) : (i += 1) lua.pushValue(-num_upvalues);
-                lua.pushClosure(func, num_upvalues);
-            } else lua.pushBoolean(false); // register a placeholder
-            lua.setField(-(num_upvalues + 2), f.name);
+    pub fn registerFns(lua: *Lua, libname: ?[:0]const u8, funcs: []const FnReg) void {
+        // translated from the implementation of luaI_openlib so we can use a slice of
+        // FnReg without requiring a sentinel end value
+        if (libname) |name| {
+            _ = c.luaL_findtable(lua.state, registry_index, "_LOADED", 1);
+            lua.getField(-1, name);
+            if (!lua.isTable(-1)) {
+                lua.pop(1);
+                if (c.luaL_findtable(lua.state, globals_index, name, @intCast(c_int, funcs.len))) |_| {
+                    lua.raiseErrorAux("name conflict for module " ++ c.LUA_QS, .{name.ptr});
+                }
+                lua.pushValue(-1);
+                lua.setField(-3, name);
+            }
+            lua.remove(-2);
+            lua.insert(-1);
         }
-        lua.pop(num_upvalues);
+        for (funcs) |f| {
+            lua.pushFunction(f.func);
+            lua.setField(-2, f.name);
+        }
     }
 
     /// Raises a type error for the argument `arg` of the C function

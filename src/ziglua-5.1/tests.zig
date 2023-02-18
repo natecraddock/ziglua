@@ -395,6 +395,36 @@ test "string buffers" {
     lua.pop(1);
 }
 
+test "function registration" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    // register all functions as part of a table
+    const funcs = [_]ziglua.FnReg{
+        .{ .name = "add", .func = ziglua.wrap(add) },
+    };
+    lua.newTable();
+    lua.registerFns(null, &funcs);
+
+    lua.getField(-1, "add");
+    lua.pushInteger(1);
+    lua.pushInteger(2);
+    try lua.protectedCall(2, 1, 0);
+    try expectEqual(@as(Integer, 3), lua.toInteger(-1));
+    lua.setTop(0);
+
+    // register functions as globals in a library table
+    lua.registerFns("testlib", &funcs);
+
+    // testlib.add(1, 2)
+    lua.getGlobal("testlib");
+    lua.getField(-1, "add");
+    lua.pushInteger(1);
+    lua.pushInteger(2);
+    try lua.protectedCall(2, 1, 0);
+    try expectEqual(@as(Integer, 3), lua.toInteger(-1));
+}
+
 test "panic fn" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
