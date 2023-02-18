@@ -705,8 +705,7 @@ pub const Lua = struct {
     /// Push a formatted string onto the stack and return a pointer to the string
     /// See https://www.lua.org/manual/5.1/manual.html#lua_pushfstring
     pub fn pushFStringEx(lua: *Lua, fmt: [:0]const u8, args: anytype) [*:0]const u8 {
-        const ptr = @call(.auto, c.lua_pushfstring, .{ lua.state, fmt.ptr } ++ args);
-        return @ptrCast([*:0]const u8, ptr);
+        return @call(.auto, c.lua_pushfstring, .{ lua.state, fmt.ptr } ++ args);
     }
 
     /// Pushes an integer with value `n` onto the stack
@@ -1193,7 +1192,7 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_checklstring
     pub fn checkBytes(lua: *Lua, arg: i32) [:0]const u8 {
         var length: usize = 0;
-        const str = c.luaL_checklstring(lua.state, arg, @ptrCast([*c]usize, &length));
+        const str = c.luaL_checklstring(lua.state, arg, &length);
         // luaL_checklstring never returns null (throws lua error)
         return str[0..length :0];
     }
@@ -1558,8 +1557,8 @@ pub const Buffer = struct {
     /// Adds the string to the buffer
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_addlstring
     /// TODO: rename to addBytes
-    pub fn addLString(buf: *Buffer, str: []const u8) void {
-        c.luaL_addlstring(&buf.b, @ptrCast([*c]const u8, str), str.len);
+    pub fn addBytes(buf: *Buffer, str: []const u8) void {
+        c.luaL_addlstring(&buf.b, str.ptr, str.len);
     }
 
     /// Adds to the buffer a string of `length` previously copied to the buffer area

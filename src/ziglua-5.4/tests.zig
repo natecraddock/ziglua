@@ -460,7 +460,7 @@ test "string buffers" {
     try expectEqual(@as(usize, 6), buffer.len());
     try expectEqualStrings("ziglua", buffer.addr());
 
-    buffer.addLString(" api ");
+    buffer.addBytes(" api ");
     try expectEqualStrings("ziglua api ", buffer.addr());
 
     lua.pushNumber(5.4);

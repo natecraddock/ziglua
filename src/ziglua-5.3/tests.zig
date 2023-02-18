@@ -453,7 +453,7 @@ test "string buffers" {
     str[2] = 'a';
     buffer.addSize(3);
 
-    buffer.addLString(" api ");
+    buffer.addBytes(" api ");
     lua.pushNumber(5.4);
     buffer.addValue();
     buffer.sub(4);
