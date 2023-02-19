@@ -991,8 +991,7 @@ pub const Lua = struct {
         c.lua_xmove(lua.state, to.state, num);
     }
 
-    /// This function is equivalent to `Lua.yieldCont()` but has no continuation
-    /// NOTE: look into the lua_yieldk docs about this and debug hooks and noreturn
+    /// Yields a coroutine
     /// See https://www.lua.org/manual/5.1/manual.html#lua_yield
     pub fn yield(lua: *Lua, num_results: i32) noreturn {
         // translate-c failed to pass NULL correctly
@@ -1233,7 +1232,6 @@ pub const Lua = struct {
     }
 
     /// Checks whether the function argument `arg` is a string and returns the string
-    /// TODO: check about lua_tolstring for returning the size
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_checkstring
     pub fn checkString(lua: *Lua, arg: i32) [*:0]const u8 {
         return c.luaL_checklstring(lua.state, arg, null);
@@ -1310,7 +1308,7 @@ pub const Lua = struct {
         }
     }
 
-    /// Equivalent to `Lua.loadFileX()` with mode equal to binary+text
+    /// Loads a file as a Lua chunk
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_loadfile
     pub fn loadFile(lua: *Lua, file_name: [:0]const u8) !void {
         const ret = c.luaL_loadfile(lua.state, file_name.ptr);
@@ -1319,7 +1317,6 @@ pub const Lua = struct {
             StatusCode.err_syntax => return error.Syntax,
             StatusCode.err_memory => return error.Memory,
             err_file => return error.File,
-            // NOTE: the docs mention possible other return types, but I couldn't figure them out
             else => unreachable,
         }
     }
@@ -1620,7 +1617,6 @@ fn TypeOfWrap(comptime T: type) type {
 pub fn wrap(comptime value: anytype) TypeOfWrap(@TypeOf(value)) {
     const T = @TypeOf(value);
     return switch (T) {
-        // NOTE: should most likely be ?*LuaState and value.?
         LuaState => Lua{ .state = value },
         ZigFn => wrapZigFn(value),
         ZigHookFn => wrapZigHookFn(value),
