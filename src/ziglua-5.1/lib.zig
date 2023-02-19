@@ -657,7 +657,6 @@ pub const Lua = struct {
     /// Calls a function (or callable object) in protected mode
     /// See https://www.lua.org/manual/5.1/manual.html#lua_pcall
     pub fn protectedCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) !void {
-        // NOTE: it might be good to make the args named struct params?
         // The translate-c version of lua_pcall does not type-check so we must rewrite it
         // (macros don't always translate well with translate-c)
         const ret = c.lua_pcall(lua.state, num_args, num_results, msg_handler);
@@ -1229,7 +1228,7 @@ pub const Lua = struct {
     /// Grows the stack size to top + `size` elements, raising an error if the stack cannot grow to that size
     /// `msg` is an additional text to go into the error message
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_checkstack
-    pub fn checkStackAux(lua: *Lua, size: i32, msg: ?[*:0]const u8) void {
+    pub fn checkStackErr(lua: *Lua, size: i32, msg: ?[*:0]const u8) void {
         c.luaL_checkstack(lua.state, size, msg);
     }
 
@@ -1272,14 +1271,13 @@ pub const Lua = struct {
 
     /// Raises an error
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_error
-    pub fn raiseErrorAux(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
+    pub fn raiseErrorStr(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
         _ = @call(.auto, c.luaL_error, .{ lua.state, fmt.ptr } ++ args);
         unreachable;
     }
 
     /// Pushes onto the stack the field `e` from the metatable of the object at index `obj`
     /// and returns the type of the pushed value
-    /// TODO: possibly return an error if nil
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_getmetafield
     pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) !LuaType {
         const val_type = @intToEnum(LuaType, c.luaL_getmetafield(lua.state, obj, field.ptr));
@@ -1289,10 +1287,9 @@ pub const Lua = struct {
 
     /// Pushes onto the stack the metatable associated with the name `type_name` in the registry
     /// or nil if there is no metatable associated with that name. Returns the type of the pushed value
-    /// TODO: return error when type is nil?
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_getmetatable
-    pub fn getMetatableAux(lua: *Lua, type_name: [:0]const u8) void {
-        c.luaL_getmetatable(lua.state, type_name);
+    pub fn getMetatableRegistry(lua: *Lua, table_name: [:0]const u8) void {
+        c.luaL_getmetatable(lua.state, table_name);
     }
 
     /// Creates a copy of string `str`, replacing any occurrence of the string `pat` with the string `rep`
@@ -1351,7 +1348,7 @@ pub const Lua = struct {
 
     /// Creates a new Lua state with an allocator using the default libc allocator
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_newstate
-    pub fn newStateAux() !Lua {
+    pub fn newStateLibc() !Lua {
         const state = c.luaL_newstate() orelse return error.Memory;
         return Lua{ .state = state };
     }
@@ -1416,7 +1413,7 @@ pub const Lua = struct {
             if (!lua.isTable(-1)) {
                 lua.pop(1);
                 if (c.luaL_findtable(lua.state, globals_index, name, @intCast(c_int, funcs.len))) |_| {
-                    lua.raiseErrorAux("name conflict for module " ++ c.LUA_QS, .{name.ptr});
+                    lua.raiseErrorStr("name conflict for module " ++ c.LUA_QS, .{name.ptr});
                 }
                 lua.pushValue(-1);
                 lua.setField(-3, name);
@@ -1554,7 +1551,6 @@ pub const Buffer = struct {
 
     /// Adds the string to the buffer
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_addlstring
-    /// TODO: rename to addBytes
     pub fn addBytes(buf: *Buffer, str: []const u8) void {
         c.luaL_addlstring(&buf.b, str.ptr, str.len);
     }

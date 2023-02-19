@@ -1426,7 +1426,7 @@ pub const Lua = struct {
 
     /// Grows the stack size to top + `size` elements, raising an error if the stack cannot grow to that size
     /// `msg` is an additional text to go into the error message
-    pub fn checkStackAux(lua: *Lua, size: i32, msg: ?[*:0]const u8) void {
+    pub fn checkStackErr(lua: *Lua, size: i32, msg: ?[*:0]const u8) void {
         c.luaL_checkstack(lua.state, size, msg);
     }
 
@@ -1469,7 +1469,7 @@ pub const Lua = struct {
     }
 
     /// Raises an error
-    pub fn raiseErrorAux(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
+    pub fn raiseErrorStr(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
         _ = @call(.auto, c.luaL_error, .{ lua.state, fmt.ptr } ++ args);
         unreachable;
     }
@@ -1496,8 +1496,8 @@ pub const Lua = struct {
     /// Pushes onto the stack the metatable associated with the name `type_name` in the registry
     /// or nil if there is no metatable associated with that name. Returns the type of the pushed value
     /// TODO: return error when type is nil?
-    pub fn getMetatableAux(lua: *Lua, type_name: [:0]const u8) LuaType {
-        return @intToEnum(LuaType, c.luaL_getmetatable(lua.state, type_name.ptr));
+    pub fn getMetatableRegistry(lua: *Lua, table_name: [:0]const u8) LuaType {
+        return @intToEnum(LuaType, c.luaL_getmetatable(lua.state, table_name.ptr));
     }
 
     /// Ensures that the value t[`field`], where t is the value at `index`, is a table, and pushes that table onto the stack.
@@ -1513,7 +1513,7 @@ pub const Lua = struct {
 
     /// Returns the "length" of the value at the given index as a number
     /// it is equivalent to the '#' operator in Lua
-    pub fn lenAux(lua: *Lua, index: i32) i64 {
+    pub fn lenRaiseErr(lua: *Lua, index: i32) i64 {
         return c.luaL_len(lua.state, index);
     }
 
@@ -1595,7 +1595,7 @@ pub const Lua = struct {
     }
 
     /// Creates a new Lua state with an allocator using the default libc allocator
-    pub fn newStateAux() !Lua {
+    pub fn newStateLibc() !Lua {
         const state = c.luaL_newstate() orelse return error.Memory;
         return Lua{ .state = state };
     }
@@ -1652,7 +1652,7 @@ pub const Lua = struct {
     /// Registers all functions in the array `fns` into the table on the top of the stack
     /// All functions are created with `num_upvalues` upvalues
     pub fn setFuncs(lua: *Lua, funcs: []const FnReg, num_upvalues: i32) void {
-        lua.checkStackAux(num_upvalues, "too many upvalues");
+        lua.checkStackErr(num_upvalues, "too many upvalues");
         for (funcs) |f| {
             if (f.func) |func| {
                 var i: i32 = 0;
@@ -1667,7 +1667,7 @@ pub const Lua = struct {
 
     /// Sets the metatable of the object on the top of the stack as the metatable associated
     /// with `table_name` in the registry
-    pub fn setMetatableAux(lua: *Lua, table_name: [:0]const u8) void {
+    pub fn setMetatableRegistry(lua: *Lua, table_name: [:0]const u8) void {
         c.luaL_setmetatable(lua.state, table_name.ptr);
     }
 
@@ -1679,7 +1679,7 @@ pub const Lua = struct {
     }
 
     /// Converts any Lua value at the given index into a string in a reasonable format
-    pub fn toBytesAux(lua: *Lua, index: i32) [:0]const u8 {
+    pub fn toBytesFmt(lua: *Lua, index: i32) [:0]const u8 {
         var length: usize = undefined;
         const ptr = c.luaL_tolstring(lua.state, index, &length);
         return ptr[0..length :0];

@@ -86,7 +86,7 @@ test "initialization" {
     try expectError(error.Memory, Lua.newState(failing_alloc, null));
 
     // use the auxiliary library (uses libc realloc and cannot be checked for leaks!)
-    lua = try Lua.newStateAux();
+    lua = try Lua.newStateLibc();
     lua.close();
 }
 
@@ -273,7 +273,7 @@ test "filling and checking the stack" {
     try expectError(error.Fail, lua.checkStack(1_000_000));
 
     // this is small enough it won't fail (would raise an error if it did)
-    lua.checkStackAux(40, null);
+    lua.checkStackErr(40, null);
     while (count < 40) : (count += 1) {
         lua.pushNil();
     }
@@ -1099,7 +1099,7 @@ test "args and errors" {
 
     const raisesError = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
-            l.raiseErrorAux("some error %s!", .{"zig"});
+            l.raiseErrorStr("some error %s!", .{"zig"});
             unreachable;
         }
     }.inner);

@@ -87,7 +87,7 @@ test "initialization" {
     try expectError(error.Memory, Lua.newState(failing_alloc, null));
 
     // use the auxiliary library (uses libc realloc and cannot be checked for leaks!)
-    lua = try Lua.newStateAux();
+    lua = try Lua.newStateLibc();
     lua.close();
 }
 
@@ -346,7 +346,7 @@ test "filling and checking the stack" {
     try expectError(error.Fail, lua.checkStack(1_000_000));
 
     // this is small enough it won't fail (would raise an error if it did)
-    lua.checkStackAux(40, null);
+    lua.checkStackErr(40, null);
     while (count < 40) : (count += 1) {
         lua.pushNil();
     }
@@ -443,7 +443,7 @@ test "string buffers" {
     b = buffer.prep();
     std.mem.copy(u8, b, "defghijklmnopqrstuvwxyz");
     buffer.pushResultSize(23);
-    try expectEqualStrings("abcdefghijklmnopqrstuvwxyz", lua.toBytesAux(-1));
+    try expectEqualStrings("abcdefghijklmnopqrstuvwxyz", lua.toBytesFmt(-1));
     lua.pop(1);
 
     lua.len(-1);
@@ -626,7 +626,7 @@ test "table access" {
         lua.rawSetIndex(-2, index);
     }
     try expectEqual(@as(usize, 5), lua.rawLen(-1));
-    try expectEqual(@as(Integer, 5), lua.lenAux(-1));
+    try expectEqual(@as(Integer, 5), lua.lenRaiseErr(-1));
 
     // add a few more
     while (index <= 10) : (index += 1) {
@@ -1116,7 +1116,7 @@ test "metatables" {
     try lua.doString("f = function() return 10 end");
 
     try lua.newMetatable("mt");
-    _ = lua.getMetatableAux("mt");
+    _ = lua.getMetatableRegistry("mt");
     try expect(lua.compare(1, 2, .eq));
     lua.pop(1);
 
@@ -1125,7 +1125,7 @@ test "metatables" {
     lua.setField(1, "__len");
 
     lua.newTable();
-    lua.setMetatableAux("mt");
+    lua.setMetatableRegistry("mt");
 
     try lua.callMeta(-1, "__len");
     try expectEqual(@as(Number, 10), try lua.toNumber(-1));
@@ -1285,7 +1285,7 @@ test "args and errors" {
 
     const raisesError = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
-            l.raiseErrorAux("some error %s!", .{"zig"});
+            l.raiseErrorStr("some error %s!", .{"zig"});
             unreachable;
         }
     }.inner);
@@ -1361,7 +1361,7 @@ test "userdata" {
 
     {
         var t = lua.newUserdata(Type);
-        lua.setMetatableAux(@typeName(Type));
+        lua.setMetatableRegistry(@typeName(Type));
         t.a = 1234;
         t.b = 3.14;
 
@@ -1392,7 +1392,7 @@ test "userdata" {
 
     {
         var t = lua.newUserdata(Type);
-        lua.setMetatableAux(@typeName(Type));
+        lua.setMetatableRegistry(@typeName(Type));
         t.a = 1234;
         t.b = 3.14;
 
