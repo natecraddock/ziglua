@@ -695,15 +695,9 @@ pub const Lua = struct {
         lua.pushClosure(c_fn, 0);
     }
 
-    /// Push a formatted string onto the stack
-    /// See https://www.lua.org/manual/5.1/manual.html#lua_pushfstring
-    pub fn pushFString(lua: *Lua, fmt: [:0]const u8, args: anytype) void {
-        _ = lua.pushFStringEx(fmt, args);
-    }
-
     /// Push a formatted string onto the stack and return a pointer to the string
     /// See https://www.lua.org/manual/5.1/manual.html#lua_pushfstring
-    pub fn pushFStringEx(lua: *Lua, fmt: [:0]const u8, args: anytype) [*:0]const u8 {
+    pub fn pushFString(lua: *Lua, fmt: [:0]const u8, args: anytype) [*:0]const u8 {
         return @call(.auto, c.lua_pushfstring, .{ lua.state, fmt.ptr } ++ args);
     }
 
@@ -737,30 +731,17 @@ pub const Lua = struct {
         c.lua_pushnumber(lua.state, n);
     }
 
-    /// Pushes a zero-terminated string on to the stack
-    /// See https://www.lua.org/manual/5.1/manual.html#lua_pushstring
-    pub fn pushString(lua: *Lua, str: [:0]const u8) void {
-        _ = lua.pushStringEx(str);
-    }
-
     /// Pushes a zero-terminated string onto the stack
     /// Lua makes a copy of the string so `str` may be freed immediately after return
-    /// Returns a pointer to the internal Lua string
     /// See https://www.lua.org/manual/5.1/manual.html#lua_pushstring
-    pub fn pushStringEx(lua: *Lua, str: [:0]const u8) void {
+    pub fn pushString(lua: *Lua, str: [:0]const u8) void {
         c.lua_pushstring(lua.state, str.ptr);
-    }
-
-    /// Pushes this thread onto the stack
-    /// See https://www.lua.org/manual/5.1/manual.html#lua_pushthread
-    pub fn pushThread(lua: *Lua) void {
-        _ = lua.pushThreadEx();
     }
 
     /// Pushes this thread onto the stack
     /// Returns true if this thread is the main thread of its state
     /// See https://www.lua.org/manual/5.1/manual.html#lua_pushthread
-    pub fn pushThreadEx(lua: *Lua) bool {
+    pub fn pushThread(lua: *Lua) bool {
         return c.lua_pushthread(lua.state) != 0;
     }
 
@@ -1065,15 +1046,9 @@ pub const Lua = struct {
     }
 
     /// Gets information about a local variable
-    /// See https://www.lua.org/manual/5.1/manual.html#lua_getlocal
-    pub fn getLocal(lua: *Lua, info: *DebugInfo, n: i32) !void {
-        _ = try lua.getLocalEx(info, n);
-    }
-
-    /// Gets information about a local variable
     /// Returns the name of the local variable
     /// See https://www.lua.org/manual/5.1/manual.html#lua_getlocal
-    pub fn getLocalEx(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
+    pub fn getLocal(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
         var ar: Debug = undefined;
         ar.i_ci = info.private;
         if (c.lua_getlocal(lua.state, &ar, n)) |name| {
@@ -1107,16 +1082,10 @@ pub const Lua = struct {
     }
 
     /// Sets the value of a local variable
-    /// See https://www.lua.org/manual/5.1/manual.html#lua_setlocal
-    pub fn setLocal(lua: *Lua, info: *DebugInfo, n: i32) !void {
-        _ = try lua.setLocalEx(info, n);
-    }
-
-    /// Sets the value of a local variable
     /// Returns an error when the index is greater than the number of active locals
     /// Returns the name of the local variable
     /// See https://www.lua.org/manual/5.1/manual.html#lua_setlocal
-    pub fn setLocalEx(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
+    pub fn setLocal(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
         var ar: Debug = undefined;
         ar.i_ci = info.private;
         if (c.lua_setlocal(lua.state, &ar, n)) |name| {
@@ -1126,16 +1095,9 @@ pub const Lua = struct {
     }
 
     /// Sets the value of a closure's upvalue
-    /// Returns an error if the upvalu does not exist
-    /// See https://www.lua.org/manual/5.1/manual.html#lua_setupvalue
-    pub fn setUpvalue(lua: *Lua, func_index: i32, n: i32) !void {
-        _ = try lua.setUpvalueEx(func_index, n);
-    }
-
-    /// Sets the value of a closure's upvalue
     /// Returns the name of the upvalue or an error if the upvalue does not exist
     /// See https://www.lua.org/manual/5.1/manual.html#lua_setupvalue
-    pub fn setUpvalueEx(lua: *Lua, func_index: i32, n: i32) ![:0]const u8 {
+    pub fn setUpvalue(lua: *Lua, func_index: i32, n: i32) ![:0]const u8 {
         if (c.lua_setupvalue(lua.state, func_index, n)) |name| {
             return std.mem.span(name);
         }
@@ -1221,7 +1183,7 @@ pub const Lua = struct {
             }
         }
 
-        return lua.argError(arg, lua.pushFStringEx("invalid option '%s'", .{name.ptr}));
+        return lua.argError(arg, lua.pushFString("invalid option '%s'", .{name.ptr}));
     }
 
     /// Grows the stack size to top + `size` elements, raising an error if the stack cannot grow to that size

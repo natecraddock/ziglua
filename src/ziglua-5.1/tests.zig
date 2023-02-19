@@ -166,11 +166,11 @@ test "type of and getting values" {
     lua.pushLightUserdata(&value);
     lua.pushNil();
     lua.pushNumber(0.1);
-    lua.pushThread();
-    lua.pushStringEx("all your codebase are belong to us");
+    _ = lua.pushThread();
+    lua.pushString("all your codebase are belong to us");
     lua.pushFunction(ziglua.wrap(add));
     lua.pushBytes("hello world");
-    lua.pushFString("%s %s %d", .{ "hello", "world", @as(i32, 10) });
+    _ = lua.pushFString("%s %s %d", .{ "hello", "world", @as(i32, 10) });
     lua.pushValue(1);
 
     // test both typeof and is functions
@@ -736,18 +736,18 @@ test "debug interface" {
                 .call => {
                     l.getInfo(.{ .l = true }, i);
                     if (i.current_line.? != 2) panic("Expected line to be 2", .{});
-                    l.getLocal(i, 1) catch unreachable;
+                    _ = l.getLocal(i, 1) catch unreachable;
                     if ((l.toNumber(-1)) != 3) panic("Expected x to equal 3", .{});
                 },
                 .line => if (i.current_line.? == 4) {
                     // modify the value of y to be 0 right before returning
                     l.pushNumber(0);
-                    l.setLocal(i, 2) catch unreachable;
+                    _ = l.setLocal(i, 2) catch unreachable;
                 },
                 .ret => {
                     l.getInfo(.{ .l = true }, i);
                     if (i.current_line.? != 4) panic("Expected line to be 4", .{});
-                    l.getLocal(i, 1) catch unreachable;
+                    _ = l.getLocal(i, 1) catch unreachable;
                     if ((l.toNumber(-1)) != 3) panic("Expected result to equal 3", .{});
                 },
                 else => unreachable,
@@ -793,7 +793,7 @@ test "debug upvalues" {
 
     // now make the function an "add five" function
     lua.pushNumber(5);
-    try lua.setUpvalue(-2, 1);
+    _ = try lua.setUpvalue(-2, 1);
 
     // call the new function (should return 7)
     lua.pushNumber(2);
