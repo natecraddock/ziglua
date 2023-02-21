@@ -443,15 +443,15 @@ pub const Lua = struct {
         return c.lua_gc(lua.state, c.LUA_GCCOUNTB, 0);
     }
 
-    /// Changes the collector to incremental mode
-    /// Returns true if the previous mode was generational
+    /// Sets `pause` as the new value for the pause of the collector
+    /// Returns the previous value of the pause
     /// See https://www.lua.org/manual/5.1/manual.html#lua_gc
     pub fn gcSetPause(lua: *Lua, pause: i32) i32 {
         return c.lua_gc(lua.state, c.LUA_GCSETPAUSE, pause);
     }
 
-    /// Changes the collector to generational mode
-    /// Returns true if the previous mode was incremental
+    /// Sets `multiplier` as the new value for the step multiplier of the collector
+    /// Returns the previous value of the step multiplier
     /// See https://www.lua.org/manual/5.1/manual.html#lua_gc
     pub fn gcSetStepMul(lua: *Lua, multiplier: i32) i32 {
         return c.lua_gc(lua.state, c.LUA_GCSETSTEPMUL, multiplier);
@@ -484,13 +484,6 @@ pub const Lua = struct {
         c.lua_getglobal(lua.state, name.ptr);
     }
 
-    /// Pushes onto the stack the Lua value associated with the full userdata at the given index.
-    /// Returns the type of the pushed value.
-    /// See https://www.lua.org/manual/5.1/manual.html#lua_getuservalue
-    pub fn getUserValue(lua: *Lua, index: i32) void {
-        c.lua_getuservalue(lua.state, index);
-    }
-
     /// If the value at the given index has a metatable, the function pushes that metatable onto the stack
     /// Otherwise an error is returned
     /// See https://www.lua.org/manual/5.1/manual.html#lua_getmetatable
@@ -499,7 +492,6 @@ pub const Lua = struct {
     }
 
     /// Pushes onto the stack the value t[k] where t is the value at the given index and k is the value on the top of the stack
-    /// Returns the type of the pushed value
     /// See https://www.lua.org/manual/5.1/manual.html#lua_gettable
     pub fn getTable(lua: *Lua, index: i32) void {
         c.lua_gettable(lua.state, index);
@@ -656,10 +648,10 @@ pub const Lua = struct {
 
     /// Calls a function (or callable object) in protected mode
     /// See https://www.lua.org/manual/5.1/manual.html#lua_pcall
-    pub fn protectedCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) !void {
+    pub fn protectedCall(lua: *Lua, num_args: i32, num_results: i32, err_func: i32) !void {
         // The translate-c version of lua_pcall does not type-check so we must rewrite it
         // (macros don't always translate well with translate-c)
-        const ret = c.lua_pcall(lua.state, num_args, num_results, msg_handler);
+        const ret = c.lua_pcall(lua.state, num_args, num_results, err_func);
         switch (ret) {
             StatusCode.ok => return,
             StatusCode.err_runtime => return error.Runtime,
