@@ -79,7 +79,7 @@ In general, just replace the "k" with the word "cont". This is just to make the 
 
 ### `lua_error` and `luaL_error`
 
-Because `error` is a reserved word in Zig, these functions have been renamed to `raiseError` and `raiseErrorAux` respectively.
+Because `error` is a reserved word in Zig, these functions have been renamed to `raiseError` and `raiseErrorStr` respectively.
 
 ### `string` vs `lstring`
 

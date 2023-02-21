@@ -28,7 +28,16 @@ In a nutshell, Ziglua is a simple wrapper around the C API you would get by usin
 
 While there are some helper functions added to complement the C API, Ziglua aims to remain low-level. This allows full access to the Lua API through a layer of Zig's improvements over C.
 
-If you want something higher-level (but doesn't expose the full API), perhaps try [zoltan](https://github.com/ranciere/zoltan).
+### Status
+
+The API and tests for all versions of Lua are complete. Documentation is work in progress.
+
+|         | API | Tests | Docs |
+| ------- | --- | ----- | ---- |
+| Lua 5.1 | ✓   | ✓     | ✓    |
+| Lua 5.2 | ✓   | ✓     |      |
+| Lua 5.3 | ✓   | ✓     |      |
+| Lua 5.4 | ✓   | ✓     |      |
 
 ## Getting Started
 
@@ -71,12 +80,6 @@ pub fn main() anyerror!void {
 ```
 
 See [docs.md](https://github.com/natecraddock/ziglua/blob/master/docs.md) for documentation and detailed [examples](https://github.com/natecraddock/ziglua/blob/master/docs.md#examples) of using Ziglua.
-
-## Status
-
-Nearly all functions, types, and constants in the C API have been wrapped in Ziglua. Only a few exceptions have been made when the function doesn't make sense in Zig (like functions using `va_list`).
-
-Nearly all functions have associated Zig tests. Ziglua should be relatively stable and safe to use now, but I am still polishing things and function signatures may change from time to time.
 
 ## Contributing
 
