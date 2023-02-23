@@ -403,7 +403,7 @@ test "version" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    try expectEqual(@as(f64, 502), lua.version().*);
+    try expectEqual(@as(f64, 502), lua.version(false).*);
     lua.checkVersion();
 }
 
@@ -415,10 +415,7 @@ test "string buffers" {
     buffer.init(lua);
 
     buffer.addChar('z');
-    buffer.addChar('i');
-    buffer.addChar('g');
-    buffer.addString("lua");
-    buffer.sub(3);
+    buffer.addString("ig");
 
     var str = buffer.prepSize(3);
     str[0] = 'l';
@@ -427,11 +424,10 @@ test "string buffers" {
     buffer.addSize(3);
 
     buffer.addBytes(" api ");
-    lua.pushNumber(5.4);
+    lua.pushNumber(5.2);
     buffer.addValue();
-    buffer.sub(4);
     buffer.pushResult();
-    try expectEqualStrings("ziglua api", try lua.toBytes(-1));
+    try expectEqualStrings("ziglua api 5.2", try lua.toBytes(-1));
 
     // now test a small buffer
     buffer = undefined;
@@ -561,6 +557,8 @@ test "garbage collector" {
     _ = lua.gcIsRunning();
     _ = lua.gcSetPause(2);
     _ = lua.gcSetStepMul(2);
+    lua.gcSetGenerational();
+    lua.gcSetGenerational();
 }
 
 test "table access" {
@@ -827,7 +825,7 @@ test "raise error" {
 }
 
 fn continuation(l: *Lua) i32 {
-    const ctxOrNull = l.getCtx() catch unreachable;
+    const ctxOrNull = l.getContext() catch unreachable;
     const ctx = ctxOrNull orelse 0;
     if (ctx == 5) {
         _ = l.pushString("done");
@@ -1017,6 +1015,7 @@ test "aux check functions" {
     const function = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
             l.checkAny(1);
+            _ = l.checkInt(2);
             _ = l.checkInteger(2);
             _ = l.checkBytes(3);
             _ = l.checkNumber(4);
@@ -1137,6 +1136,7 @@ test "aux opt functions" {
 
     const function = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
+            expectEqual(@as(Integer, 10), l.optInt(1, 10)) catch unreachable;
             expectEqual(@as(Integer, 10), l.optInteger(1, 10)) catch unreachable;
             expectEqualStrings("zig", l.optBytes(2, "zig")) catch unreachable;
             expectEqual(@as(Number, 1.23), l.optNumber(3, 1.23)) catch unreachable;

@@ -1481,6 +1481,7 @@ pub const Buffer = struct {
     b: LuaBuffer = undefined,
 
     /// Initialize a Lua string buffer
+    /// See https://www.lua.org/manual/5.1/manual.html#luaL_buffinit
     pub fn init(buf: *Buffer, lua: Lua) void {
         c.luaL_buffinit(lua.state, &buf.b);
     }
