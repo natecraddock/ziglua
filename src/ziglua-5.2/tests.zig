@@ -1223,7 +1223,7 @@ test "loadBuffer" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    _ = try lua.loadBuffer("global = 10", "chunkname");
+    _ = try lua.loadBuffer("global = 10", "chunkname", .text);
     try lua.protectedCall(0, ziglua.mult_return, 0);
     lua.getGlobal("global");
     try expectEqual(@as(Integer, 10), try lua.toInteger(-1));
@@ -1409,7 +1409,6 @@ test "refs" {
     // no need to test file loading
     _ = Lua.doFile;
     _ = Lua.loadFile;
-    _ = Lua.loadFileX;
 
     // probably not needed in ziglua
     _ = Lua.execResult;

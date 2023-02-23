@@ -1414,7 +1414,7 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_dofile
     pub fn doFile(lua: *Lua, file_name: [:0]const u8) !void {
         // translate-c failure
-        try lua.loadFile(file_name);
+        try lua.loadFile(file_name, .binary_text);
         try lua.protectedCall(0, mult_return, 0);
     }
 
@@ -1483,15 +1483,9 @@ pub const Lua = struct {
         return c.luaL_len(lua.state, index);
     }
 
-    /// The same as `Lua.loadBufferX` with `mode` set to binary+text
-    /// See https://www.lua.org/manual/5.2/manual.html#luaL_loadbuffer
-    pub fn loadBuffer(lua: *Lua, buf: []const u8, name: [:0]const u8) !void {
-        try lua.loadBufferX(buf, name, .binary_text);
-    }
-
     /// Loads a buffer as a Lua chunk
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_loadbufferx
-    pub fn loadBufferX(lua: *Lua, buf: []const u8, name: [:0]const u8, mode: Mode) !void {
+    pub fn loadBuffer(lua: *Lua, buf: []const u8, name: [:0]const u8, mode: Mode) !void {
         const mode_str = switch (mode) {
             .binary => "b",
             .text => "t",
@@ -1505,15 +1499,9 @@ pub const Lua = struct {
         }
     }
 
-    /// Equivalent to `Lua.loadFileX()` with mode equal to binary+text
-    /// See https://www.lua.org/manual/5.2/manual.html#luaL_loadfile
-    pub fn loadFile(lua: *Lua, file_name: [:0]const u8) !void {
-        try lua.loadFileX(file_name, .binary_text);
-    }
-
     /// Loads a file as a Lua chunk
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_loadfilex
-    pub fn loadFileX(lua: *Lua, file_name: [:0]const u8, mode: Mode) !void {
+    pub fn loadFile(lua: *Lua, file_name: [:0]const u8, mode: Mode) !void {
         const mode_str = switch (mode) {
             .binary => "b",
             .text => "t",
