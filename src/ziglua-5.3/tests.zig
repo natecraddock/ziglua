@@ -430,7 +430,7 @@ test "version" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    try expectEqual(@as(f64, 503), lua.version().*);
+    try expectEqual(@as(f64, 503), lua.version(false).*);
     lua.checkVersion();
 }
 
@@ -442,10 +442,7 @@ test "string buffers" {
     buffer.init(lua);
 
     buffer.addChar('z');
-    buffer.addChar('i');
-    buffer.addChar('g');
-    buffer.addString("lua");
-    buffer.sub(3);
+    buffer.addString("ig");
 
     var str = buffer.prepSize(3);
     str[0] = 'l';
@@ -454,11 +451,10 @@ test "string buffers" {
     buffer.addSize(3);
 
     buffer.addBytes(" api ");
-    lua.pushNumber(5.4);
+    lua.pushNumber(5.3);
     buffer.addValue();
-    buffer.sub(4);
     buffer.pushResult();
-    try expectEqualStrings("ziglua api", try lua.toBytes(-1));
+    try expectEqualStrings("ziglua api 5.3", try lua.toBytes(-1));
 
     // now test a small buffer
     buffer = undefined;
