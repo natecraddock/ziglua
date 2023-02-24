@@ -326,6 +326,7 @@ pub const Lua = struct {
     }
 
     /// Initialize a Lua state with the given allocator
+    /// See https://www.lua.org/manual/5.2/manual.html#lua_newstate
     pub fn init(allocator: Allocator) !Lua {
         // the userdata passed to alloc needs to be a pointer with a consistent address
         // so we allocate an Allocator struct to hold a copy of the allocator's data
@@ -1697,6 +1698,7 @@ pub const Lua = struct {
     /// Opens the specified standard library functions
     /// Behaves like openLibs, but allows specifying which libraries
     /// to expose to the global table rather than all of them
+    /// See https://www.lua.org/manual/5.2/manual.html#luaL_openlibs
     pub fn open(lua: *Lua, libs: Libs) void {
         if (libs.base) lua.requireF("_G", c.luaopen_base, true);
         if (libs.coroutine) lua.requireF(c.LUA_COLIBNAME, c.luaopen_coroutine, true);
@@ -1711,6 +1713,7 @@ pub const Lua = struct {
     }
 
     /// Open all standard libraries
+    /// See https://www.lua.org/manual/5.2/manual.html#luaL_openlibs
     pub fn openLibs(lua: *Lua) void {
         c.luaL_openlibs(lua.state);
     }

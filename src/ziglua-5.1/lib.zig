@@ -296,6 +296,7 @@ pub const Lua = struct {
     }
 
     /// Initialize a Lua state with the given allocator
+    /// See https://www.lua.org/manual/5.1/manual.html#lua_newstate
     pub fn init(allocator: Allocator) !Lua {
         // the userdata passed to alloc needs to be a pointer with a consistent address
         // so we allocate an Allocator struct to hold a copy of the allocator's data
