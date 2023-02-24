@@ -409,7 +409,6 @@ pub const Lua = struct {
     /// Returns false otherwise, or if any index is not valid
     /// See https://www.lua.org/manual/5.2/manual.html#lua_compare
     pub fn compare(lua: *Lua, index1: i32, index2: i32, op: CompareOperator) bool {
-        // TODO: perhaps support gt/ge by swapping args...
         return c.lua_compare(lua.state, index1, index2, @enumToInt(op)) != 0;
     }
 
@@ -1127,7 +1126,6 @@ pub const Lua = struct {
     }
 
     /// This function is equivalent to `Lua.yieldCont()` but has no continuation
-    /// NOTE: look into the lua_yieldk docs about this and debug hooks and noreturn
     /// See https://www.lua.org/manual/5.2/manual.html#lua_yield
     pub fn yield(lua: *Lua, num_results: i32) noreturn {
         // translate-c failed to pass NULL correctly
@@ -1378,7 +1376,6 @@ pub const Lua = struct {
     }
 
     /// Checks whether the function argument `arg` is a string and returns the string
-    /// TODO: check about lua_tolstring for returning the size
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_checkstring
     pub fn checkString(lua: *Lua, arg: i32) [*:0]const u8 {
         return c.luaL_checklstring(lua.state, arg, null);
@@ -1457,8 +1454,7 @@ pub const Lua = struct {
     }
 
     /// Pushes onto the stack the metatable associated with the name `type_name` in the registry
-    /// or nil if there is no metatable associated with that name. Returns the type of the pushed value
-    /// TODO: return error when type is nil?
+    /// or nil if there is no metatable associated with that name.
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_getmetatable
     pub fn getMetatableRegistry(lua: *Lua, table_name: [:0]const u8) void {
         c.luaL_getmetatable(lua.state, table_name.ptr);
@@ -1887,7 +1883,6 @@ fn TypeOfWrap(comptime T: type) type {
 pub fn wrap(comptime value: anytype) TypeOfWrap(@TypeOf(value)) {
     const T = @TypeOf(value);
     return switch (T) {
-        // NOTE: should most likely be ?*LuaState and value.?
         LuaState => Lua{ .state = value },
         ZigFn => wrapZigFn(value),
         ZigHookFn => wrapZigHookFn(value),

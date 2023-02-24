@@ -560,7 +560,6 @@ test "panic fn" {
 
     // just test setting up the panic function
     // it uses longjmp so cannot return here to test
-    // TODO: perhaps a later version of zig can test an expected fail
     const panicFn = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
             _ = l;

@@ -437,7 +437,6 @@ pub const Lua = struct {
     /// Returns false otherwise, or if any index is not valid
     /// See https://www.lua.org/manual/5.4/manual.html#lua_compare
     pub fn compare(lua: *Lua, index1: i32, index2: i32, op: CompareOperator) bool {
-        // TODO: perhaps support gt/ge by swapping args...
         return c.lua_compare(lua.state, index1, index2, @enumToInt(op)) != 0;
     }
 
@@ -777,7 +776,6 @@ pub const Lua = struct {
     }
 
     /// Calls a function (or callable object) in protected mode
-    /// NOTE: it might be good to make the args named struct params?
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pcall
     pub fn protectedCall(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) !void {
         // The translate-c version of lua_pcall does not type-check so we must rewrite it
@@ -1213,7 +1211,6 @@ pub const Lua = struct {
     }
 
     /// This function is equivalent to `Lua.yieldCont()` but has no continuation
-    /// NOTE: look into the lua_yieldk docs about this and debug hooks and noreturn
     /// See https://www.lua.org/manual/5.4/manual.html#lua_yield
     pub fn yield(lua: *Lua, num_results: i32) noreturn {
         // translate-c failed to pass NULL correctly
@@ -1470,7 +1467,6 @@ pub const Lua = struct {
     }
 
     /// Checks whether the function argument `arg` is a string and returns the string
-    /// TODO: check about lua_tolstring for returning the size
     /// See https://www.lua.org/manual/5.4/manual.html#lua_checkstring
     pub fn checkString(lua: *Lua, arg: i32) [*:0]const u8 {
         return c.luaL_checklstring(lua.state, arg, null);
@@ -2005,7 +2001,6 @@ fn TypeOfWrap(comptime T: type) type {
 pub fn wrap(comptime value: anytype) TypeOfWrap(@TypeOf(value)) {
     const T = @TypeOf(value);
     return switch (T) {
-        // NOTE: should most likely be ?*LuaState and value.?
         LuaState => Lua{ .state = value },
         ZigFn => wrapZigFn(value),
         ZigHookFn => wrapZigHookFn(value),
