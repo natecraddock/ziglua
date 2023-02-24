@@ -37,7 +37,7 @@ The API and tests for all versions of Lua are complete. Documentation is work in
 | Lua 5.1 | ✓   | ✓     | ✓    |
 | Lua 5.2 | ✓   | ✓     | ✓    |
 | Lua 5.3 | ✓   | ✓     | ✓    |
-| Lua 5.4 | ✓   | ✓     |      |
+| Lua 5.4 | ✓   | ✓     | ✓    |
 
 I first implemented the Lua 5.4 API, then copied the code and edited for the other Lua versions. I have done my best to ensure accuracy, but if you find any errors please submit an issue or a pull request!
 
