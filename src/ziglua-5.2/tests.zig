@@ -1413,3 +1413,8 @@ test "refs" {
     _ = Lua.execResult;
     _ = Lua.fileResult;
 }
+
+test "ref" {
+    testing.refAllDecls(Lua);
+    testing.refAllDecls(Buffer);
+}

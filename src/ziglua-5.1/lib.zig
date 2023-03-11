@@ -1378,13 +1378,6 @@ pub const Lua = struct {
         }
     }
 
-    /// Raises a type error for the argument `arg` of the C function
-    /// See https://www.lua.org/manual/5.1/manual.html#luaL_typeerror
-    pub fn typeError(lua: *Lua, arg: i32, type_name: [:0]const u8) noreturn {
-        _ = c.luaL_typeerror(lua.state, arg, type_name.ptr);
-        unreachable;
-    }
-
     /// Returns the name of the type of the value at the given `index`
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_typename
     pub fn typeNameIndex(lua: *Lua, index: i32) [:0]const u8 {
