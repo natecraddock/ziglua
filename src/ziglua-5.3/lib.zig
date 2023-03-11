@@ -1177,6 +1177,7 @@ pub const Lua = struct {
     }
 
     /// This function is equivalent to `Lua.yieldCont()` but has no continuation
+    /// This function never returns
     /// NOTE: look into the lua_yieldk docs about this and debug hooks and noreturn
     /// See https://www.lua.org/manual/5.3/manual.html#lua_yield
     pub fn yield(lua: *Lua, num_results: i32) noreturn {
@@ -1186,6 +1187,7 @@ pub const Lua = struct {
     }
 
     /// Yields this coroutine (thread)
+    /// This function never returns
     /// See https://www.lua.org/manual/5.3/manual.html#lua_yieldk
     pub fn yieldCont(lua: *Lua, num_results: i32, ctx: Context, k: CContFn) noreturn {
         _ = c.lua_yieldk(lua.state, num_results, ctx, k);

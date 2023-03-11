@@ -1126,6 +1126,7 @@ pub const Lua = struct {
     }
 
     /// This function is equivalent to `Lua.yieldCont()` but has no continuation
+    /// This function never returns
     /// See https://www.lua.org/manual/5.2/manual.html#lua_yield
     pub fn yield(lua: *Lua, num_results: i32) noreturn {
         // translate-c failed to pass NULL correctly
@@ -1134,6 +1135,7 @@ pub const Lua = struct {
     }
 
     /// Yields this coroutine (thread)
+    /// This function never returns
     /// See https://www.lua.org/manual/5.2/manual.html#lua_yieldk
     pub fn yieldCont(lua: *Lua, num_results: i32, ctx: i32, k: CFn) noreturn {
         _ = c.lua_yieldk(lua.state, num_results, ctx, k);

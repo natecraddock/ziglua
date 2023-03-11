@@ -801,7 +801,7 @@ pub const Lua = struct {
         c.lua_replace(lua.state, index);
     }
 
-    /// Starts and resumes a coroutine in the given thread
+    /// Starts and resumes a coroutine in the thread
     /// See https://www.lua.org/manual/5.1/manual.html#lua_resume
     pub fn resumeThread(lua: *Lua, num_args: i32) !ResumeStatus {
         const thread_status = c.lua_resume(lua.state, num_args);
@@ -966,11 +966,10 @@ pub const Lua = struct {
     }
 
     /// Yields a coroutine
+    /// This function must be used as the return expression of a function
     /// See https://www.lua.org/manual/5.1/manual.html#lua_yield
-    pub fn yield(lua: *Lua, num_results: i32) noreturn {
-        // translate-c failed to pass NULL correctly
-        _ = c.lua_yieldk(lua.state, num_results, 0, null);
-        unreachable;
+    pub fn yield(lua: *Lua, num_results: i32) i32 {
+        return c.lua_yield(lua.state, num_results);
     }
 
     // Debug library functions

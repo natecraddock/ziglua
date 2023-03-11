@@ -697,6 +697,52 @@ test "raise error" {
     try expectEqualStrings("makeError made an error", try lua.toBytes(-1));
 }
 
+test "yielding" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    var thread = lua.newThread();
+    thread.pushFunction(ziglua.wrap(struct {
+        fn inner(l: *Lua) i32 {
+            l.pushInteger(1);
+            return l.yield(1);
+        }
+    }.inner));
+
+    _ = try thread.resumeThread(0);
+    try expectEqual(@as(Integer, 1), thread.toInteger(-1));
+}
+
+test "resuming" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    // here we create a Lua function that will run 5 times, continutally
+    // yielding a count until it finally returns the string "done"
+    var thread = lua.newThread();
+    thread.openLibs();
+    try thread.doString(
+        \\counter = function()
+        \\  coroutine.yield(1)
+        \\  coroutine.yield(2)
+        \\  coroutine.yield(3)
+        \\  coroutine.yield(4)
+        \\  coroutine.yield(5)
+        \\  return "done"
+        \\end
+    );
+    thread.getGlobal("counter");
+
+    var i: i32 = 1;
+    while (i <= 5) : (i += 1) {
+        try expectEqual(ziglua.ResumeStatus.yield, try thread.resumeThread(0));
+        try expectEqual(@as(Integer, i), thread.toInteger(-1));
+        lua.pop(lua.getTop());
+    }
+    try expectEqual(ziglua.ResumeStatus.ok, try thread.resumeThread(0));
+    try expectEqualStrings("done", try thread.toBytes(-1));
+}
+
 test "debug interface" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
