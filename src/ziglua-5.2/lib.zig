@@ -1298,7 +1298,7 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.2/manual.html#lua_argcheck
     pub fn argCheck(lua: *Lua, cond: bool, arg: i32, extra_msg: [:0]const u8) void {
         // translate-c failed
-        if (cond) lua.argError(arg, extra_msg);
+        if (!cond) lua.argError(arg, extra_msg);
     }
 
     /// Raises an error reporting a problem with argument `arg` of the C function that called it

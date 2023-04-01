@@ -1384,7 +1384,7 @@ test "args and errors" {
 
     const argCheck = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
-            l.argCheck(true, 1, "error!");
+            l.argCheck(false, 1, "error!");
             return 0;
         }
     }.inner);
