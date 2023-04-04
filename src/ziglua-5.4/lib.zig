@@ -1404,14 +1404,14 @@ pub const Lua = struct {
 
     /// Checks whether `cond` is true. Raises an error using `Lua.argError()` if not
     /// Possibly never returns
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_argcheck
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_argcheck
     pub fn argCheck(lua: *Lua, cond: bool, arg: i32, extra_msg: [:0]const u8) void {
         // translate-c failed
         if (!cond) lua.argError(arg, extra_msg);
     }
 
     /// Raises an error reporting a problem with argument `arg` of the C function that called it
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_argerror
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_argerror
     pub fn argError(lua: *Lua, arg: i32, extra_msg: [*:0]const u8) noreturn {
         _ = c.luaL_argerror(lua.state, arg, extra_msg);
         unreachable;
@@ -1419,32 +1419,32 @@ pub const Lua = struct {
 
     /// Checks whether `cond` is true. Raises an error using `Lua.typeError()` if not
     /// Possibly never returns
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_argexpected
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_argexpected
     pub fn argExpected(lua: *Lua, cond: bool, arg: i32, type_name: [:0]const u8) void {
         // translate-c failed
         if (cond) lua.typeError(arg, type_name);
     }
 
     /// Calls a metamethod
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_callmeta
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_callmeta
     pub fn callMeta(lua: *Lua, obj: i32, field: [:0]const u8) !void {
         if (c.luaL_callmeta(lua.state, obj, field.ptr) == 0) return error.Fail;
     }
 
     /// Checks whether the function has an argument of any type at position `arg`
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_checkany
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkany
     pub fn checkAny(lua: *Lua, arg: i32) void {
         c.luaL_checkany(lua.state, arg);
     }
 
     /// Checks whether the function argument `arg` is an integer (or can be converted to an integer) and returns the integer
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_checkinteger
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkinteger
     pub fn checkInteger(lua: *Lua, arg: i32) Integer {
         return c.luaL_checkinteger(lua.state, arg);
     }
 
     /// Checks whether the function argument `arg` is a slice of bytes and returns the slice
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_checklstring
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_checklstring
     pub fn checkBytes(lua: *Lua, arg: i32) [:0]const u8 {
         var length: usize = 0;
         const str = c.luaL_checklstring(lua.state, arg, &length);
@@ -1453,7 +1453,7 @@ pub const Lua = struct {
     }
 
     /// Checks whether the function argument `arg` is a number and returns the number
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_checknumber
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_checknumber
     pub fn checkNumber(lua: *Lua, arg: i32) Number {
         return c.luaL_checknumber(lua.state, arg);
     }
@@ -1462,7 +1462,7 @@ pub const Lua = struct {
     /// `default` is used as a default value when not null
     /// Returns the enum value found
     /// Useful for mapping Lua strings to Zig enums
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_checkoption
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkoption
     pub fn checkOption(lua: *Lua, comptime T: type, arg: i32, default: ?T) T {
         const name = blk: {
             if (default) |defaultName| {
@@ -1483,26 +1483,26 @@ pub const Lua = struct {
 
     /// Grows the stack size to top + `size` elements, raising an error if the stack cannot grow to that size
     /// `msg` is an additional text to go into the error message
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_checkstack
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkstack
     pub fn checkStackErr(lua: *Lua, size: i32, msg: ?[*:0]const u8) void {
         c.luaL_checkstack(lua.state, size, msg);
     }
 
     /// Checks whether the function argument `arg` is a string and returns the string
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_checkstring
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkstring
     pub fn checkString(lua: *Lua, arg: i32) [*:0]const u8 {
         return c.luaL_checklstring(lua.state, arg, null);
     }
 
     /// Checks whether the function argument `arg` has type `t`
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_checktype
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_checktype
     pub fn checkType(lua: *Lua, arg: i32, t: LuaType) void {
         c.luaL_checktype(lua.state, arg, @enumToInt(t));
     }
 
     /// Checks whether the function argument `arg` is a userdata of the type `name`
     /// Returns a pointer to the userdata
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_checkudata
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkudata
     pub fn checkUserdata(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) *T {
         // the returned pointer will not be null
         return opaqueCast(T, c.luaL_checkudata(lua.state, arg, name.ptr).?);
@@ -1510,7 +1510,7 @@ pub const Lua = struct {
 
     /// Checks whether the function argument `arg` is a userdata of the type `name`
     /// Returns a Lua-owned userdata slice
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_checkudata
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkudata
     pub fn checkUserdataSlice(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) []T {
         // the returned pointer will not be null
         const ptr = c.luaL_checkudata(lua.state, arg, name.ptr).?;
@@ -1520,13 +1520,13 @@ pub const Lua = struct {
 
     /// Checks whether the code making the call and the Lua library being called are using
     /// the same version of Lua and the same numeric types.
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_checkversion
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkversion
     pub fn checkVersion(lua: *Lua) void {
         return c.luaL_checkversion_(lua.state, c.LUA_VERSION_NUM, c.LUAL_NUMSIZES);
     }
 
     /// Loads and runs the given file
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_dofile
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_dofile
     pub fn doFile(lua: *Lua, file_name: [:0]const u8) !void {
         // translate-c failure
         try lua.loadFile(file_name, .binary_text);
@@ -1534,7 +1534,7 @@ pub const Lua = struct {
     }
 
     /// Loads and runs the given string
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_dostring
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_dostring
     pub fn doString(lua: *Lua, str: [:0]const u8) !void {
         // trnaslate-c failure
         try lua.loadString(str);
@@ -1542,20 +1542,20 @@ pub const Lua = struct {
     }
 
     /// Raises an error
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_error
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_error
     pub fn raiseErrorStr(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
         _ = @call(.auto, c.luaL_error, .{ lua.state, fmt.ptr } ++ args);
         unreachable;
     }
 
     /// This function produces the return values for process-related functions in the standard library
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_execresult
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_execresult
     pub fn execResult(lua: *Lua, stat: i32) i32 {
         return c.luaL_execresult(lua.state, stat);
     }
 
     /// This function produces the return values for file-related functions in the standard library
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_fileresult
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_fileresult
     pub fn fileResult(lua: *Lua, stat: i32, file_name: [:0]const u8) i32 {
         return c.luaL_fileresult(lua.state, stat, file_name.ptr);
     }
@@ -1563,7 +1563,7 @@ pub const Lua = struct {
     /// Pushes onto the stack the field `e` from the metatable of the object at index `obj`
     /// and returns the type of the pushed value
     /// TODO: possibly return an error if nil
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_getmetafield
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_getmetafield
     pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) !LuaType {
         const val_type = @intToEnum(LuaType, c.luaL_getmetafield(lua.state, obj, field.ptr));
         if (val_type == .nil) return error.Fail;
@@ -1573,33 +1573,33 @@ pub const Lua = struct {
     /// Pushes onto the stack the metatable associated with the name `type_name` in the registry
     /// or nil if there is no metatable associated with that name. Returns the type of the pushed value
     /// TODO: return error when type is nil?
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_getmetatable
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_getmetatable
     pub fn getMetatableRegistry(lua: *Lua, table_name: [:0]const u8) LuaType {
         return @intToEnum(LuaType, c.luaL_getmetatable(lua.state, table_name.ptr));
     }
 
     /// Ensures that the value t[`field`], where t is the value at `index`, is a table, and pushes that table onto the stack.
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_getsubtable
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_getsubtable
     pub fn getSubtable(lua: *Lua, index: i32, field: [:0]const u8) !void {
         if (c.luaL_getsubtable(lua.state, index, field.ptr) == 0) return error.Fail;
     }
 
     /// Creates a copy of string `str`, replacing any occurrence of the string `pat` with the string `rep`
     /// Pushes the resulting string on the stack and returns it.
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_gsub
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_gsub
     pub fn globalSub(lua: *Lua, str: [:0]const u8, pat: [:0]const u8, rep: [:0]const u8) [:0]const u8 {
         return std.mem.span(c.luaL_gsub(lua.state, str.ptr, pat.ptr, rep.ptr));
     }
 
     /// Returns the "length" of the value at the given index as a number
     /// it is equivalent to the '#' operator in Lua
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_len
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_len
     pub fn lenRaiseErr(lua: *Lua, index: i32) i64 {
         return c.luaL_len(lua.state, index);
     }
 
     /// Loads a buffer as a Lua chunk
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_loadbufferx
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_loadbufferx
     pub fn loadBuffer(lua: *Lua, buf: []const u8, name: [:0]const u8, mode: Mode) !void {
         const mode_str = switch (mode) {
             .binary => "b",
@@ -1615,7 +1615,7 @@ pub const Lua = struct {
     }
 
     /// Loads a file as a Lua chunk
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_loadfilex
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_loadfilex
     pub fn loadFile(lua: *Lua, file_name: [:0]const u8, mode: Mode) !void {
         const mode_str = switch (mode) {
             .binary => "b",
@@ -1634,7 +1634,7 @@ pub const Lua = struct {
     }
 
     /// Loads a string as a Lua chunk
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_loadstring
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_loadstring
     pub fn loadString(lua: *Lua, str: [:0]const u8) !void {
         const ret = c.luaL_loadstring(lua.state, str.ptr);
         switch (ret) {
@@ -1649,7 +1649,7 @@ pub const Lua = struct {
     }
 
     /// Creates a new table and registers there the functions in `list`
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_newlib
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_newlib
     pub fn newLib(lua: *Lua, list: []const FnReg) void {
         // translate-c failure
         lua.checkVersion();
@@ -1658,7 +1658,7 @@ pub const Lua = struct {
     }
 
     /// Creates a new table with a size optimized to store all entries in the array `list`
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_newlibtable
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_newlibtable
     pub fn newLibTable(lua: *Lua, list: []const FnReg) void {
         // translate-c failure
         lua.createTable(0, @intCast(i32, list.len));
@@ -1666,13 +1666,13 @@ pub const Lua = struct {
 
     /// If the registry already has the key `key`, returns an error
     /// Otherwise, creates a new table to be used as a metatable for userdata
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_newmetatable
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_newmetatable
     pub fn newMetatable(lua: *Lua, key: [:0]const u8) !void {
         if (c.luaL_newmetatable(lua.state, key.ptr) == 0) return error.Fail;
     }
 
     /// Creates a new Lua state with an allocator using the default libc allocator
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_newstate
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_newstate
     pub fn newStateLibc() !Lua {
         const state = c.luaL_newstate() orelse return error.Memory;
         return Lua{ .state = state };
@@ -1682,14 +1682,14 @@ pub const Lua = struct {
 
     /// If the function argument `arg` is an integer, returns the integer
     /// If the argument is absent or nil returns `default`
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_optinteger
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_optinteger
     pub fn optInteger(lua: *Lua, arg: i32, default: Integer) Integer {
         return c.luaL_optinteger(lua.state, arg, default);
     }
 
     /// If the function argument `arg` is a slice of bytes, returns the slice
     /// If the argument is absent or nil returns `default`
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_optlstring
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_optlstring
     pub fn optBytes(lua: *Lua, arg: i32, default: [:0]const u8) [:0]const u8 {
         var length: usize = 0;
         // will never return null because default cannot be null
@@ -1700,28 +1700,28 @@ pub const Lua = struct {
 
     /// If the function argument `arg` is a number, returns the number
     /// If the argument is absent or nil returns `default`
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_optnumber
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_optnumber
     pub fn optNumber(lua: *Lua, arg: i32, default: Number) Number {
         return c.luaL_optnumber(lua.state, arg, default);
     }
 
     /// If the function argument `arg` is a string, returns the string
     /// If the argment is absent or nil returns `default`
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_optstring
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_optstring
     pub fn optString(lua: *Lua, arg: i32, default: [:0]const u8) [*:0]const u8 {
         // translate-c error
         return c.luaL_optlstring(lua.state, arg, default.ptr, null);
     }
 
     /// Pushes the fail value onto the stack
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_pushfail
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_pushfail
     pub fn pushFail(lua: *Lua) void {
         c.luaL_pushfail(lua.state);
     }
 
     /// Creates and returns a reference in the table at index `index` for the object on the top of the stack
     /// Pops the object
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_ref
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_ref
     pub fn ref(lua: *Lua, index: i32) !i32 {
         const ret = c.luaL_ref(lua.state, index);
         return if (ret == ref_nil) error.Fail else ret;
@@ -1729,14 +1729,14 @@ pub const Lua = struct {
 
     /// If package.loaded[`mod_name`] is not true, calls the function `open_fn` with `mod_name`
     /// as an argument and sets the call result to package.loaded[`mod_name`]
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_requiref
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_requiref
     pub fn requireF(lua: *Lua, mod_name: [:0]const u8, open_fn: CFn, global: bool) void {
         c.luaL_requiref(lua.state, mod_name.ptr, open_fn, @boolToInt(global));
     }
 
     /// Registers all functions in the array `fns` into the table on the top of the stack
     /// All functions are created with `num_upvalues` upvalues
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_setfuncs
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_setfuncs
     pub fn setFuncs(lua: *Lua, funcs: []const FnReg, num_upvalues: i32) void {
         lua.checkStackErr(num_upvalues, "too many upvalues");
         for (funcs) |f| {
@@ -1753,13 +1753,13 @@ pub const Lua = struct {
 
     /// Sets the metatable of the object on the top of the stack as the metatable associated
     /// with `table_name` in the registry
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_setmetatable
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_setmetatable
     pub fn setMetatableRegistry(lua: *Lua, table_name: [:0]const u8) void {
         c.luaL_setmetatable(lua.state, table_name.ptr);
     }
 
     /// This function works like `Lua.checkUserdata()` except it returns a Zig error instead of raising a Lua error on fail
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_testudata
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_testudata
     pub fn testUserdata(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) !*T {
         if (c.luaL_testudata(lua.state, arg, name.ptr)) |ptr| {
             return opaqueCast(T, ptr);
@@ -1776,7 +1776,7 @@ pub const Lua = struct {
     }
 
     /// Converts any Lua value at the given index into a string in a reasonable format
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_tolstring
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_tolstring
     pub fn toBytesFmt(lua: *Lua, index: i32) [:0]const u8 {
         var length: usize = undefined;
         const ptr = c.luaL_tolstring(lua.state, index, &length);
@@ -1784,33 +1784,33 @@ pub const Lua = struct {
     }
 
     /// Creates and pushes a traceback of the stack of `other`
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_traceback
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_traceback
     pub fn traceback(lua: *Lua, other: *Lua, msg: [:0]const u8, level: i32) void {
         c.luaL_traceback(lua.state, other.state, msg.ptr, level);
     }
 
     /// Raises a type error for the argument `arg` of the C function that called it
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_typeerror
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_typeerror
     pub fn typeError(lua: *Lua, arg: i32, type_name: [:0]const u8) noreturn {
         _ = c.luaL_typeerror(lua.state, arg, type_name.ptr);
         unreachable;
     }
 
     /// Returns the name of the type of the value at the given `index`
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_typename
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_typename
     pub fn typeNameIndex(lua: *Lua, index: i32) [:0]const u8 {
         return std.mem.span(c.luaL_typename(lua.state, index));
     }
 
     /// Releases the reference `r` from the table at index `index`
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_unref
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_unref
     pub fn unref(lua: *Lua, index: i32, r: i32) void {
         c.luaL_unref(lua.state, index, r);
     }
 
     /// Pushes onto the stack a string identifying the current position of the control
     /// at the call stack `level`
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_where
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_where
     pub fn where(lua: *Lua, level: i32) void {
         c.luaL_where(lua.state, level);
     }
@@ -1820,7 +1820,7 @@ pub const Lua = struct {
     /// Opens the specified standard library functions
     /// Behaves like openLibs, but allows specifying which libraries
     /// to expose to the global table rather than all of them
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_openlibs
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_openlibs
     pub fn open(lua: *Lua, libs: Libs) void {
         if (libs.base) lua.requireF(c.LUA_GNAME, c.luaopen_base, true);
         if (libs.coroutine) lua.requireF(c.LUA_COLIBNAME, c.luaopen_coroutine, true);
@@ -1835,7 +1835,7 @@ pub const Lua = struct {
     }
 
     /// Open all standard libraries
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_openlibs
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_openlibs
     pub fn openLibs(lua: *Lua) void {
         c.luaL_openlibs(lua.state);
     }
@@ -1897,13 +1897,13 @@ pub const Buffer = struct {
     b: LuaBuffer = undefined,
 
     /// Initialize a Lua string buffer
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_buffinit
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_buffinit
     pub fn init(buf: *Buffer, lua: Lua) void {
         c.luaL_buffinit(lua.state, &buf.b);
     }
 
     /// Initialize a Lua string buffer with an initial size
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_buffinitsize
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_buffinitsize
     pub fn initSize(buf: *Buffer, lua: Lua, size: usize) []u8 {
         return c.luaL_buffinitsize(lua.state, &buf.b, size)[0..size];
     }
@@ -1914,7 +1914,7 @@ pub const Buffer = struct {
     pub const buffer_size = c.LUAL_BUFFERSIZE;
 
     /// Adds `byte` to the buffer
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_addchar
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_addchar
     pub fn addChar(buf: *Buffer, byte: u8) void {
         // could not be translated by translate-c
         var lua_buf = &buf.b;
@@ -1924,19 +1924,19 @@ pub const Buffer = struct {
     }
 
     /// Adds a copy of the string `str` to the buffer
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_addgsub
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_addgsub
     pub fn addGSub(buf: *Buffer, str: [:0]const u8, pat: [:0]const u8, rep: [:0]const u8) void {
         c.luaL_addgsub(&buf.b, str.ptr, pat.ptr, rep.ptr);
     }
 
     /// Adds the string to the buffer
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_addlstring
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_addlstring
     pub fn addBytes(buf: *Buffer, str: []const u8) void {
         c.luaL_addlstring(&buf.b, str.ptr, str.len);
     }
 
     /// Adds to the buffer a string of `length` previously copied to the buffer area
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_addsize
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_addsize
     pub fn addSize(buf: *Buffer, length: usize) void {
         // another function translate-c couldn't handle
         // c.luaL_addsize(&buf.b, length);
@@ -1945,35 +1945,35 @@ pub const Buffer = struct {
     }
 
     /// Adds the zero-terminated string pointed to by `str` to the buffer
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_addstring
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_addstring
     pub fn addString(buf: *Buffer, str: [:0]const u8) void {
         c.luaL_addstring(&buf.b, str.ptr);
     }
 
     /// Adds the value on the top of the stack to the buffer
     /// Pops the value
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_addvalue
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_addvalue
     pub fn addValue(buf: *Buffer) void {
         c.luaL_addvalue(&buf.b);
     }
 
     /// Returns a slice of the current content of the buffer
     /// Any changes to the buffer may invalidate this slice
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_buffaddr
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_buffaddr
     pub fn addr(buf: *Buffer) []u8 {
         const length = buf.b.n;
         return c.luaL_buffaddr(&buf.b)[0..length];
     }
 
     /// Returns the length of the buffer
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_bufflen
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_bufflen
     pub fn len(buf: *Buffer) usize {
         return c.luaL_bufflen(&buf.b);
     }
 
     /// Removes `num` bytes from the buffer
     /// TODO: perhaps error check?
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_buffsub
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_buffsub
     pub fn sub(buf: *Buffer, num: usize) void {
         // Another bug with translate-c
         // c.luaL_buffsub(&buf.b, num);
@@ -1982,7 +1982,7 @@ pub const Buffer = struct {
     }
 
     /// Equivalent to prepSize with a buffer size of Buffer.buffer_size
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_prepbuffer
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_prepbuffer
     pub fn prep(buf: *Buffer) []u8 {
         return buf.prepSize(buffer_size)[0..buffer_size];
     }
@@ -1990,19 +1990,19 @@ pub const Buffer = struct {
     /// Returns an address to a space of `size` where you can copy a string
     /// to be added to the buffer
     /// you must call `Buffer.addSize` to actually add it to the buffer
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_prepbuffsize
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_prepbuffsize
     pub fn prepSize(buf: *Buffer, size: usize) []u8 {
         return c.luaL_prepbuffsize(&buf.b, size)[0..size];
     }
 
     /// Finishes the use of the buffer leaving the final string on the top of the stack
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_pushresult
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_pushresult
     pub fn pushResult(buf: *Buffer) void {
         c.luaL_pushresult(&buf.b);
     }
 
     /// Equivalent to `Buffer.addSize()` followed by `Buffer.pushResult()`
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_pushresultsize
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_pushresultsize
     pub fn pushResultSize(buf: *Buffer, size: usize) void {
         c.luaL_pushresultsize(&buf.b, size);
     }
