@@ -747,15 +747,23 @@ pub const Lua = struct {
         return .{ .state = state };
     }
 
-    /// This function creates and pushes a new full userdata onto the stack
-    /// with upvalues associated Lua values, plus an associated block of raw memory with size bytes
-    /// Returns the address of the block of memory
+    /// This function allocates a new userdata of the given type with user_values associated Lua values.
+    /// Returns a pointer to the Lua-owned data
     /// See https://www.lua.org/manual/5.4/manual.html#lua_newuserdatauv
-    pub fn newUserdata(lua: *Lua, comptime T: type, upvalues: i32) *T {
+    pub fn newUserdata(lua: *Lua, comptime T: type, user_values: i32) *T {
         // safe to .? because this function throws a Lua error on out of memory
         // so the returned pointer should never be null
-        const ptr = c.lua_newuserdatauv(lua.state, @sizeOf(T), upvalues).?;
+        const ptr = c.lua_newuserdatauv(lua.state, @sizeOf(T), user_values).?;
         return opaqueCast(T, ptr);
+    }
+
+    /// This function creates and pushes a slice of full userdata onto the stack with user_values associated Lua values.
+    /// Returns a slice to the Lua-owned data.
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_newuserdatauv
+    pub fn newUserdataSlice(lua: *Lua, comptime T: type, size: usize, user_values: i32) []T {
+        // safe to .? because this function throws a Lua error on out of memory
+        const ptr = c.lua_newuserdatauv(lua.state, @sizeOf(T) * size, user_values).?;
+        return @ptrCast([*]T, @alignCast(@alignOf([*]T), ptr))[0..size];
     }
 
     /// Pops a key from the stack, and pushes a key-value pair from the table at the given index
@@ -1164,11 +1172,23 @@ pub const Lua = struct {
         return error.Fail;
     }
 
-    /// Returns a pointer of the given type to the userdata at the given index.
-    /// Works for both full and light userdata. Otherwise returns an error.
+    /// Returns a Lua-owned userdata pointer of the given type at the given index.
+    /// Works for both light and full userdata.
+    /// Returns an error if the value is not a userdata.
     /// See https://www.lua.org/manual/5.4/manual.html#lua_touserdata
     pub fn toUserdata(lua: *Lua, comptime T: type, index: i32) !*T {
         if (c.lua_touserdata(lua.state, index)) |ptr| return opaqueCast(T, ptr);
+        return error.Fail;
+    }
+
+    /// Returns a Lua-owned userdata slice of the given type at the given index.
+    /// Returns an error if the value is not a userdata.
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_touserdata
+    pub fn toUserdataSlice(lua: *Lua, comptime T: type, index: i32) ![]T {
+        if (c.lua_touserdata(lua.state, index)) |ptr| {
+            const size = lua.rawLen(index) / @sizeOf(T);
+            return @ptrCast([*]T, @alignCast(@alignOf([*]T), ptr))[0..size];
+        }
         return error.Fail;
     }
 
@@ -1480,12 +1500,22 @@ pub const Lua = struct {
         c.luaL_checktype(lua.state, arg, @enumToInt(t));
     }
 
-    /// Checks whether the function argument `arg` is a userdata of the type `type_name`
-    /// Returns the userdata's memory-block address
+    /// Checks whether the function argument `arg` is a userdata of the type `name`
+    /// Returns a pointer to the userdata
     /// See https://www.lua.org/manual/5.4/manual.html#lua_checkudata
-    pub fn checkUserdata(lua: *Lua, comptime T: type, arg: i32) *T {
+    pub fn checkUserdata(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) *T {
         // the returned pointer will not be null
-        return opaqueCast(T, c.luaL_checkudata(lua.state, arg, @typeName(T)).?);
+        return opaqueCast(T, c.luaL_checkudata(lua.state, arg, name.ptr).?);
+    }
+
+    /// Checks whether the function argument `arg` is a userdata of the type `name`
+    /// Returns a Lua-owned userdata slice
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_checkudata
+    pub fn checkUserdataSlice(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) []T {
+        // the returned pointer will not be null
+        const ptr = c.luaL_checkudata(lua.state, arg, name.ptr).?;
+        const size = lua.rawLen(arg) / @sizeOf(T);
+        return @ptrCast([*]T, @alignCast(@alignOf([*]T), ptr))[0..size];
     }
 
     /// Checks whether the code making the call and the Lua library being called are using
@@ -1730,9 +1760,18 @@ pub const Lua = struct {
 
     /// This function works like `Lua.checkUserdata()` except it returns a Zig error instead of raising a Lua error on fail
     /// See https://www.lua.org/manual/5.4/manual.html#lua_testudata
-    pub fn testUserdata(lua: *Lua, comptime T: type, arg: i32) !*T {
-        if (c.luaL_testudata(lua.state, arg, @typeName(T))) |ptr| {
+    pub fn testUserdata(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) !*T {
+        if (c.luaL_testudata(lua.state, arg, name.ptr)) |ptr| {
             return opaqueCast(T, ptr);
+        } else return error.Fail;
+    }
+
+    /// This function works like `Lua.checkUserdataSlice()` except it returns a Zig error instead of raising a Lua error on fail
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkudata
+    pub fn testUserdataSlice(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) ![]T {
+        if (c.luaL_testudata(lua.state, arg, name.ptr)) |ptr| {
+            const size = lua.rawLen(arg) / @sizeOf(T);
+            return @ptrCast([*]T, @alignCast(@alignOf([*]T), ptr))[0..size];
         } else return error.Fail;
     }
 

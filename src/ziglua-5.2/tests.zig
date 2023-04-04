@@ -1339,11 +1339,11 @@ test "userdata" {
     defer lua.deinit();
 
     const Type = struct { a: i32, b: f32 };
-    try lua.newMetatable(@typeName(Type));
+    try lua.newMetatable("Type");
 
     const checkUdata = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
-            const ptr = l.checkUserdata(Type, 1);
+            const ptr = l.checkUserdata(Type, 1, "Type");
             if (ptr.a != 1234) {
                 _ = l.pushBytes("error!");
                 l.raiseError();
@@ -1360,7 +1360,7 @@ test "userdata" {
 
     {
         var t = lua.newUserdata(Type);
-        lua.setMetatableRegistry(@typeName(Type));
+        lua.setMetatableRegistry("Type");
         t.a = 1234;
         t.b = 3.14;
 
@@ -1371,7 +1371,7 @@ test "userdata" {
 
     const testUdata = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
-            const ptr = l.testUserdata(Type, 1) catch {
+            const ptr = l.testUserdata(Type, 1, "Type") catch {
                 _ = l.pushBytes("error!");
                 l.raiseError();
             };
@@ -1391,7 +1391,7 @@ test "userdata" {
 
     {
         var t = lua.newUserdata(Type);
-        lua.setMetatableRegistry(@typeName(Type));
+        lua.setMetatableRegistry("Type");
         t.a = 1234;
         t.b = 3.14;
 
@@ -1399,6 +1399,38 @@ test "userdata" {
         // correct metatable and values
         try lua.protectedCall(1, 0, 0);
     }
+}
+
+test "userdata slices" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    try lua.newMetatable("FixedArray");
+
+    // create an array of 10
+    const slice = lua.newUserdataSlice(Integer, 10);
+    lua.setMetatableRegistry("FixedArray");
+    for (slice, 1..) |*item, index| {
+        item.* = @intCast(Integer, index);
+    }
+
+    const udataFn = struct {
+        fn inner(l: *Lua) i32 {
+            _ = l.checkUserdataSlice(Integer, 1, "FixedArray");
+            _ = l.testUserdataSlice(Integer, 1, "FixedArray") catch unreachable;
+            const arr = l.toUserdataSlice(Integer, 1) catch unreachable;
+            for (arr, 1..) |item, index| {
+                if (item != index) l.raiseErrorStr("something broke!", .{});
+            }
+
+            return 0;
+        }
+    }.inner;
+
+    lua.pushFunction(ziglua.wrap(udataFn));
+    lua.pushValue(2);
+
+    try lua.protectedCall(1, 0, 0);
 }
 
 test "refs" {
