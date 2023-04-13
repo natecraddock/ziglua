@@ -66,13 +66,12 @@ pub fn build(b: *Build) void {
         lib.addCSourceFile(path, &flags);
     }
     lib.linkLibC();
-    lib.install();
+    b.installArtifact(lib);
     lib.installHeader(b.pathJoin(&.{ lib_dir, "lua.h" }), "lua/lua.h");
     lib.installHeader(b.pathJoin(&.{ lib_dir, "lualib.h" }), "lua/lualib.h");
     lib.installHeader(b.pathJoin(&.{ lib_dir, "lauxlib.h" }), "lua/lauxlib.h");
 
-    b.addModule(.{
-        .name = "ziglua",
+    _ = b.addModule("ziglua", .{
         .source_file = switch (lua_version) {
             .lua_51 => .{ .path = "src/ziglua-5.1/lib.zig" },
             .lua_52 => .{ .path = "src/ziglua-5.2/lib.zig" },
