@@ -750,7 +750,7 @@ test "dump and load" {
     try lua.dump(ziglua.wrap(writer), &buffer, false);
 
     // clear the stack
-    try lua.resetThread();
+    try lua.closeThread(lua);
 
     const reader = struct {
         fn inner(l: *Lua, data: *anyopaque) ?[]const u8 {

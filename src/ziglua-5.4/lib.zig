@@ -432,6 +432,18 @@ pub const Lua = struct {
         c.lua_closeslot(lua.state, index);
     }
 
+    /// Resets a thread, cleaning its call stack and closing all pending to-be-closed variables.
+    /// Returns a status code: LUA_OK for no errors in the thread, or an error status otherwise.
+    /// In case of error, leaves the error object on the top of the stack.
+    /// The parameter from represents the coroutine that is resetting L.
+    /// If there is no such coroutine, this parameter can be NULL.
+    /// (This function was introduced in release 5.4.6.)
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_closethread
+    pub fn closeThread(lua: *Lua, from: ?Lua) !void {
+        if (c.lua_closethread(lua.state, if (from) |f| f.state else null) != StatusCode.ok) return error.Fail;
+    }
+
+
     /// Compares two Lua values
     /// Returns true if the value at index1 satisisfies the comparison with the value at index2
     /// Returns false otherwise, or if any index is not valid
@@ -987,11 +999,10 @@ pub const Lua = struct {
         lua.pop(1);
     }
 
-    /// Resets a thread, cleaning its call stack and closing all pending to-be-closed variables
-    /// Returns an error if an error occured and leaves an error object on top of the stack
+    /// This function is deprecated; it is equivalent to closeThread() with from being null.
     /// See https://www.lua.org/manual/5.4/manual.html#lua_resetthread
     pub fn resetThread(lua: *Lua) !void {
-        if (c.lua_resetthread(lua.state) != StatusCode.ok) return error.Fail;
+        return lua.closeThread(null);
     }
 
     /// Starts and resumes a coroutine in the given thread
