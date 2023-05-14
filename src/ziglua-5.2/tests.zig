@@ -1446,7 +1446,7 @@ test "refs" {
     _ = Lua.fileResult;
 }
 
-test "ref" {
+test {
     testing.refAllDecls(Lua);
     testing.refAllDecls(Buffer);
 }

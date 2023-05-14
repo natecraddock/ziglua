@@ -1273,7 +1273,7 @@ test "objectLen" {
     try testing.expectEqual(@as(usize, 3), lua.objectLen(-1));
 }
 
-test "ref" {
+test {
     testing.refAllDecls(Lua);
     testing.refAllDecls(Buffer);
 }

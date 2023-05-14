@@ -33,8 +33,10 @@ pub fn build(b: *Build) void {
     });
     link(b, tests, .{ .use_apicheck = true, .version = version });
 
+    const run_unit_tests = b.addRunArtifact(tests);
+
     const test_step = b.step("test", "Run ziglua tests");
-    test_step.dependOn(&tests.run().step);
+    test_step.dependOn(&run_unit_tests.step);
 }
 
 fn dir() []const u8 {
@@ -69,10 +71,10 @@ fn link(b: *Build, step: *CompileStep, options: Options) void {
 // versions separately because there might be name collisions
 fn buildLua(b: *Build, step: *CompileStep, options: Options) *CompileStep {
     const lib_dir = switch (options.version) {
-        .lua_51 => "lib/lua-5.1.5/src/",
-        .lua_52 => "lib/lua-5.2.4/src/",
-        .lua_53 => "lib/lua-5.3.6/src/",
-        .lua_54 => "lib/lua-5.4.4/src/",
+        .lua_51 => "lib/lua-5.1/src/",
+        .lua_52 => "lib/lua-5.2/src/",
+        .lua_53 => "lib/lua-5.3/src/",
+        .lua_54 => "lib/lua-5.4/src/",
     };
 
     const lua = brk: {
