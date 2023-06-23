@@ -705,7 +705,7 @@ test "conversions" {
     var value: Integer = undefined;
     try Lua.numberToInteger(3.14, &value);
     try expectEqual(@as(Integer, 3), value);
-    try expectError(error.Fail, Lua.numberToInteger(@intToFloat(Number, ziglua.max_integer) + 10, &value));
+    try expectError(error.Fail, Lua.numberToInteger(@floatFromInt(Number, ziglua.max_integer) + 10, &value));
 
     // string conversion
     try lua.stringToNumber("1");

@@ -366,7 +366,7 @@ pub const Lua = struct {
     /// This function follows the semantics of the corresponding Lua operator and may call metamethods
     /// See https://www.lua.org/manual/5.2/manual.html#lua_arith
     pub fn arith(lua: *Lua, op: ArithOperator) void {
-        c.lua_arith(lua.state, @enumToInt(op));
+        c.lua_arith(lua.state, @intFromEnum(op));
     }
 
     /// Sets a new panic function and returns the old one
@@ -409,7 +409,7 @@ pub const Lua = struct {
     /// Returns false otherwise, or if any index is not valid
     /// See https://www.lua.org/manual/5.2/manual.html#lua_compare
     pub fn compare(lua: *Lua, index1: i32, index2: i32, op: CompareOperator) bool {
-        return c.lua_compare(lua.state, index1, index2, @enumToInt(op)) != 0;
+        return c.lua_compare(lua.state, index1, index2, @intFromEnum(op)) != 0;
     }
 
     /// Concatenates the n values at the top of the stack, pops them, and leaves the result at the top
@@ -773,7 +773,7 @@ pub const Lua = struct {
     /// Pushes a boolean value with value `b` onto the stack
     /// See https://www.lua.org/manual/5.2/manual.html#lua_pushboolean
     pub fn pushBoolean(lua: *Lua, b: bool) void {
-        c.lua_pushboolean(lua.state, @boolToInt(b));
+        c.lua_pushboolean(lua.state, @intFromBool(b));
     }
 
     /// Pushes a new Closure onto the stack
@@ -953,7 +953,7 @@ pub const Lua = struct {
             StatusCode.err_memory => return error.Memory,
             StatusCode.err_error => return error.MsgHandler,
             StatusCode.err_gcmm => return error.GCMetaMethod,
-            else => return @intToEnum(ResumeStatus, thread_status),
+            else => return @enumFromInt(ResumeStatus, thread_status),
         }
     }
 
@@ -1008,7 +1008,7 @@ pub const Lua = struct {
     /// Returns the status of this thread
     /// See https://www.lua.org/manual/5.2/manual.html#lua_status
     pub fn status(lua: *Lua) Status {
-        return @intToEnum(Status, c.lua_status(lua.state));
+        return @enumFromInt(Status, c.lua_status(lua.state));
     }
 
     /// Converts the Lua value at the given `index` into a boolean
@@ -1118,13 +1118,13 @@ pub const Lua = struct {
     /// Note that this is equivalent to lua_type but because type is a Zig primitive it is renamed to `typeOf`
     /// See https://www.lua.org/manual/5.2/manual.html#lua_type
     pub fn typeOf(lua: *Lua, index: i32) LuaType {
-        return @intToEnum(LuaType, c.lua_type(lua.state, index));
+        return @enumFromInt(LuaType, c.lua_type(lua.state, index));
     }
 
     /// Returns the name of the given `LuaType` as a null-terminated slice
     /// See https://www.lua.org/manual/5.2/manual.html#lua_typename
     pub fn typeName(lua: *Lua, t: LuaType) [:0]const u8 {
-        return std.mem.span(c.lua_typename(lua.state, @enumToInt(t)));
+        return std.mem.span(c.lua_typename(lua.state, @intFromEnum(t)));
     }
 
     /// Returns the pseudo-index that represents the `i`th upvalue of the running function
@@ -1385,7 +1385,7 @@ pub const Lua = struct {
 
         inline for (std.meta.fields(T)) |field| {
             if (std.mem.eql(u8, field.name, name)) {
-                return @intToEnum(T, field.value);
+                return @enumFromInt(T, field.value);
             }
         }
 
@@ -1408,7 +1408,7 @@ pub const Lua = struct {
     /// Checks whether the function argument `arg` has type `t`
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_checktype
     pub fn checkType(lua: *Lua, arg: i32, t: LuaType) void {
-        c.luaL_checktype(lua.state, arg, @enumToInt(t));
+        c.luaL_checktype(lua.state, arg, @intFromEnum(t));
     }
 
     /// Checks whether the function argument `arg` is a userdata of the type `name`
@@ -1482,7 +1482,7 @@ pub const Lua = struct {
     /// TODO: possibly return an error if nil
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_getmetafield
     pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) !LuaType {
-        const val_type = @intToEnum(LuaType, c.luaL_getmetafield(lua.state, obj, field.ptr));
+        const val_type = @enumFromInt(LuaType, c.luaL_getmetafield(lua.state, obj, field.ptr));
         if (val_type == .nil) return error.Fail;
         return val_type;
     }
@@ -1655,7 +1655,7 @@ pub const Lua = struct {
     /// as an argument and sets the call result to package.loaded[`mod_name`]
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_requiref
     pub fn requireF(lua: *Lua, mod_name: [:0]const u8, open_fn: CFn, global: bool) void {
-        c.luaL_requiref(lua.state, mod_name.ptr, open_fn, @boolToInt(global));
+        c.luaL_requiref(lua.state, mod_name.ptr, open_fn, @intFromBool(global));
     }
 
     /// Registers all functions in the array `fns` into the table on the top of the stack
@@ -1956,7 +1956,7 @@ fn wrapZigHookFn(comptime f: ZigHookFn) CHookFn {
                 .current_line = if (ar.?.currentline == -1) null else ar.?.currentline,
                 .private = @ptrCast(*anyopaque, ar.?.i_ci),
             };
-            @call(.always_inline, f, .{ &lua, @intToEnum(Event, ar.?.event), &info });
+            @call(.always_inline, f, .{ &lua, @enumFromInt(Event, ar.?.event), &info });
         }
     }.inner;
 }
@@ -1987,7 +1987,7 @@ fn wrapZigWriterFn(comptime f: ZigWriterFn) CWriterFn {
             const result = @call(.always_inline, f, .{ &lua, buffer, data.? });
             // it makes more sense for the inner writer function to return false for failure,
             // so negate the result here
-            return @boolToInt(!result);
+            return @intFromBool(!result);
         }
     }.inner;
 }
