@@ -681,7 +681,7 @@ pub const Lua = struct {
     /// Pushes a boolean value with value `b` onto the stack
     /// See https://www.lua.org/manual/5.1/manual.html#lua_pushboolean
     pub fn pushBoolean(lua: *Lua, b: bool) void {
-        c.lua_pushboolean(lua.state, @boolToInt(b));
+        c.lua_pushboolean(lua.state, @intFromBool(b));
     }
 
     /// Pushes a new Closure onto the stack
@@ -819,7 +819,7 @@ pub const Lua = struct {
             StatusCode.err_runtime => return error.Runtime,
             StatusCode.err_memory => return error.Memory,
             StatusCode.err_error => return error.MsgHandler,
-            else => return @intToEnum(ResumeStatus, thread_status),
+            else => return @enumFromInt(ResumeStatus, thread_status),
         }
     }
 
@@ -875,7 +875,7 @@ pub const Lua = struct {
     /// Returns the status of this thread
     /// See https://www.lua.org/manual/5.1/manual.html#lua_status
     pub fn status(lua: *Lua) Status {
-        return @intToEnum(Status, c.lua_status(lua.state));
+        return @enumFromInt(Status, c.lua_status(lua.state));
     }
 
     /// Converts the Lua value at the given `index` into a boolean
@@ -963,18 +963,17 @@ pub const Lua = struct {
         return error.Fail;
     }
 
-
     /// Returns the `LuaType` of the value at the given index
     /// Note that this is equivalent to lua_type but because type is a Zig primitive it is renamed to `typeOf`
     /// See https://www.lua.org/manual/5.1/manual.html#lua_type
     pub fn typeOf(lua: *Lua, index: i32) LuaType {
-        return @intToEnum(LuaType, c.lua_type(lua.state, index));
+        return @enumFromInt(LuaType, c.lua_type(lua.state, index));
     }
 
     /// Returns the name of the given `LuaType` as a null-terminated slice
     /// See https://www.lua.org/manual/5.1/manual.html#lua_typename
     pub fn typeName(lua: *Lua, t: LuaType) [:0]const u8 {
-        return std.mem.span(c.lua_typename(lua.state, @enumToInt(t)));
+        return std.mem.span(c.lua_typename(lua.state, @intFromEnum(t)));
     }
 
     /// Returns the pseudo-index that represents the `i`th upvalue of the running function
@@ -1194,7 +1193,7 @@ pub const Lua = struct {
 
         inline for (std.meta.fields(T)) |field| {
             if (std.mem.eql(u8, field.name, name)) {
-                return @intToEnum(T, field.value);
+                return @enumFromInt(T, field.value);
             }
         }
 
@@ -1217,7 +1216,7 @@ pub const Lua = struct {
     /// Checks whether the function argument `arg` has type `t`
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_checktype
     pub fn checkType(lua: *Lua, arg: i32, t: LuaType) void {
-        c.luaL_checktype(lua.state, arg, @enumToInt(t));
+        c.luaL_checktype(lua.state, arg, @intFromEnum(t));
     }
 
     /// Checks whether the function argument `arg` is a userdata of the type `name`
@@ -1237,7 +1236,6 @@ pub const Lua = struct {
         const size = lua.objectLen(arg) / @sizeOf(T);
         return @ptrCast([*]T, @alignCast(@alignOf([*]T), ptr))[0..size];
     }
-
 
     /// Loads and runs the given file
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_dofile
@@ -1266,7 +1264,7 @@ pub const Lua = struct {
     /// and returns the type of the pushed value
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_getmetafield
     pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) !LuaType {
-        const val_type = @intToEnum(LuaType, c.luaL_getmetafield(lua.state, obj, field.ptr));
+        const val_type = @enumFromInt(LuaType, c.luaL_getmetafield(lua.state, obj, field.ptr));
         if (val_type == .nil) return error.Fail;
         return val_type;
     }
@@ -1629,7 +1627,7 @@ fn wrapZigHookFn(comptime f: ZigHookFn) CHookFn {
                 .current_line = if (ar.?.currentline == -1) null else ar.?.currentline,
                 .private = ar.?.i_ci,
             };
-            @call(.always_inline, f, .{ &lua, @intToEnum(Event, ar.?.event), &info });
+            @call(.always_inline, f, .{ &lua, @enumFromInt(Event, ar.?.event), &info });
         }
     }.inner;
 }
@@ -1660,7 +1658,7 @@ fn wrapZigWriterFn(comptime f: ZigWriterFn) CWriterFn {
             const result = @call(.always_inline, f, .{ &lua, buffer, data.? });
             // it makes more sense for the inner writer function to return false for failure,
             // so negate the result here
-            return @boolToInt(!result);
+            return @intFromBool(!result);
         }
     }.inner;
 }
