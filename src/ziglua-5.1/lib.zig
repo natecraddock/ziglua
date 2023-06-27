@@ -1650,7 +1650,6 @@ fn wrapZigReaderFn(comptime f: ZigReaderFn) CReaderFn {
 
 /// Wrap a ZigWriterFn in a CWriterFn for passing to the API
 fn wrapZigWriterFn(comptime f: ZigWriterFn) CWriterFn {
-    _ = f;
     return struct {
         fn inner(state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int {
             // this is called by Lua, state should never be null
