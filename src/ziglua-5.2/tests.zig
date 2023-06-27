@@ -46,7 +46,7 @@ fn alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callco
     _ = data;
 
     const alignment = @alignOf(std.c.max_align_t);
-    if (@ptrCast(?[*]align(alignment) u8, @alignCast(alignment, ptr))) |prev_ptr| {
+    if (@as(?[*]align(alignment) u8, @ptrCast(@alignCast(ptr)))) |prev_ptr| {
         const prev_slice = prev_ptr[0..osize];
         if (nsize == 0) {
             testing.allocator.free(prev_slice);
@@ -729,7 +729,7 @@ test "userdata and uservalues" {
     try expectEqual(LuaType.nil, lua.typeOf(-1));
 
     try expectEqual(data, try lua.toUserdata(Data, 1));
-    try expectEqual(@ptrCast(*const anyopaque, data), @alignCast(@alignOf(Data), try lua.toPointer(1)));
+    try expectEqual(@as(*const anyopaque, @ptrCast(data)), @as(*const anyopaque, try lua.toPointer(1)));
 }
 
 test "upvalues" {
@@ -887,7 +887,7 @@ test "debug interface" {
     // get information about the function
     try expectEqual(DebugInfo.FnType.lua, info.what);
     try expectEqual(DebugInfo.NameType.other, info.name_what);
-    const len = std.mem.len(@ptrCast([*:0]u8, &info.short_src));
+    const len = std.mem.len(@as([*:0]u8, @ptrCast(&info.short_src)));
     try expectEqualStrings("[string \"f = function(x)...\"]", info.short_src[0..len]);
     try expectEqual(@as(?i32, 1), info.first_line_defined);
     try expectEqual(@as(?i32, 5), info.last_line_defined);
@@ -1411,7 +1411,7 @@ test "userdata slices" {
     const slice = lua.newUserdataSlice(Integer, 10);
     lua.setMetatableRegistry("FixedArray");
     for (slice, 1..) |*item, index| {
-        item.* = @intCast(Integer, index);
+        item.* = @as(Integer, @intCast(index));
     }
 
     const udataFn = struct {

@@ -45,7 +45,7 @@ fn alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callco
     _ = data;
 
     const alignment = @alignOf(std.c.max_align_t);
-    if (@ptrCast(?[*]align(alignment) u8, @alignCast(alignment, ptr))) |prev_ptr| {
+    if (@as(?[*]align(alignment) u8, @ptrCast(@alignCast(ptr)))) |prev_ptr| {
         const prev_slice = prev_ptr[0..osize];
         if (nsize == 0) {
             testing.allocator.free(prev_slice);
@@ -622,11 +622,11 @@ test "extra space" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    var space = @ptrCast(*align(1) usize, lua.getExtraSpace().ptr);
+    var space = @as(*align(1) usize, @ptrCast(lua.getExtraSpace().ptr));
     space.* = 1024;
     // each new thread is initialized with a copy of the extra space from the main thread
     var thread = lua.newThread();
-    try expectEqual(@as(usize, 1024), @ptrCast(*align(1) usize, thread.getExtraSpace()).*);
+    try expectEqual(@as(usize, 1024), @as(*align(1) usize, @ptrCast(thread.getExtraSpace())).*);
 }
 
 test "table access" {
@@ -705,7 +705,7 @@ test "conversions" {
     var value: Integer = undefined;
     try Lua.numberToInteger(3.14, &value);
     try expectEqual(@as(Integer, 3), value);
-    try expectError(error.Fail, Lua.numberToInteger(@floatFromInt(Number, ziglua.max_integer) + 10, &value));
+    try expectError(error.Fail, Lua.numberToInteger(@as(Number, @floatFromInt(ziglua.max_integer)) + 10, &value));
 
     // string conversion
     try lua.stringToNumber("1");
@@ -819,7 +819,7 @@ test "userdata and uservalues" {
     try expectError(error.Fail, lua.getIndexUserValue(1, 3));
 
     try expectEqual(data, try lua.toUserdata(Data, 1));
-    try expectEqual(@ptrCast(*const anyopaque, data), @alignCast(@alignOf(Data), try lua.toPointer(1)));
+    try expectEqual(@as(*const anyopaque, @ptrCast(data)), @as(*const anyopaque, try lua.toPointer(1)));
 }
 
 test "upvalues" {
@@ -1012,7 +1012,7 @@ test "debug interface" {
     // get information about the function
     try expectEqual(DebugInfo.FnType.lua, info.what);
     try expectEqual(DebugInfo.NameType.other, info.name_what);
-    const len = std.mem.len(@ptrCast([*:0]u8, &info.short_src));
+    const len = std.mem.len(@as([*:0]u8, @ptrCast(&info.short_src)));
     try expectEqualStrings("[string \"f = function(x)...\"]", info.short_src[0..len]);
     try expectEqual(@as(?i32, 1), info.first_line_defined);
     try expectEqual(@as(?i32, 5), info.last_line_defined);
@@ -1524,7 +1524,7 @@ test "userdata slices" {
     const slice = lua.newUserdataSlice(Integer, 10, 0);
     lua.setMetatableRegistry("FixedArray");
     for (slice, 1..) |*item, index| {
-        item.* = @intCast(Integer, index);
+        item.* = @as(Integer, @intCast(index));
     }
 
     const udataFn = struct {

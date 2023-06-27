@@ -304,7 +304,7 @@ pub const Lua = struct {
         // desire to allocate. use the largest alignment for the target
         const allocator = opaqueCast(Allocator, data.?);
 
-        if (@ptrCast(?[*]align(alignment) u8, @alignCast(alignment, ptr))) |prev_ptr| {
+        if (@as(?[*]align(alignment) u8, @ptrCast(@alignCast(ptr)))) |prev_ptr| {
             const prev_slice = prev_ptr[0..osize];
 
             // when nsize is zero the allocator must behave like free and return null
@@ -525,7 +525,7 @@ pub const Lua = struct {
     pub fn getAllocFn(lua: *Lua, data: ?**anyopaque) AllocFn {
         // Assert cannot be null because it is impossible (and not useful) to pass null
         // to the functions that set the allocator (setallocf and newstate)
-        return c.lua_getallocf(lua.state, @ptrCast([*c]?*anyopaque, data)).?;
+        return c.lua_getallocf(lua.state, @as([*c]?*anyopaque, @ptrCast(data))).?;
     }
 
     /// Called by a continuation function to retrieve the status of the thread and context information
@@ -726,7 +726,7 @@ pub const Lua = struct {
     pub fn newUserdataSlice(lua: *Lua, comptime T: type, size: usize) []T {
         // safe to .? because this function throws a Lua error on out of memory
         const ptr = c.lua_newuserdata(lua.state, @sizeOf(T) * size).?;
-        return @ptrCast([*]T, @alignCast(@alignOf([*]T), ptr))[0..size];
+        return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
     }
 
     /// Pops a key from the stack, and pushes a key-value pair from the table at the given index
@@ -953,7 +953,7 @@ pub const Lua = struct {
             StatusCode.err_memory => return error.Memory,
             StatusCode.err_error => return error.MsgHandler,
             StatusCode.err_gcmm => return error.GCMetaMethod,
-            else => return @enumFromInt(ResumeStatus, thread_status),
+            else => return @as(ResumeStatus, @enumFromInt(thread_status)),
         }
     }
 
@@ -1008,7 +1008,7 @@ pub const Lua = struct {
     /// Returns the status of this thread
     /// See https://www.lua.org/manual/5.2/manual.html#lua_status
     pub fn status(lua: *Lua) Status {
-        return @enumFromInt(Status, c.lua_status(lua.state));
+        return @as(Status, @enumFromInt(c.lua_status(lua.state)));
     }
 
     /// Converts the Lua value at the given `index` into a boolean
@@ -1109,7 +1109,7 @@ pub const Lua = struct {
     pub fn toUserdataSlice(lua: *Lua, comptime T: type, index: i32) ![]T {
         if (c.lua_touserdata(lua.state, index)) |ptr| {
             const size = lua.rawLen(index) / @sizeOf(T);
-            return @ptrCast([*]T, @alignCast(@alignOf([*]T), ptr))[0..size];
+            return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
         }
         return error.Fail;
     }
@@ -1118,7 +1118,7 @@ pub const Lua = struct {
     /// Note that this is equivalent to lua_type but because type is a Zig primitive it is renamed to `typeOf`
     /// See https://www.lua.org/manual/5.2/manual.html#lua_type
     pub fn typeOf(lua: *Lua, index: i32) LuaType {
-        return @enumFromInt(LuaType, c.lua_type(lua.state, index));
+        return @as(LuaType, @enumFromInt(c.lua_type(lua.state, index)));
     }
 
     /// Returns the name of the given `LuaType` as a null-terminated slice
@@ -1195,7 +1195,7 @@ pub const Lua = struct {
         const str = options.toString();
 
         var ar: Debug = undefined;
-        ar.i_ci = @ptrCast(*c.struct_CallInfo, info.private);
+        ar.i_ci = @as(*c.struct_CallInfo, @ptrCast(info.private));
 
         // should never fail because we are controlling options with the struct param
         _ = c.lua_getinfo(lua.state, &str, &ar);
@@ -1242,7 +1242,7 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.2/manual.html#lua_getlocal
     pub fn getLocal(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
         var ar: Debug = undefined;
-        ar.i_ci = @ptrCast(*c.struct_CallInfo, info.private);
+        ar.i_ci = @as(*c.struct_CallInfo, @ptrCast(info.private));
         if (c.lua_getlocal(lua.state, &ar, n)) |name| {
             return std.mem.span(name);
         }
@@ -1279,7 +1279,7 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.2/manual.html#lua_setlocal
     pub fn setLocal(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
         var ar: Debug = undefined;
-        ar.i_ci = @ptrCast(*c.struct_CallInfo, info.private);
+        ar.i_ci = @as(*c.struct_CallInfo, @ptrCast(info.private));
         if (c.lua_setlocal(lua.state, &ar, n)) |name| {
             return std.mem.span(name);
         }
@@ -1385,7 +1385,7 @@ pub const Lua = struct {
 
         inline for (std.meta.fields(T)) |field| {
             if (std.mem.eql(u8, field.name, name)) {
-                return @enumFromInt(T, field.value);
+                return @as(T, @enumFromInt(field.value));
             }
         }
 
@@ -1426,7 +1426,7 @@ pub const Lua = struct {
         // the returned pointer will not be null
         const ptr = c.luaL_checkudata(lua.state, arg, name.ptr).?;
         const size = lua.rawLen(arg) / @sizeOf(T);
-        return @ptrCast([*]T, @alignCast(@alignOf([*]T), ptr))[0..size];
+        return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
     }
 
     /// Checks whether the function argument arg is a number and returns this number cast to an unsigned
@@ -1482,7 +1482,7 @@ pub const Lua = struct {
     /// TODO: possibly return an error if nil
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_getmetafield
     pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) !LuaType {
-        const val_type = @enumFromInt(LuaType, c.luaL_getmetafield(lua.state, obj, field.ptr));
+        const val_type = @as(LuaType, @enumFromInt(c.luaL_getmetafield(lua.state, obj, field.ptr)));
         if (val_type == .nil) return error.Fail;
         return val_type;
     }
@@ -1577,7 +1577,7 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_newlibtable
     pub fn newLibTable(lua: *Lua, list: []const FnReg) void {
         // translate-c failure
-        lua.createTable(0, @intCast(i32, list.len));
+        lua.createTable(0, @as(i32, @intCast(list.len)));
     }
 
     /// If the registry already has the key `key`, returns an error
@@ -1695,7 +1695,7 @@ pub const Lua = struct {
     pub fn testUserdataSlice(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) ![]T {
         if (c.luaL_testudata(lua.state, arg, name.ptr)) |ptr| {
             const size = lua.rawLen(arg) / @sizeOf(T);
-            return @ptrCast([*]T, @alignCast(@alignOf([*]T), ptr))[0..size];
+            return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
         } else return error.Fail;
     }
 
@@ -1900,7 +1900,7 @@ pub const Buffer = struct {
 /// Casts the opaque pointer to a pointer of the given type with the proper alignment
 /// Useful for casting pointers from the Lua API like userdata or other data
 pub inline fn opaqueCast(comptime T: type, ptr: *anyopaque) *T {
-    return @ptrCast(*T, @alignCast(@alignOf(T), ptr));
+    return @as(*T, @ptrCast(@alignCast(ptr)));
 }
 
 pub const ZigFn = fn (lua: *Lua) i32;
@@ -1954,9 +1954,9 @@ fn wrapZigHookFn(comptime f: ZigHookFn) CHookFn {
             var lua: Lua = .{ .state = state.? };
             var info: DebugInfo = .{
                 .current_line = if (ar.?.currentline == -1) null else ar.?.currentline,
-                .private = @ptrCast(*anyopaque, ar.?.i_ci),
+                .private = @as(*anyopaque, @ptrCast(ar.?.i_ci)),
             };
-            @call(.always_inline, f, .{ &lua, @enumFromInt(Event, ar.?.event), &info });
+            @call(.always_inline, f, .{ &lua, @as(Event, @enumFromInt(ar.?.event)), &info });
         }
     }.inner;
 }
@@ -1983,7 +1983,7 @@ fn wrapZigWriterFn(comptime f: ZigWriterFn) CWriterFn {
         fn inner(state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int {
             // this is called by Lua, state should never be null
             var lua: Lua = .{ .state = state.? };
-            const buffer = @ptrCast([*]const u8, buf)[0..size];
+            const buffer = @as([*]const u8, @ptrCast(buf))[0..size];
             const result = @call(.always_inline, f, .{ &lua, buffer, data.? });
             // it makes more sense for the inner writer function to return false for failure,
             // so negate the result here
