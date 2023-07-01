@@ -87,6 +87,8 @@ See [docs.md](https://github.com/natecraddock/ziglua/blob/master/docs.md) for do
 
 Please make suggestions, report bugs, and create pull requests. Anyone is welcome to contribute!
 
+I only use a subset of the Lua API through Ziglua, so if there are parts that aren't easy to use or understand, please fix it or let me know!
+
 ## Acknowledgements
 
 Thanks to the following sources:
