@@ -581,7 +581,7 @@ test "extra space" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    var space = @as(*align(1) usize, @ptrCast(lua.getExtraSpace().ptr));
+    var space: *align(1) usize = @ptrCast(lua.getExtraSpace().ptr);
     space.* = 1024;
     // each new thread is initialized with a copy of the extra space from the main thread
     var thread = lua.newThread();
@@ -770,7 +770,7 @@ test "userdata and uservalues" {
     try expectEqual(@as(Number, 1234.56), try lua.toNumber(-1));
 
     try expectEqual(data, try lua.toUserdata(Data, 1));
-    try expectEqual(@as(*const anyopaque, @ptrCast(data)), @as(*const anyopaque, try lua.toPointer(1)));
+    try expectEqual(@as(*const anyopaque, @ptrCast(data)), try lua.toPointer(1));
 }
 
 test "upvalues" {
@@ -1429,7 +1429,7 @@ test "userdata slices" {
     const slice = lua.newUserdataSlice(Integer, 10);
     lua.setMetatableRegistry("FixedArray");
     for (slice, 1..) |*item, index| {
-        item.* = @as(Integer, @intCast(index));
+        item.* = @intCast(index);
     }
 
     const udataFn = struct {

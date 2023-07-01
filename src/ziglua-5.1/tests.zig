@@ -617,7 +617,7 @@ test "userdata and uservalues" {
     std.mem.copy(u8, &data.code, "abcd");
 
     try expectEqual(data, try lua.toUserdata(Data, 1));
-    try expectEqual(@as(*const anyopaque, @ptrCast(data)), @as(*const anyopaque, try lua.toPointer(1)));
+    try expectEqual(@as(*const anyopaque, @ptrCast(data)), try lua.toPointer(1));
 }
 
 test "upvalues" {
@@ -1203,7 +1203,7 @@ test "userdata slices" {
     lua.setMetatable(-2);
 
     for (slice, 1..) |*item, index| {
-        item.* = @as(Integer, @intCast(index));
+        item.* = @intCast(index);
     }
 
     const udataFn = struct {

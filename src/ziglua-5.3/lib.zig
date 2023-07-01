@@ -531,7 +531,7 @@ pub const Lua = struct {
     pub fn getAllocFn(lua: *Lua, data: ?**anyopaque) AllocFn {
         // Assert cannot be null because it is impossible (and not useful) to pass null
         // to the functions that set the allocator (setallocf and newstate)
-        return c.lua_getallocf(lua.state, @as([*c]?*anyopaque, @ptrCast(data))).?;
+        return c.lua_getallocf(lua.state, @ptrCast(data)).?;
     }
 
     /// Returns a slice of a raw memory area associated with the given Lua state
@@ -545,14 +545,14 @@ pub const Lua = struct {
     /// Pushes onto the stack the value t[key] where t is the value at the given index
     /// See https://www.lua.org/manual/5.3/manual.html#lua_getfield
     pub fn getField(lua: *Lua, index: i32, key: [:0]const u8) LuaType {
-        return @as(LuaType, @enumFromInt(c.lua_getfield(lua.state, index, key.ptr)));
+        return @enumFromInt(c.lua_getfield(lua.state, index, key.ptr));
     }
 
     /// Pushes onto the stack the value of the global name and returns the type of that value
     /// Returns an error if the global does not exist (is nil)
     /// See https://www.lua.org/manual/5.3/manual.html#lua_getglobal
     pub fn getGlobal(lua: *Lua, name: [:0]const u8) !LuaType {
-        const lua_type = @as(LuaType, @enumFromInt(c.lua_getglobal(lua.state, name.ptr)));
+        const lua_type: LuaType = @enumFromInt(c.lua_getglobal(lua.state, name.ptr));
         if (lua_type == .nil) return error.Fail;
         return lua_type;
     }
@@ -561,14 +561,14 @@ pub const Lua = struct {
     /// Returns the type of the pushed value
     /// See https://www.lua.org/manual/5.3/manual.html#lua_geti
     pub fn getIndex(lua: *Lua, index: i32, i: Integer) LuaType {
-        return @as(LuaType, @enumFromInt(c.lua_geti(lua.state, index, i)));
+        return @enumFromInt(c.lua_geti(lua.state, index, i));
     }
 
     /// Pushes onto the stack the Lua value associated with the full userdata at the given index.
     /// Returns the type of the pushed value.
     /// See https://www.lua.org/manual/5.3/manual.html#lua_getuservalue
     pub fn getUserValue(lua: *Lua, index: i32) LuaType {
-        return @as(LuaType, @enumFromInt(c.lua_getuservalue(lua.state, index)));
+        return @enumFromInt(c.lua_getuservalue(lua.state, index));
     }
 
     /// If the value at the given index has a metatable, the function pushes that metatable onto the stack
@@ -582,7 +582,7 @@ pub const Lua = struct {
     /// Returns the type of the pushed value
     /// See https://www.lua.org/manual/5.3/manual.html#lua_gettable
     pub fn getTable(lua: *Lua, index: i32) LuaType {
-        return @as(LuaType, @enumFromInt(c.lua_gettable(lua.state, index)));
+        return @enumFromInt(c.lua_gettable(lua.state, index));
     }
 
     /// Returns the index of the top element in the stack
@@ -766,8 +766,9 @@ pub const Lua = struct {
     pub fn numberToInteger(n: Number, i: *Integer) !void {
         // translate-c failure
         // return c.lua_numbertointeger(n, i) != 0;
-        if (n >= @as(Number, @floatFromInt(min_integer)) and n < -@as(Number, @floatFromInt(min_integer))) {
-            i.* = @as(Integer, @intFromFloat(n));
+        const min_float: Number = @floatFromInt(min_integer);
+        if (n >= min_float and n < -min_float) {
+            i.* = @intFromFloat(n);
         } else return error.Fail;
     }
 
@@ -904,21 +905,21 @@ pub const Lua = struct {
     /// Similar to `Lua.getTable()` but does a raw access (without metamethods)
     /// See https://www.lua.org/manual/5.3/manual.html#lua_rawget
     pub fn rawGetTable(lua: *Lua, index: i32) LuaType {
-        return @as(LuaType, @enumFromInt(c.lua_rawget(lua.state, index)));
+        return @enumFromInt(c.lua_rawget(lua.state, index));
     }
 
     /// Pushes onto the stack the value t[n], where `t` is the table at the given `index`
     /// Returns the `LuaType` of the pushed value
     /// See https://www.lua.org/manual/5.3/manual.html#lua_rawgeti
     pub fn rawGetIndex(lua: *Lua, index: i32, n: Integer) LuaType {
-        return @as(LuaType, @enumFromInt(c.lua_rawgeti(lua.state, index, n)));
+        return @enumFromInt(c.lua_rawgeti(lua.state, index, n));
     }
 
     /// Pushes onto the stack the value t[k] where t is the table at the given `index` and
     /// k is the pointer `p` represented as a light userdata
     /// See https://www.lua.org/manual/5.3/manual.html#lua_rawgetp
     pub fn rawGetPtr(lua: *Lua, index: i32, p: *const anyopaque) LuaType {
-        return @as(LuaType, @enumFromInt(c.lua_rawgetp(lua.state, index, p)));
+        return @enumFromInt(c.lua_rawgetp(lua.state, index, p));
     }
 
     /// Returns the raw length of the value at the given index
@@ -987,7 +988,7 @@ pub const Lua = struct {
             StatusCode.err_memory => return error.Memory,
             StatusCode.err_error => return error.MsgHandler,
             StatusCode.err_gcmm => return error.GCMetaMethod,
-            else => return @as(ResumeStatus, @enumFromInt(thread_status)),
+            else => return @enumFromInt(thread_status),
         }
     }
 
@@ -1059,7 +1060,7 @@ pub const Lua = struct {
     /// Returns the status of this thread
     /// See https://www.lua.org/manual/5.3/manual.html#lua_status
     pub fn status(lua: *Lua) Status {
-        return @as(Status, @enumFromInt(c.lua_status(lua.state)));
+        return @enumFromInt(c.lua_status(lua.state));
     }
 
     /// Converts the zero-terminated string `str` to a number, pushes that number onto the stack,
@@ -1167,7 +1168,7 @@ pub const Lua = struct {
     /// Note that this is equivalent to lua_type but because type is a Zig primitive it is renamed to `typeOf`
     /// See https://www.lua.org/manual/5.3/manual.html#lua_typeof
     pub fn typeOf(lua: *Lua, index: i32) LuaType {
-        return @as(LuaType, @enumFromInt(c.lua_type(lua.state, index)));
+        return @enumFromInt(c.lua_type(lua.state, index));
     }
 
     /// Returns the name of the given `LuaType` as a null-terminated slice
@@ -1245,7 +1246,7 @@ pub const Lua = struct {
         const str = options.toString();
 
         var ar: Debug = undefined;
-        ar.i_ci = @as(*c.struct_CallInfo, @ptrCast(info.private));
+        ar.i_ci = @ptrCast(info.private);
 
         // should never fail because we are controlling options with the struct param
         _ = c.lua_getinfo(lua.state, &str, &ar);
@@ -1292,7 +1293,7 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.3/manual.html#lua_getlocal
     pub fn getLocal(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
         var ar: Debug = undefined;
-        ar.i_ci = @as(*c.struct_CallInfo, @ptrCast(info.private));
+        ar.i_ci = @ptrCast(info.private);
         if (c.lua_getlocal(lua.state, &ar, n)) |name| {
             return std.mem.span(name);
         }
@@ -1329,7 +1330,7 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.3/manual.html#lua_setlocal
     pub fn setLocal(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
         var ar: Debug = undefined;
-        ar.i_ci = @as(*c.struct_CallInfo, @ptrCast(info.private));
+        ar.i_ci = @ptrCast(info.private);
         if (c.lua_setlocal(lua.state, &ar, n)) |name| {
             return std.mem.span(name);
         }
@@ -1429,7 +1430,7 @@ pub const Lua = struct {
 
         inline for (std.meta.fields(T)) |field| {
             if (std.mem.eql(u8, field.name, name)) {
-                return @as(T, @enumFromInt(field.value));
+                return @enumFromInt(field.value);
             }
         }
 
@@ -1520,7 +1521,7 @@ pub const Lua = struct {
     /// TODO: possibly return an error if nil
     /// See https://www.lua.org/manual/5.3/manual.html#luaL_getmetafield
     pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) !LuaType {
-        const val_type = @as(LuaType, @enumFromInt(c.luaL_getmetafield(lua.state, obj, field.ptr)));
+        const val_type: LuaType = @enumFromInt(c.luaL_getmetafield(lua.state, obj, field.ptr));
         if (val_type == .nil) return error.Fail;
         return val_type;
     }
@@ -1529,7 +1530,7 @@ pub const Lua = struct {
     /// or nil if there is no metatable associated with that name. Returns the type of the pushed value
     /// See https://www.lua.org/manual/5.3/manual.html#luaL_getmetatable
     pub fn getMetatableRegistry(lua: *Lua, table_name: [:0]const u8) LuaType {
-        return @as(LuaType, @enumFromInt(c.luaL_getmetatable(lua.state, table_name.ptr)));
+        return @enumFromInt(c.luaL_getmetatable(lua.state, table_name.ptr));
     }
 
     /// Ensures that the value t[`field`], where t is the value at `index`, is a table, and pushes that table onto the stack.
@@ -1615,7 +1616,7 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.3/manual.html#luaL_newlibtable
     pub fn newLibTable(lua: *Lua, list: []const FnReg) void {
         // translate-c failure
-        lua.createTable(0, @as(i32, @intCast(list.len)));
+        lua.createTable(0, @intCast(list.len));
     }
 
     /// If the registry already has the key `key`, returns an error
@@ -1924,7 +1925,7 @@ pub const Buffer = struct {
 /// Casts the opaque pointer to a pointer of the given type with the proper alignment
 /// Useful for casting pointers from the Lua API like userdata or other data
 pub inline fn opaqueCast(comptime T: type, ptr: *anyopaque) *T {
-    return @as(*T, @ptrCast(@alignCast(ptr)));
+    return @ptrCast(@alignCast(ptr));
 }
 
 pub const ZigFn = fn (lua: *Lua) i32;
@@ -1980,7 +1981,7 @@ fn wrapZigHookFn(comptime f: ZigHookFn) CHookFn {
             var lua: Lua = .{ .state = state.? };
             var info: DebugInfo = .{
                 .current_line = if (ar.?.currentline == -1) null else ar.?.currentline,
-                .private = @as(*anyopaque, @ptrCast(ar.?.i_ci)),
+                .private = @ptrCast(ar.?.i_ci),
             };
             @call(.always_inline, f, .{ &lua, @as(Event, @enumFromInt(ar.?.event)), &info });
         }

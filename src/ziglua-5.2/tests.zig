@@ -729,7 +729,7 @@ test "userdata and uservalues" {
     try expectEqual(LuaType.nil, lua.typeOf(-1));
 
     try expectEqual(data, try lua.toUserdata(Data, 1));
-    try expectEqual(@as(*const anyopaque, @ptrCast(data)), @as(*const anyopaque, try lua.toPointer(1)));
+    try expectEqual(@as(*const anyopaque, @ptrCast(data)), try lua.toPointer(1));
 }
 
 test "upvalues" {
@@ -1411,7 +1411,7 @@ test "userdata slices" {
     const slice = lua.newUserdataSlice(Integer, 10);
     lua.setMetatableRegistry("FixedArray");
     for (slice, 1..) |*item, index| {
-        item.* = @as(Integer, @intCast(index));
+        item.* = @intCast(index);
     }
 
     const udataFn = struct {
