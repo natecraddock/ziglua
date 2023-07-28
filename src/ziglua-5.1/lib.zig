@@ -4,9 +4,9 @@
 const std = @import("std");
 
 const c = @cImport({
-    @cInclude("lua.h");
-    @cInclude("lualib.h");
-    @cInclude("lauxlib.h");
+    @cInclude("lua/lua.h");
+    @cInclude("lua/lualib.h");
+    @cInclude("lua/lauxlib.h");
 });
 
 const Allocator = std.mem.Allocator;
