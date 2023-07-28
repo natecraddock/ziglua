@@ -32,10 +32,10 @@ pub fn build(b: *Build) void {
     else
         b.addStaticLibrary(lib_opts);
     const lib_dir = switch (lua_version) {
-        .lua_51 => "lib/lua-5.1.5/src",
-        .lua_52 => "lib/lua-5.2.4/src",
-        .lua_53 => "lib/lua-5.3.6/src",
-        .lua_54 => "lib/lua-5.4.4/src",
+        .lua_51 => "lib/lua-5.1/src",
+        .lua_52 => "lib/lua-5.2/src",
+        .lua_53 => "lib/lua-5.3/src",
+        .lua_54 => "lib/lua-5.4/src",
     };
     const lua_source_files = switch (lua_version) {
         .lua_51 => &lua_51_source_files,
