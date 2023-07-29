@@ -70,6 +70,7 @@ pub fn build(b: *Build) void {
     lib.installHeader(b.pathJoin(&.{ lib_dir, "lua.h" }), "lua/lua.h");
     lib.installHeader(b.pathJoin(&.{ lib_dir, "lualib.h" }), "lua/lualib.h");
     lib.installHeader(b.pathJoin(&.{ lib_dir, "lauxlib.h" }), "lua/lauxlib.h");
+    lib.installHeader(b.pathJoin(&.{ lib_dir, "luaconf.h" }), "lua/luaconf.h");
 
     _ = b.addModule("ziglua", .{
         .source_file = switch (lua_version) {
