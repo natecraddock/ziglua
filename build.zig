@@ -43,7 +43,7 @@ pub fn build(b: *Build) void {
         .lua_53 => &lua_53_source_files,
         .lua_54 => &lua_54_source_files,
     };
-    lib.addIncludePath(lib_dir);
+    lib.addIncludePath(.{ .path = lib_dir });
     const os_tag = target.os_tag orelse
         (std.zig.system.NativeTargetInfo.detect(target) catch unreachable).target.os.tag;
     const flags = [_][]const u8{
@@ -80,8 +80,6 @@ pub fn build(b: *Build) void {
             .lua_54 => .{ .path = "src/ziglua-5.4/lib.zig" },
         },
     });
-    // TODO: mod.addIncludePath(lib_dir);
-    // https://github.com/ziglang/zig/issues/14719
 
     const tests = b.addTest(.{
         .root_source_file = switch (lua_version) {
@@ -92,7 +90,7 @@ pub fn build(b: *Build) void {
         },
         .optimize = optimize,
     });
-    tests.addIncludePath(lib_dir);
+    tests.addIncludePath(.{ .path = lib_dir });
     tests.linkLibrary(lib);
 
     const test_step = b.step("test", "Run ziglua tests");
