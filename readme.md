@@ -51,8 +51,8 @@ First create a `build.zig.zon` file in your Zig project if you do not already ha
     .version = "0.0.1",
     .dependencies = .{
         .ziglua = .{
-            .url = "https://github.com/natecraddock/ziglua/archive/718083d3948fef791221bd2adbeed48b6c2399b4.tar.gz",
-            .hash = "12205b564df959a94bcedc3e03b951f790cd96fbd7346578811f920b95d84cefe205",
+            .url = "https://github.com/natecraddock/ziglua/archive/ab111adb06d2d4dc187ee9e1e352617ca8659155.tar.gz",
+            .hash = "12206cf9e90462ee6e14f593ea6e0802b9fe434429ba10992a1451e32900f741005c",
         },
     }
 }
