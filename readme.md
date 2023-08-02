@@ -12,9 +12,9 @@ In both cases, Ziglua will compile Lua from source and link against your Zig cod
 
 Like the Lua C API, the Ziglua API "emphasizes flexibility and simplicity... common tasks may involve several API calls. This may be boring, but it gives us full control over all the details" (_Programming In Lua 4th Edition_). However, Ziglua takes advantage of Zig's features to make it easier and safer to interact with the Lua API.
 
-* [Docs](https://github.com/natecraddock/ziglua/blob/master/docs.md)
-* [Examples](https://github.com/natecraddock/ziglua/blob/master/docs.md#examples)
-* [Changelog](https://github.com/natecraddock/ziglua/blob/master/changelog.md)
+* [Docs](https://github.com/natecraddock/ziglua/blob/main/docs.md)
+* [Examples](https://github.com/natecraddock/ziglua/blob/main/docs.md#examples)
+* [Changelog](https://github.com/natecraddock/ziglua/blob/main/changelog.md)
 
 ## Why use Ziglua?
 
@@ -43,21 +43,42 @@ I first implemented the Lua 5.4 API, then copied the code and edited for the oth
 
 ## Getting Started
 
-Currently the Zig package manager is in flux and things may change a lot. This may not be the "best" way, but here's the current install instructions.
+First create a `build.zig.zon` file in your Zig project if you do not already have one. Add a ziglua dependency.
 
-First add this repo as a git submodule, or copy the source into your project (one day the Zig package manager will make this easier). Then add the following to your `build.zig` file (assuming cloned/copied into a `lib/` subdirectory):
-
-```zig
-// use the path to the Ziglua build.zig file
-const ziglua = @import("lib/ziglua/build.zig");
-
-pub fn build(b: *std.Build) void {
-    ...
-    exe.addModule("ziglua", ziglua.compileAndCreateModule(b, exe, .{}));
+```
+.{
+	.name = "myproject",
+	.version = "0.0.1",
+	.dependencies = .{
+		.ziglua = .{
+			.url = "https://github.com/natecraddock/ziglua/archive/718083d3948fef791221bd2adbeed48b6c2399b4.tar.gz",
+			.hash = "12205b564df959a94bcedc3e03b951f790cd96fbd7346578811f920b95d84cefe205",
+		},
+	}
 }
 ```
 
-This will compile the Lua C sources and statically link with your project. Then simply import the `ziglua` package into your code. Here is a simple example that pushes and inspects an integer on the Lua stack:
+Then in your `build.zig` file create and use the dependency
+
+```zig
+pub fn build(b: *std.Build) void {
+    // ... snip ...
+
+    const ziglua = b.dependency("ziglua", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // ... snip ...
+
+    // add the ziglua module and lua artifact
+    exe.addModule("ziglua", ziglua.module("ziglua"));
+    exe.linkLibrary(ziglua.artifact("lua"));
+
+}
+```
+
+This will compile the Lua C sources and link with your project. The `ziglua` module will now be available in your code. Here is a simple example that pushes and inspects an integer on the Lua stack:
 
 ```zig
 const std = @import("std");
@@ -81,7 +102,7 @@ pub fn main() anyerror!void {
 }
 ```
 
-See [docs.md](https://github.com/natecraddock/ziglua/blob/master/docs.md) for documentation and detailed [examples](https://github.com/natecraddock/ziglua/blob/master/docs.md#examples) of using Ziglua.
+See [docs.md](https://github.com/natecraddock/ziglua/blob/main/docs.md) for documentation and detailed [examples](https://github.com/natecraddock/ziglua/blob/main/docs.md#examples) of using Ziglua.
 
 ## Contributing
 

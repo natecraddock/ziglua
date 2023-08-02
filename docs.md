@@ -107,36 +107,56 @@ Both `lua_pcall` and `lua_pcallk` are expanded to `protectedCall` and `protected
 
 ## Build Documentation
 
-When integrating Ziglua into your projects, the following two statements are required:
+Example `build.zig.zon` file. The hash in the url is the hash of the commit you are using.
 
-1. `@import()` the `build.zig` file
-2. `addModule()` the Ziglua api
-
-Note that this _must_ be done after setting the target and build mode, otherwise Ziglua will not know that information.
-
-```zig
-const ziglua = @import("lib/ziglua/build.zig");
-
-pub fn build(b: *Builder) void {
-    ...
-    exe.addModule(ziglua.compileAndCreateModule(b, exe, .{}));
+```
+.{
+	.name = "myproject",
+	.version = "0.0.1",
+	.dependencies = .{
+		.ziglua = .{
+			.url = "https://github.com/natecraddock/ziglua/archive/718083d3948fef791221bd2adbeed48b6c2399b4.tar.gz",
+			.hash = "12205b564df959a94bcedc3e03b951f790cd96fbd7346578811f920b95d84cefe205",
+		},
+	}
 }
 ```
 
-This makes the `ziglua` package available in your project. Access with `@import("ziglua")`.
+Example usage in `build.zig`.
 
-There are currently three options that can be passed in the third argument to `ziglua.compileAndCreateModule()`:
+```zig
+pub fn build(b: *std.Build) void {
+    // ... snip ...
 
-* `.use_apicheck`: defaults to **false**. When **true** defines the macro `LUA_USE_APICHECK` in debug builds. See [The C API docs](https://www.lua.org/manual/5.4/manual.html#4) for more information on this macro.
+    const ziglua = b.dependency("ziglua", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // ... snip ...
+
+    // add the ziglua module and lua artifact
+    exe.addModule("ziglua", ziglua.module("ziglua"));
+    exe.linkLibrary(ziglua.artifact("lua"));
+
+}
+```
+
+There are currently two additional options that can be passed to `b.dependency()`:
 
 * `.version`: Set the Lua version to build and embed. Defaults to `.lua_54`. Possible values are `.lua_51`, `.lua_52`, `.lua_53`, and `.lua_54`.
 
 * `.shared`: Defaults to `false` for embedding in a Zig program. Set to `true` to dynamically link the Lua source code (useful for creating shared modules).
 
-For example, here is a `ziglua.compileAndCreateModule()` call that enables api check and embeds Lua 5.2:
+For example, here is a `b.dependency()` call that and links against a shared Lua 5.2 library:
 
-```
-exe.addModule("ziglua", ziglua.compileAndCreateModule(b, exe, .{ .use_apicheck = true, .version = .lua_52 }));
+```zig
+const ziglua = b.dependency("ziglua", .{
+    .target = target,
+    .optimize = optimize,
+    .version = .lua52,
+    .shared = true,
+});
 ```
 
 ## Examples
