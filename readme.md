@@ -47,14 +47,14 @@ First create a `build.zig.zon` file in your Zig project if you do not already ha
 
 ```
 .{
-	.name = "myproject",
-	.version = "0.0.1",
-	.dependencies = .{
-		.ziglua = .{
-			.url = "https://github.com/natecraddock/ziglua/archive/718083d3948fef791221bd2adbeed48b6c2399b4.tar.gz",
-			.hash = "12205b564df959a94bcedc3e03b951f790cd96fbd7346578811f920b95d84cefe205",
-		},
-	}
+    .name = "myproject",
+    .version = "0.0.1",
+    .dependencies = .{
+        .ziglua = .{
+            .url = "https://github.com/natecraddock/ziglua/archive/718083d3948fef791221bd2adbeed48b6c2399b4.tar.gz",
+            .hash = "12205b564df959a94bcedc3e03b951f790cd96fbd7346578811f920b95d84cefe205",
+        },
+    }
 }
 ```
 
