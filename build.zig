@@ -13,9 +13,21 @@ pub const LuaVersion = enum {
 pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+
     const lua_version = b.option(LuaVersion, "version", "Lua API and library version") orelse .lua_54;
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
 
+    // Zig module
+    _ = b.addModule("ziglua", .{
+        .source_file = switch (lua_version) {
+            .lua_51 => .{ .path = "src/ziglua-5.1/lib.zig" },
+            .lua_52 => .{ .path = "src/ziglua-5.2/lib.zig" },
+            .lua_53 => .{ .path = "src/ziglua-5.3/lib.zig" },
+            .lua_54 => .{ .path = "src/ziglua-5.4/lib.zig" },
+        },
+    });
+
+    // Lua library artifact
     const lib_opts = .{
         .name = "lua",
         .target = target,
@@ -31,21 +43,18 @@ pub fn build(b: *Build) void {
         b.addSharedLibrary(lib_opts)
     else
         b.addStaticLibrary(lib_opts);
+
     const lib_dir = switch (lua_version) {
         .lua_51 => "lib/lua-5.1/src",
         .lua_52 => "lib/lua-5.2/src",
         .lua_53 => "lib/lua-5.3/src",
         .lua_54 => "lib/lua-5.4/src",
     };
-    const lua_source_files = switch (lua_version) {
-        .lua_51 => &lua_51_source_files,
-        .lua_52 => &lua_52_source_files,
-        .lua_53 => &lua_53_source_files,
-        .lua_54 => &lua_54_source_files,
-    };
     lib.addIncludePath(.{ .path = lib_dir });
+
     const os_tag = target.os_tag orelse
         (std.zig.system.NativeTargetInfo.detect(target) catch unreachable).target.os.tag;
+
     const flags = [_][]const u8{
         // Standard version used in Lua Makefile
         "-std=gnu99",
@@ -58,29 +67,30 @@ pub fn build(b: *Build) void {
             else => "-DLUA_USE_POSIX",
         },
 
-        // Enable api check if desired
+        // Enable api check
         if (optimize == .Debug) "-DLUA_USE_APICHECK" else "",
+    };
+
+    const lua_source_files = switch (lua_version) {
+        .lua_51 => &lua_51_source_files,
+        .lua_52 => &lua_52_source_files,
+        .lua_53 => &lua_53_source_files,
+        .lua_54 => &lua_54_source_files,
     };
     for (lua_source_files) |file| {
         const path = std.fs.path.join(b.allocator, &.{ lib_dir, file }) catch unreachable;
         lib.addCSourceFile(.{ .file = .{ .path = path }, .flags = &flags });
     }
     lib.linkLibC();
-    b.installArtifact(lib);
+
     lib.installHeader(b.pathJoin(&.{ lib_dir, "lua.h" }), "lua/lua.h");
     lib.installHeader(b.pathJoin(&.{ lib_dir, "lualib.h" }), "lua/lualib.h");
     lib.installHeader(b.pathJoin(&.{ lib_dir, "lauxlib.h" }), "lua/lauxlib.h");
     lib.installHeader(b.pathJoin(&.{ lib_dir, "luaconf.h" }), "lua/luaconf.h");
 
-    _ = b.addModule("ziglua", .{
-        .source_file = switch (lua_version) {
-            .lua_51 => .{ .path = "src/ziglua-5.1/lib.zig" },
-            .lua_52 => .{ .path = "src/ziglua-5.2/lib.zig" },
-            .lua_53 => .{ .path = "src/ziglua-5.3/lib.zig" },
-            .lua_54 => .{ .path = "src/ziglua-5.4/lib.zig" },
-        },
-    });
+    b.installArtifact(lib);
 
+    // Tests
     const tests = b.addTest(.{
         .root_source_file = switch (lua_version) {
             .lua_51 => .{ .path = "src/ziglua-5.1/tests.zig" },
