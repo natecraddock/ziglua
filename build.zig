@@ -95,7 +95,7 @@ fn buildLua(b: *Build, step: *CompileStep, options: Options) *CompileStep {
 
     const apicheck = step.optimize == .Debug and options.use_apicheck;
 
-    step.addIncludePath(std.fs.path.join(b.allocator, &.{ dir(), lib_dir }) catch unreachable);
+    step.addIncludePath(.{ .path = std.fs.path.join(b.allocator, &.{ dir(), lib_dir }) catch unreachable });
 
     const target = (std.zig.system.NativeTargetInfo.detect(step.target) catch unreachable).target;
 
@@ -124,7 +124,7 @@ fn buildLua(b: *Build, step: *CompileStep, options: Options) *CompileStep {
 
     for (lua_source_files) |file| {
         const path = std.fs.path.join(b.allocator, &.{ dir(), lib_dir, file }) catch unreachable;
-        lua.addCSourceFile(path, &flags);
+        lua.addCSourceFile(.{ .file = .{ .path = path }, .flags = &flags });
     }
 
     return lua;
