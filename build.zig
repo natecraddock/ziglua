@@ -36,7 +36,7 @@ pub fn build(b: *Build) void {
             .lua_51 => std.SemanticVersion{ .major = 5, .minor = 1, .patch = 5 },
             .lua_52 => std.SemanticVersion{ .major = 5, .minor = 2, .patch = 4 },
             .lua_53 => std.SemanticVersion{ .major = 5, .minor = 3, .patch = 6 },
-            .lua_54 => std.SemanticVersion{ .major = 5, .minor = 4, .patch = 4 },
+            .lua_54 => std.SemanticVersion{ .major = 5, .minor = 4, .patch = 6 },
         },
     };
     const lib = if (shared)
