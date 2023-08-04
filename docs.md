@@ -4,11 +4,64 @@
 
 This documentation provides
 
+* `build.zig` documentation
 * An overview of Ziglua's structure and changes from the C API
 * Safety considerations
-* `build.zig` documentation
 
 Documentation on each individual function is found in the source code.
+
+## Build Documentation
+
+Example `build.zig.zon` file. The hash in the url is the hash of the commit you are using.
+
+```
+.{
+    .name = "myproject",
+    .version = "0.0.1",
+    .dependencies = .{
+        .ziglua = .{
+            .url = "https://github.com/natecraddock/ziglua/archive/ab111adb06d2d4dc187ee9e1e352617ca8659155.tar.gz",
+            .hash = "12206cf9e90462ee6e14f593ea6e0802b9fe434429ba10992a1451e32900f741005c",
+        },
+    }
+}
+```
+
+Example usage in `build.zig`.
+
+```zig
+pub fn build(b: *std.Build) void {
+    // ... snip ...
+
+    const ziglua = b.dependency("ziglua", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // ... snip ...
+
+    // add the ziglua module and lua artifact
+    exe.addModule("ziglua", ziglua.module("ziglua"));
+    exe.linkLibrary(ziglua.artifact("lua"));
+
+}
+```
+
+There are currently two additional options that can be passed to `b.dependency()`:
+
+* `.version`: Set the Lua version to build and embed. Defaults to `.lua_54`. Possible values are `.lua_51`, `.lua_52`, `.lua_53`, and `.lua_54`.
+* `.shared`: Defaults to `false` for embedding in a Zig program. Set to `true` to dynamically link the Lua source code (useful for creating shared modules).
+
+For example, here is a `b.dependency()` call that and links against a shared Lua 5.2 library:
+
+```zig
+const ziglua = b.dependency("ziglua", .{
+    .target = target,
+    .optimize = optimize,
+    .version = .lua52,
+    .shared = true,
+});
+```
 
 ## Moving from the C API to Zig
 
@@ -24,9 +77,9 @@ With this in mind, here are some general guidelines to help when moving from the
 
 In general, most functions are named similarly to the original C functions. The `lua_` and `luaL_` prefixes have been removed, because all functions are in the `Lua` struct namespace. Additionally, all functions are in `camelCase` to match Zig naming style.
 
-In the few cases when the [auxiliary library](https://www.lua.org/manual/5.4/manual.html#5) functions have the same name as a normal C API function, the suffix `Aux` is added to the function name to distinguish from the normal function.
+In the few cases when the [auxiliary library](https://www.lua.org/manual/5.4/manual.html#5) functions have the same name as a normal C API function, the auxlib function is given a more descriptive name.
 
-For example, the functions `lua_newstate` and `luaL_newstate` are translated to `Lua.newState` and `Lua.newStateAux` respectively.
+For example, the functions `lua_newstate` and `luaL_newstate` are translated to `Lua.newState` and `Lua.newStateLibc` respectively.
 
 Because Zig best practice is to communicate intent precisely, some abbreviations are expanded to make names more clear, like renaming `pcall` to `protectedCall`.
 
@@ -34,7 +87,7 @@ Because Zig best practice is to communicate intent precisely, some abbreviations
 
 In the C API, there are two functions provided to initialize the main Lua state: `lua_newstate` and `luaL_newstate`. The former requires passing an allocator function to be used by Lua for all memory allocations, while the latter uses the default libc allocator.
 
-Ziglua provides a third option with the `Lua.init(Allocator)` function, which accepts a Zig allocator. All three functions are available depending on your needs, but most likely you will want to use the `Lua.init(Allocator)` function. If you have special requirements for allocation, then `Lua.newState` would be useful. `Lua.newStateAux` is available if you wish to use the default libc allocator.
+Ziglua provides a third option with the `Lua.init(Allocator)` function, which accepts a Zig allocator. All three functions are available depending on your needs, but most likely you will want to use the `Lua.init(Allocator)` function. If you have special requirements for allocation, then `Lua.newState` would be useful. `Lua.newStateLibc` is available if you wish to use the default libc allocator.
 
 ## Safety
 
@@ -44,7 +97,7 @@ Here is a list of the features Ziglua uses for greater safety:
 
 ### Errors
 
-Many functions now return Zig errors rather than an integer code. The compiler will then ensure that the error is handled, or ignored. There are specific error types like `ziglua.Error.Runtime` for errors that have a specific meaning.
+Many functions now return Zig errors rather than an integer code. The Zig compiler will then ensure that the error is handled, or ignored. There are specific error types like `ziglua.Error.Runtime` for errors that have a specific meaning.
 
 On the other hand, many functions either succeed or return an error. Rather than returning a boolean success code, these functions return the generic `ziglua.Error.Fail` to indicate failure. The type of failure can be determined in the context of the function called.
 
@@ -103,163 +156,3 @@ This is a macro for `lua_pushstring`, so use `Lua.pushString()` instead.
 ### `pcall`
 
 Both `lua_pcall` and `lua_pcallk` are expanded to `protectedCall` and `protectedCallCont` for readability.
-
-## Build Documentation
-
-Example `build.zig.zon` file. The hash in the url is the hash of the commit you are using.
-
-```
-.{
-    .name = "myproject",
-    .version = "0.0.1",
-    .dependencies = .{
-        .ziglua = .{
-            .url = "https://github.com/natecraddock/ziglua/archive/ab111adb06d2d4dc187ee9e1e352617ca8659155.tar.gz",
-            .hash = "12206cf9e90462ee6e14f593ea6e0802b9fe434429ba10992a1451e32900f741005c",
-        },
-    }
-}
-```
-
-Example usage in `build.zig`.
-
-```zig
-pub fn build(b: *std.Build) void {
-    // ... snip ...
-
-    const ziglua = b.dependency("ziglua", .{
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // ... snip ...
-
-    // add the ziglua module and lua artifact
-    exe.addModule("ziglua", ziglua.module("ziglua"));
-    exe.linkLibrary(ziglua.artifact("lua"));
-
-}
-```
-
-There are currently two additional options that can be passed to `b.dependency()`:
-
-* `.version`: Set the Lua version to build and embed. Defaults to `.lua_54`. Possible values are `.lua_51`, `.lua_52`, `.lua_53`, and `.lua_54`.
-
-* `.shared`: Defaults to `false` for embedding in a Zig program. Set to `true` to dynamically link the Lua source code (useful for creating shared modules).
-
-For example, here is a `b.dependency()` call that and links against a shared Lua 5.2 library:
-
-```zig
-const ziglua = b.dependency("ziglua", .{
-    .target = target,
-    .optimize = optimize,
-    .version = .lua52,
-    .shared = true,
-});
-```
-
-## Examples
-
-Here are more thorough examples that show off the Ziglua bindings in context. All examples use the previously documented [`build.zig`](#build-documentation) setup.
-
-### Simple Lua Interpreter
-
-This is a modified program from _Programming In Lua 4th Edition_
-
-```zig
-const std = @import("std");
-const ziglua = @import("ziglua");
-
-const Lua = ziglua.Lua;
-
-pub fn main() anyerror!void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
-
-    // Initialize The Lua vm and get a reference to the main thread
-    var lua = try Lua.init(allocator);
-    defer lua.deinit();
-
-    // Open the standard libraries
-    lua.openLibs();
-
-    var stdin = std.io.getStdIn().reader();
-    var stdout = std.io.getStdOut().writer();
-
-    var buffer: [256]u8 = undefined;
-    while (true) {
-        _ = try stdout.write("> ");
-
-        // Read a line of input
-        const len = try stdin.read(&buffer);
-        if (len == 0) break; // EOF
-        if (len >= buffer.len - 1) {
-            try stdout.print("error: line too long!\n", .{});
-            continue;
-        }
-
-        // Ensure the buffer is null-terminated so the Lua API can read the length
-        buffer[len] = 0;
-
-        // Compile a line of Lua code
-        lua.loadString(buffer[0..len :0]) catch {
-            try stdout.print("{s}\n", .{lua.toString(-1) catch unreachable});
-            lua.pop(1);
-            continue;
-        };
-
-        // Execute a line of Lua code
-        lua.protectedCall(0, 0, 0) catch {
-            try stdout.print("{s}\n", .{lua.toString(-1) catch unreachable});
-            lua.pop(1);
-        };
-    }
-}
-```
-
-This shows a basic interpreter that reads a string from stdin. That string is parsed and compiled as Lua code and then executed.
-
-Notice that the functions `lua.loadString()` and `lua.protectedCall()` return errors that must be handled, here printing the error message that was placed on the stack.
-
-The `lua.toString()` calls are both followed with `catch unreachable` in this example. This function can fail if the value at the given index is not a string. The stack should contain a Lua error string, so in this example we assert that it will not fail. We also could have passed a generic error string with `catch "Error"`
-
-### Calling a Zig function
-
-Registering a Zig function to be called from Lua is simple
-
-```zig
-const std = @import("std");
-const ziglua = @import("ziglua");
-
-const Lua = ziglua.Lua;
-
-fn adder(lua: *Lua) i32 {
-    const a = lua.toInteger(1) catch 0;
-    const b = lua.toInteger(2) catch 0;
-    lua.pushInteger(a + b);
-    return 1;
-}
-
-pub fn main() anyerror!void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
-
-    var lua = try Lua.init(allocator);
-    defer lua.deinit();
-
-    lua.pushFunction(ziglua.wrap(adder));
-    lua.pushInteger(10);
-    lua.pushInteger(32);
-
-    // assert that this function call will not error
-    lua.protectedCall(2, 1, 0) catch unreachable;
-
-    std.debug.print("the result: {}\n", .{lua.toInteger(1) catch unreachable});
-}
-```
-
-Notice the use of `ziglua.wrap`. This is because the function `fn adder(*Lua) i32` is a `ziglua.ZigFn`, when the `lua.pushFunction` call expects a `ziglua.CFn` type.
-
-The `ziglua.wrap` function generates a new function at compile time that wraps the Zig function in a function compatible with the Lua C API. This could be done automatically by `lua.pushFunction`, but that would require the parameter to be comptime-known. The call to `ziglua.wrap` is slightly more verbose, but has the benefit of being more flexible.
