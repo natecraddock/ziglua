@@ -11,6 +11,9 @@ pub const LuaVersion = enum {
 };
 
 pub fn build(b: *Build) void {
+    // Remove the default install and uninstall steps
+    b.top_level_steps = .{};
+
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -18,7 +21,7 @@ pub fn build(b: *Build) void {
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
 
     // Zig module
-    _ = b.addModule("ziglua", .{
+    const ziglua = b.addModule("ziglua", .{
         .source_file = switch (lua_version) {
             .lua_51 => .{ .path = "src/ziglua-5.1/lib.zig" },
             .lua_52 => .{ .path = "src/ziglua-5.2/lib.zig" },
@@ -105,6 +108,34 @@ pub fn build(b: *Build) void {
 
     const test_step = b.step("test", "Run ziglua tests");
     test_step.dependOn(&tests.step);
+
+    // Examples
+    const examples = [_]struct { []const u8, []const u8 }{
+        .{ "interpreter", "examples/interpreter.zig" },
+        .{ "zig-function", "examples/zig-fn.zig" },
+    };
+
+    for (examples) |example| {
+        const exe = b.addExecutable(.{
+            .name = example[0],
+            .root_source_file = .{ .path = example[1] },
+            .target = target,
+            .optimize = optimize,
+        });
+        exe.addModule("ziglua", ziglua);
+        exe.linkLibrary(lib);
+
+        const artifact = b.addInstallArtifact(exe, .{});
+        const exe_step = b.step(b.fmt("install-example-{s}", .{example[0]}), b.fmt("Install {s} example", .{example[0]}));
+        exe_step.dependOn(&artifact.step);
+
+        const run_cmd = b.addRunArtifact(exe);
+        run_cmd.step.dependOn(b.getInstallStep());
+        if (b.args) |args| run_cmd.addArgs(args);
+
+        const run_step = b.step(b.fmt("run-example-{s}", .{example[0]}), b.fmt("Run {s} example", .{example[0]}));
+        run_step.dependOn(&run_cmd.step);
+    }
 }
 
 const lua_51_source_files = [_][]const u8{
