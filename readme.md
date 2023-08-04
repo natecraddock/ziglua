@@ -22,7 +22,7 @@ See [docs.md](https://github.com/natecraddock/ziglua/blob/main/docs.md) for more
 
 Example code is included in the [examples](https://github.com/natecraddock/ziglua/tree/main/examples) directory.
 * Run an example with `zig build run-example-<name>`
-* Install an example with `zig build install-example<name>`
+* Install an example with `zig build install-example-<name>`
 
 ## Why use Ziglua?
 In a nutshell, Ziglua is a simple wrapper around the C API you would get by using Zig's `@cImport()`. Ziglua aims to mirror the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4) as closely as possible, while improving ergonomics using Zig's features. For example:
