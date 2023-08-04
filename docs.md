@@ -7,7 +7,6 @@ This documentation provides
 * An overview of Ziglua's structure and changes from the C API
 * Safety considerations
 * `build.zig` documentation
-* Example code
 
 Documentation on each individual function is found in the source code.
 

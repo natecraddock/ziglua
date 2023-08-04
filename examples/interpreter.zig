@@ -2,6 +2,8 @@
 //! This is a modified program from Programming in Lua 4th Edition
 
 const std = @import("std");
+
+// The ziglua module is made available in build.zig
 const ziglua = @import("ziglua");
 
 pub fn main() anyerror!void {
@@ -13,7 +15,7 @@ pub fn main() anyerror!void {
     var lua = try ziglua.Lua.init(allocator);
     defer lua.deinit();
 
-    // Open the standard libraries
+    // Open all Lua standard libraries
     lua.openLibs();
 
     var stdin = std.io.getStdIn().reader();
@@ -36,13 +38,18 @@ pub fn main() anyerror!void {
 
         // Compile a line of Lua code
         lua.loadString(buffer[0..len :0]) catch {
+            // If there was an error, Lua will place an error string on the top of the stack.
+            // Here we print out the string to inform the user of the issue.
             try stdout.print("{s}\n", .{lua.toString(-1) catch unreachable});
+
+            // Remove the error from the stack and go back to the prompt
             lua.pop(1);
             continue;
         };
 
         // Execute a line of Lua code
         lua.protectedCall(0, 0, 0) catch {
+            // Error handling here is the same as above.
             try stdout.print("{s}\n", .{lua.toString(-1) catch unreachable});
             lua.pop(1);
         };

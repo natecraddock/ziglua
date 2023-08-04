@@ -1,8 +1,7 @@
 # Ziglua
-
 [![shield showing current tests status](https://github.com/natecraddock/ziglua/actions/workflows/tests.yml/badge.svg)](https://github.com/natecraddock/ziglua/actions/workflows/tests.yml)
 
-A Zig module that provides a complete and lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, and 5.4 and targets Zig master. The [`zig-0.10.0`](https://github.com/natecraddock/ziglua/tree/zig-0.10.0) branch supports the latest stable Zig, but will only be updated with bugfixes.
+A Zig package that provides a complete and lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, and 5.4 and targets Zig master.
 
 Ziglua can be used in two ways, either
 * **embedded** to statically embed the Lua VM in a Zig program,
@@ -12,12 +11,20 @@ In both cases, Ziglua will compile Lua from source and link against your Zig cod
 
 Like the Lua C API, the Ziglua API "emphasizes flexibility and simplicity... common tasks may involve several API calls. This may be boring, but it gives us full control over all the details" (_Programming In Lua 4th Edition_). However, Ziglua takes advantage of Zig's features to make it easier and safer to interact with the Lua API.
 
-* [Docs](https://github.com/natecraddock/ziglua/blob/main/docs.md)
-* [Examples](https://github.com/natecraddock/ziglua/blob/main/docs.md#examples)
-* [Changelog](https://github.com/natecraddock/ziglua/blob/main/changelog.md)
+## Documentation
+Docs are a work in progress and are automatically generated for each push to main. Most functions and public declarations are documented.
+* [Ziglua for Lua 5.1 Docs](https://natecraddock.github.io/ziglua/lua51/)
+* [Ziglua for Lua 5.2 Docs](https://natecraddock.github.io/ziglua/lua52/)
+* [Ziglua for Lua 5.3 Docs](https://natecraddock.github.io/ziglua/lua53/)
+* [Ziglua for Lua 5.4 Docs](https://natecraddock.github.io/ziglua/lua54/)
+
+See [docs.md](https://github.com/natecraddock/ziglua/blob/main/docs.md) for more general information on Ziglua and how it differs from the C API.
+
+Example code is included in the [examples](https://github.com/natecraddock/ziglua/tree/main/examples) directory.
+* Run an example with `zig build run-example-<name>`
+* Install an example with `zig build install-example<name>`
 
 ## Why use Ziglua?
-
 In a nutshell, Ziglua is a simple wrapper around the C API you would get by using Zig's `@cImport()`. Ziglua aims to mirror the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4) as closely as possible, while improving ergonomics using Zig's features. For example:
 
 * Zig error unions to require failure state handling
@@ -28,21 +35,7 @@ In a nutshell, Ziglua is a simple wrapper around the C API you would get by usin
 
 While there are some helper functions added to complement the C API, Ziglua aims to remain low-level. This allows full access to the Lua API through a layer of Zig's improvements over C.
 
-### Status
-
-The API and tests for all versions of Lua are complete. Documentation is work in progress.
-
-|         | API | Tests | Docs |
-| ------- | --- | ----- | ---- |
-| Lua 5.1 | ✓   | ✓     | ✓    |
-| Lua 5.2 | ✓   | ✓     | ✓    |
-| Lua 5.3 | ✓   | ✓     | ✓    |
-| Lua 5.4 | ✓   | ✓     | ✓    |
-
-I first implemented the Lua 5.4 API, then copied the code and edited for the other Lua versions. I have done my best to ensure accuracy, but if you find any errors please submit an issue or a pull request!
-
-## Getting Started
-
+## Integrating Ziglua in your project
 First create a `build.zig.zon` file in your Zig project if you do not already have one. Add a ziglua dependency.
 
 ```
@@ -102,20 +95,16 @@ pub fn main() anyerror!void {
 }
 ```
 
-See [docs.md](https://github.com/natecraddock/ziglua/blob/main/docs.md) for documentation and detailed [examples](https://github.com/natecraddock/ziglua/blob/main/docs.md#examples) of using Ziglua.
-
 ## Contributing
-
 Please make suggestions, report bugs, and create pull requests. Anyone is welcome to contribute!
 
-I only use a subset of the Lua API through Ziglua, so if there are parts that aren't easy to use or understand, please fix it or let me know!
+I only use a subset of the Lua API through Ziglua, so if there are parts that aren't easy to use or understand, please fix it yourself or let me know!
 
 ## Acknowledgements
-
 Thanks to the following sources:
 
 * [zoltan](https://github.com/ranciere/zoltan) for insights into compiling Lua with Zig
 * [zig-autolua](https://github.com/daurnimator/zig-autolua) for help on writing an alloc function
 * [mach-glfw](https://github.com/hexops/mach-glfw) for inspiration on a clean `build.zig`
 
-And finally [Lua](https://lua.org). Thank you to the Lua team for creating and sharing such a great language!
+And finally [Lua](https://lua.org). Thank you to the Lua team for creating such a great language!

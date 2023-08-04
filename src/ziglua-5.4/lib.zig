@@ -1,4 +1,4 @@
-//! complete bindings around the Lua C API version 5.4.4
+//! complete bindings around the Lua C API version 5.4.6
 //! exposes all Lua functionality, with additional Zig helper functions
 
 const std = @import("std");
