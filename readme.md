@@ -1,7 +1,7 @@
 # Ziglua
 [![shield showing current tests status](https://github.com/natecraddock/ziglua/actions/workflows/tests.yml/badge.svg)](https://github.com/natecraddock/ziglua/actions/workflows/tests.yml)
 
-A Zig package that provides a complete and lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, and 5.4 and targets Zig master.
+A Zig package that provides a complete and lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, and 5.4 and targets Zig master. Tagged versions of Ziglua are made for stable Zig releases.
 
 Ziglua can be used in two ways, either
 * **embedded** to statically embed the Lua VM in a Zig program,
@@ -44,14 +44,19 @@ First create a `build.zig.zon` file in your Zig project if you do not already ha
     .version = "0.0.1",
     .dependencies = .{
         .ziglua = .{
+            // Use a tagged release of Ziglua tracking a stable Zig release
+            .url = "https://github.com/natecraddock/ziglua/archive/refs/tags/0.2.0.tar.gz",
+
+            // Or a url with a hash for a specific Ziglua commit
             .url = "https://github.com/natecraddock/ziglua/archive/ab111adb06d2d4dc187ee9e1e352617ca8659155.tar.gz",
-            .hash = "12206cf9e90462ee6e14f593ea6e0802b9fe434429ba10992a1451e32900f741005c",
         },
     }
 }
 ```
 
-Then in your `build.zig` file create and use the dependency
+When you run `zig build` it will instruct you to add a `.hash` field to this file.
+
+In your `build.zig` file create and use the dependency
 
 ```zig
 pub fn build(b: *std.Build) void {
