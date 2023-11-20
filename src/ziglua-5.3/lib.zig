@@ -348,7 +348,7 @@ pub const Lua = struct {
         // the userdata passed to alloc needs to be a pointer with a consistent address
         // so we allocate an Allocator struct to hold a copy of the allocator's data
         // TODO: could we just pass a pointer to the init function?
-        var allocator_ptr = allocator.create(Allocator) catch return error.Memory;
+        const allocator_ptr = allocator.create(Allocator) catch return error.Memory;
         allocator_ptr.* = allocator;
 
         const state = c.lua_newstate(alloc, allocator_ptr) orelse return error.Memory;
