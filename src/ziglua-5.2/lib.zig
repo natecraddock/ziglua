@@ -330,7 +330,7 @@ pub const Lua = struct {
     pub fn init(allocator: Allocator) !Lua {
         // the userdata passed to alloc needs to be a pointer with a consistent address
         // so we allocate an Allocator struct to hold a copy of the allocator's data
-        var allocator_ptr = allocator.create(Allocator) catch return error.Memory;
+        const allocator_ptr = allocator.create(Allocator) catch return error.Memory;
         allocator_ptr.* = allocator;
 
         const state = c.lua_newstate(alloc, allocator_ptr) orelse return error.Memory;

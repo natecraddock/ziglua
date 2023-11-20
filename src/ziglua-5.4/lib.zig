@@ -351,7 +351,7 @@ pub const Lua = struct {
     pub fn init(allocator: Allocator) !Lua {
         // the userdata passed to alloc needs to be a pointer with a consistent address
         // so we allocate an Allocator struct to hold a copy of the allocator's data
-        var allocator_ptr = allocator.create(Allocator) catch return error.Memory;
+        const allocator_ptr = allocator.create(Allocator) catch return error.Memory;
         allocator_ptr.* = allocator;
 
         const state = c.lua_newstate(alloc, allocator_ptr) orelse return error.Memory;
@@ -2122,7 +2122,7 @@ fn wrapZigWarnFn(comptime f: ZigWarnFn) CWarnFn {
     return struct {
         fn inner(data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.C) void {
             // warning messages emitted from Lua should be null-terminated for display
-            var message = std.mem.span(@as([*:0]const u8, @ptrCast(msg)));
+            const message = std.mem.span(@as([*:0]const u8, @ptrCast(msg)));
             @call(.always_inline, f, .{ data, message, to_cont != 0 });
         }
     }.inner;

@@ -622,7 +622,7 @@ test "extra space" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    var space: *align(1) usize = @ptrCast(lua.getExtraSpace().ptr);
+    const space: *align(1) usize = @ptrCast(lua.getExtraSpace().ptr);
     space.* = 1024;
     // each new thread is initialized with a copy of the extra space from the main thread
     var thread = lua.newThread();
@@ -755,7 +755,7 @@ test "dump and load" {
     const reader = struct {
         fn inner(l: *Lua, data: *anyopaque) ?[]const u8 {
             _ = l;
-            var arr = ziglua.opaqueCast(std.ArrayList(u8), data);
+            const arr = ziglua.opaqueCast(std.ArrayList(u8), data);
             return arr.items;
         }
     }.inner;
