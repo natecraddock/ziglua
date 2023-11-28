@@ -2,4 +2,5 @@
     .name = "ziglua",
     .description = "Zig bindings for the Lua C API",
     .version = "0.1.0",
+    .paths = .{ "" },
 }
