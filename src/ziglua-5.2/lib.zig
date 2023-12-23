@@ -1218,7 +1218,7 @@ pub const Lua = struct {
         }
         if (options.S) {
             info.source = std.mem.span(ar.source);
-            std.mem.copy(u8, &info.short_src, &ar.short_src);
+            @memcpy(&info.short_src, &ar.short_src);
             info.first_line_defined = ar.linedefined;
             info.last_line_defined = ar.lastlinedefined;
             info.what = blk: {

@@ -464,7 +464,7 @@ test "string buffers" {
     b[2] = 'c';
     buffer.addSize(3);
     b = buffer.prep();
-    std.mem.copy(u8, b, "defghijklmnopqrstuvwxyz");
+    @memcpy(b[0..23], "defghijklmnopqrstuvwxyz");
     buffer.pushResultSize(23);
     try expectEqualStrings("abcdefghijklmnopqrstuvwxyz", lua.toBytesFmt(-1));
     lua.pop(1);
@@ -760,7 +760,7 @@ test "userdata and uservalues" {
     // create a Lua-owned pointer to a Data
     var data = lua.newUserdata(Data);
     data.val = 1;
-    std.mem.copy(u8, &data.code, "abcd");
+    @memcpy(&data.code, "abcd");
 
     // assign the associated user value
     lua.pushNumber(1234.56);
