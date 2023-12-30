@@ -129,14 +129,12 @@ test "standard library loading" {
     {
         var lua = try Lua.init(testing.allocator);
         defer lua.deinit();
-        // lua.openBase();
-        // lua.openPackage();
-        // lua.openString();
-        // lua.openTable();
-        // lua.openMath();
-        // lua.openIO();
-        // lua.openOS();
-        // lua.openDebug();
+        lua.openBase();
+        lua.openString();
+        lua.openTable();
+        lua.openMath();
+        lua.openOS();
+        lua.openDebug();
     }
 }
 
@@ -223,27 +221,27 @@ test "typenames" {
     try expectEqualStrings("thread", lua.typeName(.thread));
 }
 
-// test "executing string contents" {
-//     var lua = try Lua.init(testing.allocator);
-//     defer lua.deinit();
-//     lua.openLibs();
+test "executing string contents" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+    lua.openLibs();
 
-//     try lua.loadString("f = function(x) return x + 10 end");
-//     try lua.protectedCall(0, 0, 0);
-//     try lua.loadString("a = f(2)");
-//     try lua.protectedCall(0, 0, 0);
+    try lua.loadString("f = function(x) return x + 10 end");
+    try lua.protectedCall(0, 0, 0);
+    try lua.loadString("a = f(2)");
+    try lua.protectedCall(0, 0, 0);
 
-//     lua.getGlobal("f");
-//     try expectEqual(LuaType.function, lua.typeOf(-1));
-//     lua.pop(1);
-//     lua.getGlobal("a");
-//     try expectEqual(LuaType.number, lua.typeOf(-1));
-//     try expectEqual(@as(i64, 12), lua.toInteger(1));
+    try expectEqual(LuaType.function, lua.getGlobal("f"));
+    try expectEqual(LuaType.function, lua.typeOf(-1));
+    lua.pop(1);
+    try expectEqual(LuaType.number, lua.getGlobal("a"));
+    try expectEqual(LuaType.number, lua.typeOf(-1));
+    try expectEqual(@as(i64, 12), try lua.toInteger(1));
 
-//     try expectError(error.Syntax, lua.loadString("bad syntax"));
-//     try lua.loadString("a = g()");
-//     try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
-// }
+    try expectError(error.Fail, lua.loadString("bad syntax"));
+    try lua.loadString("a = g()");
+    try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
+}
 
 test "filling and checking the stack" {
     var lua = try Lua.init(testing.allocator);

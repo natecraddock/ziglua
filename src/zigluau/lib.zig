@@ -6,6 +6,8 @@ const std = @import("std");
 const c = @cImport({
     @cInclude("lua/lua.h");
     @cInclude("lua/lualib.h");
+
+    @cInclude("lua/luacode.h");
 });
 
 /// This function is defined in assert.cpp and must be called to define the assertion printer
@@ -1120,6 +1122,21 @@ pub const Lua = struct {
         return @enumFromInt(c.luaL_getmetatable(lua.state, table_name));
     }
 
+    /// Loads a string as a Lua chunk
+    /// See https://www.lua.org/manual/5.1/manual.html#luaL_loadstring
+    pub fn loadString(lua: *Lua, str: [:0]const u8) !void {
+        var size: usize = 0;
+        const bytecode = c.luau_compile(str.ptr, str.len, null, &size);
+
+        // Failed to allocate memory for the out buffer
+        if (bytecode == null) return error.Memory;
+
+        // luau_compile uses libc malloc to allocate the bytecode on the heap
+        defer std.heap.c_allocator.free(bytecode[0..size]);
+
+        if (c.luau_load(lua.state, "a", bytecode, size, 0) != 0) return error.Fail;
+    }
+
     /// If the registry already has the key `key`, returns an error
     /// Otherwise, creates a new table to be used as a metatable for userdata
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_newmetatable
@@ -1292,7 +1309,6 @@ pub const Buffer = struct {
     }
 
     /// TODO: buffinitsize
-
     /// Internal Lua type for a string buffer
     pub const LuaBuffer = c.luaL_Strbuf;
 
@@ -1323,7 +1339,6 @@ pub const Buffer = struct {
     }
 
     /// TODO: addvalueany
-
     /// Equivalent to prepSize with a buffer size of Buffer.buffer_size
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_prepbuffer
     // pub fn prep(buf: *Buffer) []u8 {
@@ -1331,7 +1346,6 @@ pub const Buffer = struct {
     // }
 
     /// TODO: prepbuffsize
-
     /// Finishes the use of the buffer leaving the final string on the top of the stack
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_pushresult
     pub fn pushResult(buf: *Buffer) void {

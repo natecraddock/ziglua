@@ -33,7 +33,7 @@ pub fn build(b: *Build) void {
         },
     });
 
-    const lib = switch(lua_version) {
+    const lib = switch (lua_version) {
         .lua_51, .lua_52, .lua_53, .lua_54 => buildLua(b, target, optimize, lua_version, shared),
         .luau => buildLuau(b, target, optimize, shared),
     };
@@ -195,12 +195,16 @@ fn buildLuau(b: *Build, target: std.zig.CrossTarget, optimize: std.builtin.Optim
         const path = b.pathJoin(&.{ "lib/luau/Compiler/src", file });
         lib.addCSourceFile(.{ .file = .{ .path = path }, .flags = &flags });
     }
+    for (luau_source_files_ast) |file| {
+        lib.addCSourceFile(.{ .file = .{ .path = file }, .flags = &flags });
+    }
     lib.addCSourceFile(.{ .file = .{ .path = "src/zigluau/assert.cpp" }, .flags = &flags });
     lib.linkLibCpp();
 
     lib.installHeader(b.pathJoin(&.{ lib_dir, "include/lua.h" }), "lua/lua.h");
     lib.installHeader(b.pathJoin(&.{ lib_dir, "include/lualib.h" }), "lua/lualib.h");
     lib.installHeader(b.pathJoin(&.{ lib_dir, "include/luaconf.h" }), "lua/luaconf.h");
+    lib.installHeader("lib/luau/Compiler/include/luacode.h", "lua/luacode.h");
 
     return lib;
 }
@@ -391,4 +395,14 @@ const luau_source_files_vm = [_][]const u8{
     "lvmexecute.cpp",
     "lvmload.cpp",
     "lvmutils.cpp",
+};
+
+const luau_source_files_ast = [_][]const u8{
+    "lib/luau/Ast/src/Ast.cpp",
+    "lib/luau/Ast/src/Confusables.cpp",
+    "lib/luau/Ast/src/Lexer.cpp",
+    "lib/luau/Ast/src/Location.cpp",
+    "lib/luau/Ast/src/Parser.cpp",
+    "lib/luau/Ast/src/StringUtils.cpp",
+    "lib/luau/Ast/src/TimeTrace.cpp",
 };
