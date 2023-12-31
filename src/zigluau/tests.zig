@@ -499,55 +499,6 @@ test "table access" {
     }
 }
 
-// test "dump and load" {
-//     var lua = try Lua.init(testing.allocator);
-//     defer lua.deinit();
-
-//     // store a function in a global
-//     try lua.doString("f = function(x) return function(n) return n + x end end");
-//     // put the function on the stack
-//     lua.getGlobal("f");
-
-//     const writer = struct {
-//         fn inner(l: *Lua, buf: []const u8, data: *anyopaque) bool {
-//             _ = l;
-//             var arr = ziglua.opaqueCast(std.ArrayList(u8), data);
-//             arr.appendSlice(buf) catch return false;
-//             return true;
-//         }
-//     }.inner;
-
-//     var buffer = std.ArrayList(u8).init(testing.allocator);
-//     defer buffer.deinit();
-
-//     // save the function as a binary chunk in the buffer
-//     try lua.dump(ziglua.wrap(writer), &buffer);
-
-//     // clear the stack
-//     lua.setTop(0);
-
-//     const reader = struct {
-//         fn inner(l: *Lua, data: *anyopaque) ?[]const u8 {
-//             _ = l;
-//             const arr = ziglua.opaqueCast(std.ArrayList(u8), data);
-//             return arr.items;
-//         }
-//     }.inner;
-
-//     // now load the function back onto the stack
-//     try lua.load(ziglua.wrap(reader), &buffer, "function");
-//     try expectEqual(LuaType.function, lua.typeOf(-1));
-
-//     // run the function (creating a new function)
-//     lua.pushInteger(5);
-//     try lua.protectedCall(1, 1, 0);
-
-//     // now call the new function (which should return the value + 5)
-//     lua.pushInteger(6);
-//     try lua.protectedCall(1, 1, 0);
-//     try expectEqual(@as(Integer, 11), lua.toInteger(-1));
-// }
-
 test "threads" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -674,35 +625,35 @@ test "yielding" {
     try expectEqual(@as(Integer, 1), try thread.toInteger(-1));
 }
 
-// test "resuming" {
-//     var lua = try Lua.init(testing.allocator);
-//     defer lua.deinit();
+test "resuming" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
 
-//     // here we create a Lua function that will run 5 times, continutally
-//     // yielding a count until it finally returns the string "done"
-//     var thread = lua.newThread();
-//     thread.openLibs();
-//     try thread.doString(
-//         \\counter = function()
-//         \\  coroutine.yield(1)
-//         \\  coroutine.yield(2)
-//         \\  coroutine.yield(3)
-//         \\  coroutine.yield(4)
-//         \\  coroutine.yield(5)
-//         \\  return "done"
-//         \\end
-//     );
-//     thread.getGlobal("counter");
+    // here we create a Lua function that will run 5 times, continutally
+    // yielding a count until it finally returns the string "done"
+    var thread = lua.newThread();
+    thread.openLibs();
+    try thread.doString(
+        \\counter = function()
+        \\  coroutine.yield(1)
+        \\  coroutine.yield(2)
+        \\  coroutine.yield(3)
+        \\  coroutine.yield(4)
+        \\  coroutine.yield(5)
+        \\  return "done"
+        \\end
+    );
+    _ = thread.getGlobal("counter");
 
-//     var i: i32 = 1;
-//     while (i <= 5) : (i += 1) {
-//         try expectEqual(ziglua.ResumeStatus.yield, try thread.resumeThread(0));
-//         try expectEqual(@as(Integer, i), thread.toInteger(-1));
-//         lua.pop(lua.getTop());
-//     }
-//     try expectEqual(ziglua.ResumeStatus.ok, try thread.resumeThread(0));
-//     try expectEqualStrings("done", try thread.toBytes(-1));
-// }
+    var i: i32 = 1;
+    while (i <= 5) : (i += 1) {
+        try expectEqual(ziglua.ResumeStatus.yield, try thread.resumeThread(null, 0));
+        try expectEqual(@as(Integer, i), try thread.toInteger(-1));
+        lua.pop(lua.getTop());
+    }
+    try expectEqual(ziglua.ResumeStatus.ok, try thread.resumeThread(null, 0));
+    try expectEqualStrings("done", try thread.toBytes(-1));
+}
 
 // test "debug interface" {
 //     var lua = try Lua.init(testing.allocator);
