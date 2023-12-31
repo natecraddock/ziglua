@@ -46,7 +46,6 @@ pub const DebugInfo = struct {
 
     current_line: ?i32 = null,
     first_line_defined: ?i32 = null,
-    last_line_defined: ?i32 = null,
 
     is_vararg: bool = false,
 
@@ -55,11 +54,10 @@ pub const DebugInfo = struct {
     pub const FnType = enum { lua, c, main, tail };
 
     pub const Options = packed struct {
-        @">": bool = false,
         f: bool = false,
         l: bool = false,
         n: bool = false,
-        S: bool = false,
+        s: bool = false,
         u: bool = false,
         L: bool = false,
 
@@ -104,17 +102,6 @@ pub const FnReg = struct {
 
 /// The index of the global environment table
 pub const globals_index = c.LUA_GLOBALSINDEX;
-
-/// Type for debugging hook functions
-/// See https://www.lua.org/manual/5.1/manual.html#lua_Hook
-pub const CHookFn = *const fn (state: ?*LuaState, ar: ?*Debug) callconv(.C) void;
-
-/// Hook event codes
-pub const hook_call = c.LUA_HOOKCALL;
-pub const hook_count = c.LUA_HOOKCOUNT;
-pub const hook_line = c.LUA_HOOKLINE;
-pub const hook_ret = c.LUA_HOOKRET;
-pub const hook_tail_call = c.LUA_HOOKTAILCALL;
 
 /// Type of integers in Lua (typically a ptrdiff_t)
 pub const Integer = c.lua_Integer;
@@ -941,10 +928,10 @@ pub const Lua = struct {
         if (options.n) {
             info.name = if (ar.name != null) std.mem.span(ar.name) else null;
         }
-        if (options.S) {
+        if (options.s) {
             info.source = std.mem.span(ar.source);
             // TODO: short_src figureit out
-            // @memcpy(&info.short_src, ar.short_src);
+            @memcpy(&info.short_src, ar.short_src[0..c.LUA_IDSIZE]);
             info.first_line_defined = ar.linedefined;
             info.what = blk: {
                 const what = std.mem.span(ar.what);
@@ -1404,7 +1391,6 @@ pub inline fn opaqueCast(comptime T: type, ptr: *anyopaque) *T {
 }
 
 pub const ZigFn = fn (lua: *Lua) i32;
-// pub const ZigHookFn = fn (lua: *Lua, event: Event, info: *DebugInfo) void;
 pub const ZigContFn = fn (lua: *Lua, status: Status, ctx: i32) i32;
 pub const ZigReaderFn = fn (lua: *Lua, data: *anyopaque) ?[]const u8;
 pub const ZigWriterFn = fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool;
@@ -1413,7 +1399,6 @@ fn TypeOfWrap(comptime T: type) type {
     return switch (T) {
         LuaState => Lua,
         ZigFn => CFn,
-        // ZigHookFn => CHookFn,
         ZigReaderFn => CReaderFn,
         ZigWriterFn => CWriterFn,
         else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
@@ -1428,7 +1413,6 @@ pub fn wrap(comptime value: anytype) TypeOfWrap(@TypeOf(value)) {
     return switch (T) {
         LuaState => Lua{ .state = value },
         ZigFn => wrapZigFn(value),
-        // ZigHookFn => wrapZigHookFn(value),
         ZigReaderFn => wrapZigReaderFn(value),
         ZigWriterFn => wrapZigWriterFn(value),
         else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),

@@ -655,135 +655,66 @@ test "resuming" {
     try expectEqualStrings("done", try thread.toBytes(-1));
 }
 
-// test "debug interface" {
-//     var lua = try Lua.init(testing.allocator);
-//     defer lua.deinit();
+test "debug interface" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
 
-//     try lua.doString(
-//         \\f = function(x)
-//         \\  local y = x * 2
-//         \\  y = y + 2
-//         \\  return x + y
-//         \\end
-//     );
-//     lua.getGlobal("f");
+    try lua.doString(
+        \\f = function(x)
+        \\  local y = x * 2
+        \\  y = y + 2
+        \\  return x + y
+        \\end
+    );
+    _ = lua.getGlobal("f");
 
-//     var info: DebugInfo = undefined;
-//     lua.getInfo(.{
-//         .@">" = true,
-//         .l = true,
-//         .S = true,
-//         .n = true,
-//         .u = true,
-//     }, &info);
+    var info: DebugInfo = undefined;
+    lua.getInfo(-1, .{
+        .l = true,
+        .s = true,
+        .n = true,
+        .u = true,
+    }, &info);
 
-//     // get information about the function
-//     try expectEqual(DebugInfo.FnType.lua, info.what);
-//     try expectEqual(DebugInfo.NameType.other, info.name_what);
-//     const len = std.mem.len(@as([*:0]u8, @ptrCast(&info.short_src)));
-//     try expectEqualStrings("[string \"f = function(x)...\"]", info.short_src[0..len]);
-//     try expectEqual(@as(?i32, 1), info.first_line_defined);
-//     try expectEqual(@as(?i32, 5), info.last_line_defined);
-//     try expectEqual(@as(?i32, null), info.current_line);
+    // get information about the function
+    try expectEqual(DebugInfo.FnType.lua, info.what);
+    const len = std.mem.len(@as([*:0]u8, @ptrCast(&info.short_src)));
+    try expectEqualStrings("[string \"...\"]", info.short_src[0..len]);
+    try expectEqual(@as(?i32, 1), info.first_line_defined);
+    try expectEqual(@as(?i32, 1), info.current_line);
+}
 
-//     // create a hook
-//     const hook = struct {
-//         fn inner(l: *Lua, event: Event, i: *DebugInfo) void {
-//             switch (event) {
-//                 .call => {
-//                     l.getInfo(.{ .l = true }, i);
-//                     if (i.current_line.? != 2) panic("Expected line to be 2", .{});
-//                     _ = l.getLocal(i, 1) catch unreachable;
-//                     if ((l.toNumber(-1)) != 3) panic("Expected x to equal 3", .{});
-//                 },
-//                 .line => if (i.current_line.? == 4) {
-//                     // modify the value of y to be 0 right before returning
-//                     l.pushNumber(0);
-//                     _ = l.setLocal(i, 2) catch unreachable;
-//                 },
-//                 .ret => {
-//                     l.getInfo(.{ .l = true }, i);
-//                     if (i.current_line.? != 4) panic("Expected line to be 4", .{});
-//                     _ = l.getLocal(i, 1) catch unreachable;
-//                     if ((l.toNumber(-1)) != 3) panic("Expected result to equal 3", .{});
-//                 },
-//                 else => unreachable,
-//             }
-//         }
-//     }.inner;
+test "debug upvalues" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
 
-//     // run the hook when a function is called
-//     try expectEqual(@as(?ziglua.CHookFn, null), lua.getHook());
-//     try expectEqual(ziglua.HookMask{}, lua.getHookMask());
-//     try expectEqual(@as(i32, 0), lua.getHookCount());
+    try lua.doString(
+        \\f = function(x)
+        \\  return function(y)
+        \\    return x + y
+        \\  end
+        \\end
+        \\addone = f(1)
+    );
+    _ = lua.getGlobal("addone");
 
-//     lua.setHook(ziglua.wrap(hook), .{ .call = true, .line = true, .ret = true }, 0);
-//     try expectEqual(@as(?ziglua.CHookFn, ziglua.wrap(hook)), lua.getHook());
-//     try expectEqual(ziglua.HookMask{ .call = true, .line = true, .ret = true }, lua.getHookMask());
+    // index doesn't exist
+    try expectError(error.Fail, lua.getUpvalue(1, 2));
 
-//     lua.getGlobal("f");
-//     lua.pushNumber(3);
-//     try lua.protectedCall(1, 1, 0);
-// }
+    // inspect the upvalue (should be x)
+    try expectEqualStrings("", try lua.getUpvalue(-1, 1));
+    try expectEqual(@as(Number, 1), try lua.toNumber(-1));
+    lua.pop(1);
 
-// test "debug upvalues" {
-//     var lua = try Lua.init(testing.allocator);
-//     defer lua.deinit();
+    // now make the function an "add five" function
+    lua.pushNumber(5);
+    _ = try lua.setUpvalue(-2, 1);
 
-//     try lua.doString(
-//         \\f = function(x)
-//         \\  return function(y)
-//         \\    return x + y
-//         \\  end
-//         \\end
-//         \\addone = f(1)
-//     );
-//     lua.getGlobal("addone");
-
-//     // index doesn't exist
-//     try expectError(error.Fail, lua.getUpvalue(1, 2));
-
-//     // inspect the upvalue (should be x)
-//     try expectEqualStrings("x", try lua.getUpvalue(-1, 1));
-//     try expectEqual(@as(Number, 1), lua.toNumber(-1));
-//     lua.pop(1);
-
-//     // now make the function an "add five" function
-//     lua.pushNumber(5);
-//     _ = try lua.setUpvalue(-2, 1);
-
-//     // call the new function (should return 7)
-//     lua.pushNumber(2);
-//     try lua.protectedCall(1, 1, 0);
-//     try expectEqual(@as(Number, 7), lua.toNumber(-1));
-// }
-
-// test "getstack" {
-//     var lua = try Lua.init(testing.allocator);
-//     defer lua.deinit();
-
-//     try expectError(error.Fail, lua.getStack(1));
-
-//     const function = struct {
-//         fn inner(l: *Lua) i32 {
-//             // get info about calling lua function
-//             var info = l.getStack(1) catch unreachable;
-//             l.getInfo(.{ .n = true }, &info);
-//             expectEqualStrings("g", info.name.?) catch unreachable;
-//             return 0;
-//         }
-//     }.inner;
-
-//     lua.pushFunction(ziglua.wrap(function));
-//     lua.setGlobal("f");
-
-//     try lua.doString(
-//         \\g = function()
-//         \\  f()
-//         \\end
-//         \\g()
-//     );
-// }
+    // call the new function (should return 7)
+    lua.pushNumber(2);
+    try lua.protectedCall(1, 1, 0);
+    try expectEqual(@as(Number, 7), try lua.toNumber(-1));
+}
 
 test "aux check functions" {
     var lua = try Lua.init(testing.allocator);
