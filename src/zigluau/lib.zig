@@ -1099,6 +1099,14 @@ pub const Lua = struct {
         return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
     }
 
+    /// Loads and runs the given string
+    /// See https://www.lua.org/manual/5.1/manual.html#luaL_dostring
+    /// TODO: does it make sense to have this in Luau?
+    pub fn doString(lua: *Lua, str: [:0]const u8) !void {
+        try lua.loadString(str);
+        try lua.protectedCall(0, mult_return, 0);
+    }
+
     /// Raises an error
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_error
     pub fn raiseErrorStr(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
@@ -1124,6 +1132,7 @@ pub const Lua = struct {
 
     /// Loads a string as a Lua chunk
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_loadstring
+    /// TODO: does it make sense to have this in Luau?
     pub fn loadString(lua: *Lua, str: [:0]const u8) !void {
         var size: usize = 0;
         const bytecode = c.luau_compile(str.ptr, str.len, null, &size);
@@ -1134,7 +1143,7 @@ pub const Lua = struct {
         // luau_compile uses libc malloc to allocate the bytecode on the heap
         defer std.heap.c_allocator.free(bytecode[0..size]);
 
-        if (c.luau_load(lua.state, "a", bytecode, size, 0) != 0) return error.Fail;
+        if (c.luau_load(lua.state, "...", bytecode, size, 0) != 0) return error.Fail;
     }
 
     /// If the registry already has the key `key`, returns an error

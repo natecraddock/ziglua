@@ -120,7 +120,7 @@ test "standard library loading" {
     {
         var lua = try Lua.init(testing.allocator);
         defer lua.deinit();
-        // lua.openLibs();
+        lua.openLibs();
     }
 
     // open all standard libraries with individual functions
@@ -424,75 +424,75 @@ test "garbage collector" {
     _ = lua.gcSetStepMul(2);
 }
 
-// test "table access" {
-//     var lua = try Lua.init(testing.allocator);
-//     defer lua.deinit();
+test "table access" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
 
-//     try lua.doString("a = { [1] = 'first', key = 'value', ['other one'] = 1234 }");
-//     lua.getGlobal("a");
+    try lua.doString("a = { [1] = 'first', key = 'value', ['other one'] = 1234 }");
+    _ = lua.getGlobal("a");
 
-//     lua.rawGetIndex(1, 1);
-//     try expectEqual(LuaType.string, lua.typeOf(-1));
-//     try expectEqualStrings("first", try lua.toBytes(-1));
+    _ = lua.rawGetIndex(1, 1);
+    try expectEqual(LuaType.string, lua.typeOf(-1));
+    try expectEqualStrings("first", try lua.toBytes(-1));
 
-//     lua.rawGetIndex(1, 1);
-//     try expectEqual(LuaType.string, lua.typeOf(-1));
-//     try expectEqualStrings("first", try lua.toBytes(-1));
+    _ = lua.rawGetIndex(1, 1);
+    try expectEqual(LuaType.string, lua.typeOf(-1));
+    try expectEqualStrings("first", try lua.toBytes(-1));
 
-//     lua.pushString("key");
-//     lua.getTable(1);
-//     try expectEqual(LuaType.string, lua.typeOf(-1));
-//     try expectEqualStrings("value", try lua.toBytes(-1));
+    lua.pushString("key");
+    _ = lua.getTable(1);
+    try expectEqual(LuaType.string, lua.typeOf(-1));
+    try expectEqualStrings("value", try lua.toBytes(-1));
 
-//     lua.pushString("other one");
-//     lua.rawGetTable(1);
-//     try expectEqual(LuaType.number, lua.typeOf(-1));
-//     try expectEqual(@as(Integer, 1234), lua.toInteger(-1));
+    lua.pushString("other one");
+    _ = lua.rawGetTable(1);
+    try expectEqual(LuaType.number, lua.typeOf(-1));
+    try expectEqual(@as(Integer, 1234), try lua.toInteger(-1));
 
-//     // a.name = "ziglua"
-//     lua.pushString("name");
-//     lua.pushString("ziglua");
-//     lua.setTable(1);
+    // a.name = "ziglua"
+    lua.pushString("name");
+    lua.pushString("ziglua");
+    lua.setTable(1);
 
-//     // a.lang = "zig"
-//     lua.pushString("lang");
-//     lua.pushString("zig");
-//     lua.rawSetTable(1);
+    // a.lang = "zig"
+    lua.pushString("lang");
+    lua.pushString("zig");
+    lua.rawSetTable(1);
 
-//     try expectError(error.Fail, lua.getMetatable(1));
+    try expectError(error.Fail, lua.getMetatable(1));
 
-//     // create a metatable (it isn't a useful one)
-//     lua.newTable();
-//     lua.pushFunction(ziglua.wrap(add));
-//     lua.setField(-2, "__len");
-//     lua.setMetatable(1);
+    // create a metatable (it isn't a useful one)
+    lua.newTable();
+    lua.pushFunction(ziglua.wrap(add), "add");
+    lua.setField(-2, "__len");
+    lua.setMetatable(1);
 
-//     try lua.getMetatable(1);
-//     _ = try lua.getMetaField(1, "__len");
-//     try expectError(error.Fail, lua.getMetaField(1, "__index"));
+    try lua.getMetatable(1);
+    _ = try lua.getMetaField(1, "__len");
+    try expectError(error.Fail, lua.getMetaField(1, "__index"));
 
-//     lua.pushBoolean(true);
-//     lua.setField(1, "bool");
+    lua.pushBoolean(true);
+    lua.setField(1, "bool");
 
-//     try lua.doString("b = a.bool");
-//     lua.getGlobal("b");
-//     try expectEqual(LuaType.boolean, lua.typeOf(-1));
-//     try expect(lua.toBoolean(-1));
+    try lua.doString("b = a.bool");
+    _ = lua.getGlobal("b");
+    try expectEqual(LuaType.boolean, lua.typeOf(-1));
+    try expect(lua.toBoolean(-1));
 
-//     // create array [1, 2, 3, 4, 5]
-//     lua.createTable(0, 0);
-//     var index: i32 = 1;
-//     while (index <= 5) : (index += 1) {
-//         lua.pushInteger(index);
-//         lua.rawSetIndex(-2, index);
-//     }
+    // create array [1, 2, 3, 4, 5]
+    lua.createTable(0, 0);
+    var index: i32 = 1;
+    while (index <= 5) : (index += 1) {
+        lua.pushInteger(index);
+        lua.rawSetIndex(-2, index);
+    }
 
-//     // add a few more
-//     while (index <= 10) : (index += 1) {
-//         lua.pushInteger(index);
-//         lua.rawSetIndex(-2, index);
-//     }
-// }
+    // add a few more
+    while (index <= 10) : (index += 1) {
+        lua.pushInteger(index);
+        lua.rawSetIndex(-2, index);
+    }
+}
 
 // test "dump and load" {
 //     var lua = try Lua.init(testing.allocator);
@@ -607,34 +607,34 @@ test "upvalues" {
     }
 }
 
-// test "table traversal" {
-//     var lua = try Lua.init(testing.allocator);
-//     defer lua.deinit();
+test "table traversal" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
 
-//     try lua.doString("t = { key = 'value', second = true, third = 1 }");
-//     lua.getGlobal("t");
+    try lua.doString("t = { key = 'value', second = true, third = 1 }");
+    _ = lua.getGlobal("t");
 
-//     lua.pushNil();
+    lua.pushNil();
 
-//     while (lua.next(1)) {
-//         switch (lua.typeOf(-1)) {
-//             .string => {
-//                 try expectEqualStrings("key", try lua.toBytes(-2));
-//                 try expectEqualStrings("value", try lua.toBytes(-1));
-//             },
-//             .boolean => {
-//                 try expectEqualStrings("second", try lua.toBytes(-2));
-//                 try expectEqual(true, lua.toBoolean(-1));
-//             },
-//             .number => {
-//                 try expectEqualStrings("third", try lua.toBytes(-2));
-//                 try expectEqual(@as(Integer, 1), lua.toInteger(-1));
-//             },
-//             else => unreachable,
-//         }
-//         lua.pop(1);
-//     }
-// }
+    while (lua.next(1)) {
+        switch (lua.typeOf(-1)) {
+            .string => {
+                try expectEqualStrings("key", try lua.toBytes(-2));
+                try expectEqualStrings("value", try lua.toBytes(-1));
+            },
+            .boolean => {
+                try expectEqualStrings("second", try lua.toBytes(-2));
+                try expectEqual(true, lua.toBoolean(-1));
+            },
+            .number => {
+                try expectEqualStrings("third", try lua.toBytes(-2));
+                try expectEqual(@as(Integer, 1), try lua.toInteger(-1));
+            },
+            else => unreachable,
+        }
+        lua.pop(1);
+    }
+}
 
 test "raise error" {
     var lua = try Lua.init(testing.allocator);
@@ -926,25 +926,25 @@ test "get global nil" {
     try expectEqual(LuaType.nil, lua.typeOf(-1));
 }
 
-// test "metatables" {
-//     var lua = try Lua.init(testing.allocator);
-//     defer lua.deinit();
+test "metatables" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
 
-//     try lua.doString("f = function() return 10 end");
+    try lua.doString("f = function() return 10 end");
 
-//     try lua.newMetatable("mt");
+    try lua.newMetatable("mt");
 
-//     // set the len metamethod to the function f
-//     lua.getGlobal("f");
-//     lua.setField(1, "__len");
+    // set the len metamethod to the function f
+    _ = lua.getGlobal("f");
+    lua.setField(1, "__len");
 
-//     lua.newTable();
-//     lua.getField(ziglua.registry_index, "mt");
-//     lua.setMetatable(-2);
+    lua.newTable();
+    _ = lua.getField(ziglua.registry_index, "mt");
+    lua.setMetatable(-2);
 
-//     try lua.callMeta(-1, "__len");
-//     try expectEqual(@as(Number, 10), lua.toNumber(-1));
-// }
+    try lua.callMeta(-1, "__len");
+    try expectEqual(@as(Number, 10), try lua.toNumber(-1));
+}
 
 test "aux opt functions" {
     var lua = try Lua.init(testing.allocator);
@@ -1024,28 +1024,28 @@ test "checkOption" {
     try expectEqualStrings("invalid argument #1 to 'function' (invalid option 'unknown')", try lua.toBytes(-1));
 }
 
-// test "where" {
-//     var lua = try Lua.init(testing.allocator);
-//     defer lua.deinit();
+test "where" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
 
-//     const whereFn = ziglua.wrap(struct {
-//         fn inner(l: *Lua) i32 {
-//             l.where(1);
-//             return 1;
-//         }
-//     }.inner);
+    const whereFn = ziglua.wrap(struct {
+        fn inner(l: *Lua) i32 {
+            l.where(1);
+            return 1;
+        }
+    }.inner);
 
-//     lua.pushFunction(whereFn);
-//     lua.setGlobal("whereFn");
+    lua.pushFunction(whereFn, "where");
+    lua.setGlobal("whereFn");
 
-//     try lua.doString(
-//         \\
-//         \\ret = whereFn()
-//     );
+    try lua.doString(
+        \\
+        \\ret = whereFn()
+    );
 
-//     lua.getGlobal("ret");
-//     try expectEqualStrings("[string \"...\"]:2: ", try lua.toBytes(-1));
-// }
+    _ = lua.getGlobal("ret");
+    try expectEqualStrings("[string \"...\"]:2: ", try lua.toBytes(-1));
+}
 
 test "ref" {
     var lua = try Lua.init(testing.allocator);
@@ -1162,37 +1162,37 @@ test "userdata slices" {
     try lua.protectedCall(1, 0, 0);
 }
 
-// test "function environments" {
-//     var lua = try Lua.init(testing.allocator);
-//     defer lua.deinit();
+test "function environments" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
 
-//     try lua.doString("function test() return x end");
+    try lua.doString("function test() return x end");
 
-//     // set the global _G.x to be 10
-//     lua.pushInteger(10);
-//     lua.setGlobal("x");
+    // set the global _G.x to be 10
+    lua.pushInteger(10);
+    lua.setGlobal("x");
 
-//     lua.getGlobal("test");
-//     try lua.protectedCall(0, 1, 0);
-//     try testing.expectEqual(@as(Integer, 10), lua.toInteger(1));
-//     lua.pop(1);
+    _ = lua.getGlobal("test");
+    try lua.protectedCall(0, 1, 0);
+    try testing.expectEqual(@as(Integer, 10), try lua.toInteger(1));
+    lua.pop(1);
 
-//     // now set the functions table to have a different value of x
-//     lua.getGlobal("test");
-//     lua.newTable();
-//     lua.pushInteger(20);
-//     lua.setField(2, "x");
-//     try lua.setFnEnvironment(1);
+    // now set the functions table to have a different value of x
+    _ = lua.getGlobal("test");
+    lua.newTable();
+    lua.pushInteger(20);
+    lua.setField(2, "x");
+    try lua.setFnEnvironment(1);
 
-//     try lua.protectedCall(0, 1, 0);
-//     try testing.expectEqual(@as(Integer, 20), lua.toInteger(1));
-//     lua.pop(1);
+    try lua.protectedCall(0, 1, 0);
+    try testing.expectEqual(@as(Integer, 20), try lua.toInteger(1));
+    lua.pop(1);
 
-//     lua.getGlobal("test");
-//     lua.getFnEnvironment(1);
-//     lua.getField(2, "x");
-//     try testing.expectEqual(@as(Integer, 20), lua.toInteger(3));
-// }
+    _ = lua.getGlobal("test");
+    lua.getFnEnvironment(1);
+    _ = lua.getField(2, "x");
+    try testing.expectEqual(@as(Integer, 20), try lua.toInteger(3));
+}
 
 test "objectLen" {
     var lua = try Lua.init(testing.allocator);
