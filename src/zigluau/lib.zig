@@ -703,14 +703,13 @@ pub const Lua = struct {
         c.lua_rawseti(lua.state, index, i);
     }
 
-    // /// Sets the C function f as the new value of global name
-    // /// See https://www.lua.org/manual/5.1/manual.html#lua_register
-    // pub fn register(lua: *Lua, name: [:0]const u8, c_fn: CFn) void {
-    //     // translate-c failure
-    //     // c.lua_register(lua.state, name, c_fn);
-    //     lua.pushFunction(c_fn);
-    //     lua.setGlobal(name);
-    // }
+    /// Sets the C function f as the new value of global name
+    /// See https://www.lua.org/manual/5.1/manual.html#lua_register
+    pub fn register(lua: *Lua, name: [:0]const u8, c_fn: CFn) void {
+        // translate-c failure
+        lua.pushFunction(c_fn, name);
+        lua.setGlobal(name);
+    }
 
     /// Removes the element at the given valid `index` shifting down elements to fill the gap
     /// See https://www.lua.org/manual/5.1/manual.html#lua_remove
@@ -1321,10 +1320,17 @@ pub const Buffer = struct {
     /// Internal Lua type for a string buffer
     pub const LuaBuffer = c.luaL_Strbuf;
 
-    // pub const buffer_size = c.LUAL_BUFFERSIZE;
-    pub const buffer_size = 10;
+    pub const buffer_size = c.LUA_BUFFERSIZE;
 
-    // TODO: addchar (defined as a macro)
+    /// Adds `byte` to the buffer
+    /// See https://www.lua.org/manual/5.1/manual.html#luaL_addchar
+    pub fn addChar(buf: *Buffer, byte: u8) void {
+        // could not be translated by translate-c
+        var lua_buf = &buf.b;
+        if (lua_buf.p > &lua_buf.buffer[buffer_size - 1]) _ = buf.prep();
+        lua_buf.p.* = byte;
+        lua_buf.p += 1;
+    }
 
     /// Adds the string to the buffer
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_addlstring
@@ -1341,27 +1347,40 @@ pub const Buffer = struct {
         lua_buf.p += length;
     }
 
+    /// Adds the zero-terminated string pointed to by `str` to the buffer
+    /// See https://www.lua.org/manual/5.1/manual.html#luaL_addstring
+    pub fn addString(buf: *Buffer, str: [:0]const u8) void {
+        c.luaL_addlstring(&buf.b, str.ptr, str.len);
+    }
+
     /// Adds the value on the top of the stack to the buffer and pops the value
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_addvalue
     pub fn addValue(buf: *Buffer) void {
         c.luaL_addvalue(&buf.b);
     }
 
-    /// TODO: addvalueany
+    /// Adds the value at the given index to the buffer
+    pub fn addValueAny(buf: *Buffer, idx: i32) void {
+        c.luaL_addvalueany(&buf.b, idx);
+    }
+
     /// Equivalent to prepSize with a buffer size of Buffer.buffer_size
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_prepbuffer
-    // pub fn prep(buf: *Buffer) []u8 {
-    //     return c.luaL_prepbuffsize(&buf.b, buffer_size);
-    // }
+    pub fn prep(buf: *Buffer) []u8 {
+        return c.luaL_prepbuffsize(&buf.b, buffer_size)[0..buffer_size];
+    }
 
-    /// TODO: prepbuffsize
     /// Finishes the use of the buffer leaving the final string on the top of the stack
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_pushresult
     pub fn pushResult(buf: *Buffer) void {
         c.luaL_pushresult(&buf.b);
     }
 
-    // TODO: pushresultsize
+    /// Equivalent to `Buffer.addSize()` followed by `Buffer.pushResult()`
+    /// See https://www.lua.org/manual/5.2/manual.html#luaL_pushresultsize
+    pub fn pushResultSize(buf: *Buffer, size: usize) void {
+        c.luaL_pushresultsize(&buf.b, size);
+    }
 };
 
 // Helper functions to make the ziglua API easier to use

@@ -312,60 +312,62 @@ test "stack manipulation" {
     try expectEqual(@as(i32, 0), lua.getTop());
 }
 
-// test "calling a function" {
-//     var lua = try Lua.init(testing.allocator);
-//     defer lua.deinit();
+test "calling a function" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
 
-//     lua.register("zigadd", ziglua.wrap(add));
-//     lua.getGlobal("zigadd");
-//     lua.pushInteger(10);
-//     lua.pushInteger(32);
+    lua.register("zigadd", ziglua.wrap(add));
+    _ = lua.getGlobal("zigadd");
+    lua.pushInteger(10);
+    lua.pushInteger(32);
 
-//     // protectedCall is safer, but we might as well exercise call when
-//     // we know it should be safe
-//     lua.call(2, 1);
+    // protectedCall is safer, but we might as well exercise call when
+    // we know it should be safe
+    lua.call(2, 1);
 
-//     try expectEqual(@as(i64, 42), try lua.toInteger(1));
-// }
+    try expectEqual(@as(i64, 42), try lua.toInteger(1));
+}
 
-// test "string buffers" {
-//     var lua = try Lua.init(testing.allocator);
-//     defer lua.deinit();
+test "string buffers" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
 
-//     var buffer: Buffer = undefined;
-//     buffer.init(lua);
+    var buffer: Buffer = undefined;
+    buffer.init(lua);
 
-//     buffer.addChar('z');
-//     buffer.addChar('i');
-//     buffer.addChar('g');
-//     buffer.addString("l");
+    buffer.addChar('z');
+    buffer.addChar('i');
+    buffer.addChar('g');
+    buffer.addString("l");
 
-//     var str = buffer.prep();
-//     str[0] = 'u';
-//     str[1] = 'a';
-//     buffer.addSize(2);
+    var str = buffer.prep();
+    str[0] = 'u';
+    str[1] = 'a';
+    buffer.addSize(2);
 
-//     buffer.addBytes(" api ");
-//     lua.pushNumber(5.1);
-//     buffer.addValue();
-//     buffer.pushResult();
-//     try expectEqualStrings("ziglua api 5.1", try lua.toBytes(-1));
+    buffer.addBytes(" api ");
+    lua.pushNumber(5.1);
+    buffer.addValue();
 
-//     // now test a small buffer
-//     buffer = undefined;
-//     buffer.init(lua);
-//     var b = buffer.prep();
-//     b[0] = 'a';
-//     b[1] = 'b';
-//     b[2] = 'c';
-//     buffer.addSize(3);
-//     b = buffer.prep();
-//     @memcpy(b, "defghijklmnopqrstuvwxyz");
-//     buffer.addSize(23);
-//     buffer.pushResult();
-//     try expectEqualStrings("abcdefghijklmnopqrstuvwxyz", try lua.toBytes(-1));
-//     lua.pop(1);
-// }
+    lua.pushBytes(" luau");
+    buffer.addValueAny(-1);
+    buffer.pushResult();
+    try expectEqualStrings("ziglua api 5.1 luau", try lua.toBytes(-1));
+
+    // now test a small buffer
+    buffer = undefined;
+    buffer.init(lua);
+    var b = buffer.prep();
+    b[0] = 'a';
+    b[1] = 'b';
+    b[2] = 'c';
+    buffer.addSize(3);
+    b = buffer.prep();
+    @memcpy(b[0..23], "defghijklmnopqrstuvwxyz");
+    buffer.pushResultSize(23);
+    try expectEqualStrings("abcdefghijklmnopqrstuvwxyz", try lua.toBytes(-1));
+    lua.pop(1);
+}
 
 test "function registration" {
     var lua = try Lua.init(testing.allocator);
