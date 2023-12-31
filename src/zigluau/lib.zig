@@ -384,6 +384,18 @@ pub const Lua = struct {
         return c.lua_gc(lua.state, c.LUA_GCSETSTEPMUL, multiplier);
     }
 
+    pub fn gcIsRunning(lua: *Lua) bool {
+        return c.lua_gc(lua.state, c.LUA_GCISRUNNING, 0) == 1;
+    }
+
+    pub fn gcSetGoal(lua: *Lua, goal: i32) i32 {
+        return c.lua_gc(lua.state, c.LUA_GCSETGOAL, goal);
+    }
+
+    pub fn gcSetStepSize(lua: *Lua, size: i32) i32 {
+        return c.lua_gc(lua.state, c.LUA_GCSETSTEPSIZE, size);
+    }
+
     /// Returns the memory allocation function of a given state
     /// If data is not null, it is set to the opaque pointer given when the allocator function was set
     /// See https://www.lua.org/manual/5.1/manual.html#lua_getallocf
