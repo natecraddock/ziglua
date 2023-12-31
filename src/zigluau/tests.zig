@@ -421,9 +421,12 @@ test "garbage collector" {
     lua.gcCollect();
     lua.gcRestart();
     lua.gcStep();
+    _ = lua.gcIsRunning();
     _ = lua.gcCount();
     _ = lua.gcCountB();
+    _ = lua.gcSetGoal(10);
     _ = lua.gcSetStepMul(2);
+    _ = lua.gcSetStepSize(1);
 }
 
 test "table access" {
