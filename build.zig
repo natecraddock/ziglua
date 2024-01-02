@@ -198,7 +198,7 @@ fn buildLuau(b: *Build, target: std.zig.CrossTarget, optimize: std.builtin.Optim
     for (luau_source_files_ast) |file| {
         lib.addCSourceFile(.{ .file = .{ .path = file }, .flags = &flags });
     }
-    lib.addCSourceFile(.{ .file = .{ .path = "src/zigluau/assert.cpp" }, .flags = &flags });
+    lib.addCSourceFile(.{ .file = .{ .path = "src/zigluau/luau.cpp" }, .flags = &flags });
     lib.linkLibCpp();
 
     lib.installHeader(b.pathJoin(&.{ lib_dir, "include/lua.h" }), "lua/lua.h");
