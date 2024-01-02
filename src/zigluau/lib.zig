@@ -10,8 +10,11 @@ const c = @cImport({
     @cInclude("lua/luacode.h");
 });
 
-/// This function is defined in assert.cpp and must be called to define the assertion printer
+/// This function is defined in luau.cpp and must be called to define the assertion printer
 extern "c" fn zig_registerAssertionHandler() void;
+
+/// This function is defined in luau.cpp and ensures Zig uses the correct free when compiling luau code
+extern "c" fn zig_luau_free(ptr: *anyopaque) void;
 
 const Allocator = std.mem.Allocator;
 
@@ -1138,8 +1141,8 @@ pub const Lua = struct {
         // Failed to allocate memory for the out buffer
         if (bytecode == null) return error.Memory;
 
-        // luau_compile uses libc malloc to allocate the bytecode on the heap
-        defer std.heap.c_allocator.free(bytecode[0..size]);
+        // luau_compile uses malloc to allocate the bytecode on the heap
+        defer zig_luau_free(bytecode);
 
         if (c.luau_load(lua.state, "...", bytecode, size, 0) != 0) return error.Fail;
     }
