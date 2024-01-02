@@ -16,3 +16,4 @@ docs:
 	zig build-lib -femit-docs=docs/lua52 src/ziglua-5.2/lib.zig
 	zig build-lib -femit-docs=docs/lua53 src/ziglua-5.3/lib.zig
 	zig build-lib -femit-docs=docs/lua54 src/ziglua-5.4/lib.zig
+	zig build-lib -femit-docs=docs/luau src/zigluau/lib.zig
