@@ -9,7 +9,6 @@ pub const LuaVersion = enum {
     lua_53,
     lua_54,
     luau,
-    // lua_jit,
 };
 
 pub fn build(b: *Build) void {
@@ -177,33 +176,21 @@ fn buildLuau(b: *Build, target: std.zig.CrossTarget, optimize: std.builtin.Optim
     _ = os_tag;
 
     const flags = [_][]const u8{
-        // Enable api check
-        // if (optimize == .Debug) "-DLUA_USE_APICHECK" else "",
-
         "-DLUA_USE_LONGJMP=1",
         "-DLUA_API=extern\"C\"",
         "-DLUACODE_API=extern\"C\"",
         "-DLUACODEGEN_API=extern\"C\"",
     };
 
-    const lua_source_files = &luau_source_files_vm;
-    for (lua_source_files) |file| {
-        const path = b.pathJoin(&.{ lib_dir, "src", file });
-        lib.addCSourceFile(.{ .file = .{ .path = path }, .flags = &flags });
-    }
-    for (luau_source_files_compiler) |file| {
-        const path = b.pathJoin(&.{ "lib/luau/Compiler/src", file });
-        lib.addCSourceFile(.{ .file = .{ .path = path }, .flags = &flags });
-    }
-    for (luau_source_files_ast) |file| {
+    for (luau_source_files) |file| {
         lib.addCSourceFile(.{ .file = .{ .path = file }, .flags = &flags });
     }
     lib.addCSourceFile(.{ .file = .{ .path = "src/zigluau/luau.cpp" }, .flags = &flags });
     lib.linkLibCpp();
 
-    lib.installHeader(b.pathJoin(&.{ lib_dir, "include/lua.h" }), "lua/lua.h");
-    lib.installHeader(b.pathJoin(&.{ lib_dir, "include/lualib.h" }), "lua/lualib.h");
-    lib.installHeader(b.pathJoin(&.{ lib_dir, "include/luaconf.h" }), "lua/luaconf.h");
+    lib.installHeader("lib/luau/VM/include/lua.h", "lua/lua.h");
+    lib.installHeader("lib/luau/VM/include/lualib.h", "lua/lualib.h");
+    lib.installHeader("lib/luau/VM/include/luaconf.h", "lua/luaconf.h");
     lib.installHeader("lib/luau/Compiler/include/luacode.h", "lua/luacode.h");
 
     return lib;
@@ -347,57 +334,51 @@ const lua_54_source_files = [_][]const u8{
     "linit.c",
 };
 
-const luau_source_files_compiler = [_][]const u8{
-    // Compiler
-    "BuiltinFolding.cpp",
-    "Builtins.cpp",
-    "BytecodeBuilder.cpp",
-    "Compiler.cpp",
-    "ConstantFolding.cpp",
-    "CostModel.cpp",
-    "TableShape.cpp",
-    "Types.cpp",
-    "ValueTracking.cpp",
-    "lcode.cpp",
-};
+const luau_source_files = [_][]const u8{
+    "lib/luau/Compiler/src/BuiltinFolding.cpp",
+    "lib/luau/Compiler/src/Builtins.cpp",
+    "lib/luau/Compiler/src/BytecodeBuilder.cpp",
+    "lib/luau/Compiler/src/Compiler.cpp",
+    "lib/luau/Compiler/src/ConstantFolding.cpp",
+    "lib/luau/Compiler/src/CostModel.cpp",
+    "lib/luau/Compiler/src/TableShape.cpp",
+    "lib/luau/Compiler/src/Types.cpp",
+    "lib/luau/Compiler/src/ValueTracking.cpp",
+    "lib/luau/Compiler/src/lcode.cpp",
 
-const luau_source_files_vm = [_][]const u8{
-    // VM
-    "lapi.cpp",
-    "laux.cpp",
-    "lbaselib.cpp",
-    "lbitlib.cpp",
-    "lbuffer.cpp",
-    "lbuflib.cpp",
-    "lbuiltins.cpp",
-    "lcorolib.cpp",
-    "ldblib.cpp",
-    "ldebug.cpp",
-    "ldo.cpp",
-    "lfunc.cpp",
-    "lgc.cpp",
-    "lgcdebug.cpp",
-    "linit.cpp",
-    "lmathlib.cpp",
-    "lmem.cpp",
-    "lnumprint.cpp",
-    "lobject.cpp",
-    "loslib.cpp",
-    "lperf.cpp",
-    "lstate.cpp",
-    "lstring.cpp",
-    "lstrlib.cpp",
-    "ltable.cpp",
-    "ltablib.cpp",
-    "ltm.cpp",
-    "ludata.cpp",
-    "lutf8lib.cpp",
-    "lvmexecute.cpp",
-    "lvmload.cpp",
-    "lvmutils.cpp",
-};
+    "lib/luau/VM/src/lapi.cpp",
+    "lib/luau/VM/src/laux.cpp",
+    "lib/luau/VM/src/lbaselib.cpp",
+    "lib/luau/VM/src/lbitlib.cpp",
+    "lib/luau/VM/src/lbuffer.cpp",
+    "lib/luau/VM/src/lbuflib.cpp",
+    "lib/luau/VM/src/lbuiltins.cpp",
+    "lib/luau/VM/src/lcorolib.cpp",
+    "lib/luau/VM/src/ldblib.cpp",
+    "lib/luau/VM/src/ldebug.cpp",
+    "lib/luau/VM/src/ldo.cpp",
+    "lib/luau/VM/src/lfunc.cpp",
+    "lib/luau/VM/src/lgc.cpp",
+    "lib/luau/VM/src/lgcdebug.cpp",
+    "lib/luau/VM/src/linit.cpp",
+    "lib/luau/VM/src/lmathlib.cpp",
+    "lib/luau/VM/src/lmem.cpp",
+    "lib/luau/VM/src/lnumprint.cpp",
+    "lib/luau/VM/src/lobject.cpp",
+    "lib/luau/VM/src/loslib.cpp",
+    "lib/luau/VM/src/lperf.cpp",
+    "lib/luau/VM/src/lstate.cpp",
+    "lib/luau/VM/src/lstring.cpp",
+    "lib/luau/VM/src/lstrlib.cpp",
+    "lib/luau/VM/src/ltable.cpp",
+    "lib/luau/VM/src/ltablib.cpp",
+    "lib/luau/VM/src/ltm.cpp",
+    "lib/luau/VM/src/ludata.cpp",
+    "lib/luau/VM/src/lutf8lib.cpp",
+    "lib/luau/VM/src/lvmexecute.cpp",
+    "lib/luau/VM/src/lvmload.cpp",
+    "lib/luau/VM/src/lvmutils.cpp",
 
-const luau_source_files_ast = [_][]const u8{
     "lib/luau/Ast/src/Ast.cpp",
     "lib/luau/Ast/src/Confusables.cpp",
     "lib/luau/Ast/src/Lexer.cpp",
