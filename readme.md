@@ -1,7 +1,7 @@
 # Ziglua
 [![shield showing current tests status](https://github.com/natecraddock/ziglua/actions/workflows/tests.yml/badge.svg)](https://github.com/natecraddock/ziglua/actions/workflows/tests.yml)
 
-A Zig package that provides a complete and lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, and 5.4 and targets Zig master. Tagged versions of Ziglua are made for stable Zig releases.
+A Zig package that provides a complete and lightweight wrapper around the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, 5.4, and [Luau](https://luau-lang.org) and targets Zig master. Tagged versions of Ziglua are made for stable Zig releases.
 
 Ziglua can be used in two ways, either
 * **embedded** to statically embed the Lua VM in a Zig program,
@@ -17,6 +17,7 @@ Docs are a work in progress and are automatically generated for each push to mai
 * [Ziglua for Lua 5.2 Docs](https://natecraddock.github.io/ziglua/lua52/)
 * [Ziglua for Lua 5.3 Docs](https://natecraddock.github.io/ziglua/lua53/)
 * [Ziglua for Lua 5.4 Docs](https://natecraddock.github.io/ziglua/lua54/)
+* [Ziglua for Luau Docs](https://natecraddock.github.io/ziglua/luau/)
 
 See [docs.md](https://github.com/natecraddock/ziglua/blob/main/docs.md) for more general information on Ziglua and how it differs from the C API.
 
