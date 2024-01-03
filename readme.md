@@ -72,9 +72,21 @@ pub fn build(b: *std.Build) void {
 
     // add the ziglua module and lua artifact
     exe.addModule("ziglua", ziglua.module("ziglua"));
-    exe.linkLibrary(ziglua.artifact("lua"));
+    exe.linkLibrary(ziglua.artifact("lua")); // or "luau" if you're using Luau
 
 }
+```
+
+To choose the native Lua implementation  (Lua version or use Luau), add a `version` field to the `ziglua` dependency like below:
+
+```zig
+    const ziglua = b.dependency("ziglua", .{
+        .target = target,
+        .optimize = optimize,
+        .version = @import("ziglua").LuaVersion.luau,
+    });
+    exe.addModule("ziglua", ziglua.module("ziglua"));
+    exe.linkLibrary(ziglua.artifact("luau")); // note: luau instead of lua here for LuaVersion.luau
 ```
 
 This will compile the Lua C sources and link with your project. The `ziglua` module will now be available in your code. Here is a simple example that pushes and inspects an integer on the Lua stack:
