@@ -2152,3 +2152,35 @@ test "getstack" {
         \\g()
     );
 }
+
+test "compile and run bytecode" {
+    if (ziglua.lang != .luau) return;
+
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+    lua.openLibs();
+
+    // Load bytecode
+    const src = "return 133";
+    const bc = try ziglua.compile(testing.allocator, src, ziglua.CompileOptions{});
+    defer testing.allocator.free(bc);
+
+    try lua.loadBytecode("...", bc);
+    try lua.protectedCall(0, 1, 0);
+    const v = try lua.toInteger(-1);
+    try testing.expectEqual(@as(i32, 133), v);
+
+    // Try mutable globals.  Calls to mutable globals should produce longer bytecode.
+    const src2 = "Foo.print()\nBar.print()";
+    const bc1 = try ziglua.compile(testing.allocator, src2, ziglua.CompileOptions{});
+    defer testing.allocator.free(bc1);
+
+    const options = ziglua.CompileOptions{
+        .mutable_globals = &[_:null]?[*:0]const u8{ "Foo", "Bar" },
+    };
+    const bc2 = try ziglua.compile(testing.allocator, src2, options);
+    defer testing.allocator.free(bc2);
+    // A really crude check for changed bytecode.  Better would be to match
+    // produced bytecode in text format, but the API doesn't support it.
+    try testing.expect(bc1.len < bc2.len);
+}

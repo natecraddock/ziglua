@@ -69,10 +69,14 @@ pub fn build(b: *Build) void {
     test_step.dependOn(&run_tests.step);
 
     // Examples
-    const examples = [_]struct { []const u8, []const u8 }{
+    var common_examples = [_]struct { []const u8, []const u8 }{
         .{ "interpreter", "examples/interpreter.zig" },
         .{ "zig-function", "examples/zig-fn.zig" },
     };
+    const luau_examples = [_]struct { []const u8, []const u8 }{
+        .{ "luau-bytecode", "examples/luau-bytecode.zig" },
+    };
+    const examples = if (lang == .luau) &common_examples ++ luau_examples else &common_examples;
 
     for (examples) |example| {
         const exe = b.addExecutable(.{

@@ -1148,8 +1148,14 @@ pub const Lua = struct {
 
         // luau_compile uses malloc to allocate the bytecode on the heap
         defer zig_luau_free(bytecode);
+        try lua.loadBytecode("...", bytecode[0..size]);
+    }
 
-        if (c.luau_load(lua.state, "...", bytecode, size, 0) != 0) return error.Fail;
+    /// Loads bytecode binary (as compiled with f.ex. 'luau-compile --binary')
+    /// See https://luau-lang.org/getting-started
+    /// See also condsiderations for binary bytecode compatibility/safety: https://github.com/luau-lang/luau/issues/493#issuecomment-1185054665
+    pub fn loadBytecode(lua: *Lua, chunkname: [:0]const u8, bytecode: []const u8) !void {
+        if (c.luau_load(lua.state, chunkname.ptr, bytecode.ptr, bytecode.len, 0) != 0) return error.Fail;
     }
 
     /// If the registry already has the key `key`, returns an error
@@ -1485,4 +1491,37 @@ fn wrapZigWriterFn(comptime f: ZigWriterFn) CWriterFn {
 pub fn exportFn(comptime name: []const u8, comptime func: ZigFn) void {
     const declaration = wrap(func);
     @export(declaration, .{ .name = "luaopen_" ++ name, .linkage = .Strong });
+}
+
+/// Zig wrapper for Luau lua_CompileOptions that uses the same defaults as Luau if
+/// no compile options is specified.
+pub const CompileOptions = struct {
+    optimization_level: i32 = 1,
+    debug_level: i32 = 1,
+    coverage_level: i32 = 0,
+    /// global builtin to construct vectors; disabled by default (<vector_lib>.<vector_ctor>)
+    vector_lib: ?[*:0]const u8 = null,
+    vector_ctor: ?[*:0]const u8 = null,
+    /// vector type name for type tables; disabled by default
+    vector_type: ?[*:0]const u8 = null,
+    /// null-terminated array of globals that are mutable; disables the import optimization for fields accessed through these
+    mutable_globals: ?[*:null]const ?[*:0]const u8 = null,
+};
+
+/// Compile luau source into bytecode, return callee owned buffer allocated through the given allocator.
+pub fn compile(allocator: Allocator, source: []const u8, options: CompileOptions) ![]const u8 {
+    var size: usize = 0;
+
+    var opts = c.lua_CompileOptions{
+        .optimizationLevel = options.optimization_level,
+        .debugLevel = options.debug_level,
+        .coverageLevel = options.coverage_level,
+        .vectorLib = options.vector_lib,
+        .vectorCtor = options.vector_ctor,
+        .mutableGlobals = options.mutable_globals,
+    };
+    const bytecode = c.luau_compile(source.ptr, source.len, &opts, &size);
+    if (bytecode == null) return error.Memory;
+    defer zig_luau_free(bytecode);
+    return try allocator.dupe(u8, bytecode[0..size]);
 }
