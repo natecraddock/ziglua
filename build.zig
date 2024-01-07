@@ -20,7 +20,7 @@ pub fn build(b: *Build) void {
 
     const lang = b.option(Language, "lang", "Lua language version to build") orelse .lua54;
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
-
+    const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
     const upstream = b.dependency(@tagName(lang), .{});
 
     // Zig module
@@ -37,10 +37,16 @@ pub fn build(b: *Build) void {
     // Expose build configuration to the ziglua module
     const config = b.addOptions();
     config.addOption(Language, "lang", lang);
+    config.addOption(bool, "luau_use_4_vector", luau_use_4_vector);
     ziglua.addOptions("config", config);
 
+    if (lang == .luau) {
+        const vector_size: usize = if (luau_use_4_vector) 4 else 3;
+        ziglua.addCMacro("LUA_VECTOR_SIZE", b.fmt("{}", .{vector_size}));
+    }
+
     const lib = switch (lang) {
-        .luau => buildLuau(b, target, optimize, upstream, shared),
+        .luau => buildLuau(b, target, optimize, upstream, shared, luau_use_4_vector),
         else => buildLua(b, target, optimize, upstream, lang, shared),
     };
 
@@ -155,7 +161,7 @@ fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Optim
 }
 
 /// Luau has diverged enough from Lua (C++, project structure, ...) that it is easier to separate the build logic
-fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, shared: bool) *Step.Compile {
+fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, shared: bool, luau_use_4_vector: bool) *Step.Compile {
     const lib_opts = .{
         .name = "luau",
         .target = target,
@@ -177,6 +183,7 @@ fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Opti
         "-DLUA_API=extern\"C\"",
         "-DLUACODE_API=extern\"C\"",
         "-DLUACODEGEN_API=extern\"C\"",
+        if (luau_use_4_vector) "-DLUA_VECTOR_SIZE=4" else "",
     };
 
     for (luau_source_files) |file| {

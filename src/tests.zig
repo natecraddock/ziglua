@@ -381,6 +381,10 @@ test "typenames" {
     try expectEqualStrings("function", lua.typeName(.function));
     try expectEqualStrings("userdata", lua.typeName(.userdata));
     try expectEqualStrings("thread", lua.typeName(.thread));
+
+    if (ziglua.lang == .luau) {
+        try expectEqualStrings("vector", lua.typeName(.vector));
+    }
 }
 
 test "unsigned" {
@@ -2248,4 +2252,69 @@ test "tagged userdata" {
     // Integer is not userdata, so userdataTag should fail.
     lua.pushInteger(13);
     try expectError(error.Fail, lua.userdataTag(-1));
+}
+
+fn vectorCtor(l: *Lua) i32 {
+    const x = l.toNumber(1) catch unreachable;
+    const y = l.toNumber(2) catch unreachable;
+    const z = l.toNumber(3) catch unreachable;
+    if (ziglua.luau_vector_size == 4) {
+        const w = l.optNumber(4, 0);
+        l.pushVector(@floatCast(x), @floatCast(y), @floatCast(z), @floatCast(w));
+    } else {
+        l.pushVector(@floatCast(x), @floatCast(y), @floatCast(z));
+    }
+    return 1;
+}
+
+test "luau vectors" {
+    if (ziglua.lang != .luau) return;
+
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+    lua.openLibs();
+    lua.register("vector", ziglua.wrap(vectorCtor));
+
+    try lua.doString(
+        \\function test()
+        \\  local a = vector(1, 2, 3)
+        \\  local b = vector(4, 5, 6)
+        \\  local c = (a + b) * vector(2, 2, 2)
+        \\  return vector(c.x, c.y, c.z)
+        \\end
+    );
+    _ = try lua.getGlobal("test");
+    try lua.protectedCall(0, 1, 0);
+    var v = try lua.toVector(-1);
+    try testing.expectEqualSlices(f32, &[3]f32{ 10, 14, 18 }, v[0..3]);
+
+    if (ziglua.luau_vector_size == 3) lua.pushVector(1, 2, 3) else lua.pushVector(1, 2, 3, 4);
+    try expect(lua.isVector(-1));
+    v = try lua.toVector(-1);
+    const expected = if (ziglua.luau_vector_size == 3) [3]f32{ 1, 2, 3 } else [4]f32{ 1, 2, 3, 4 };
+    try expectEqual(expected, v);
+    try expectEqualStrings("vector", lua.typeNameIndex(-1));
+
+    lua.pushInteger(5);
+    try expect(!lua.isVector(-1));
+}
+
+test "luau 4-vectors" {
+    if (ziglua.lang != .luau) return;
+
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+    lua.openLibs();
+    lua.register("vector", ziglua.wrap(vectorCtor));
+
+    // More specific 4-vector tests
+    if (ziglua.luau_vector_size == 4) {
+        try lua.doString(
+            \\local a = vector(1, 2, 3, 4)
+            \\local b = vector(5, 6, 7, 8)
+            \\return a + b
+        );
+        const vec4 = try lua.toVector(-1);
+        try expectEqual([4]f32{ 6, 8, 10, 12 }, vec4);
+    }
 }

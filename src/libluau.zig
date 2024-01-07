@@ -12,6 +12,9 @@ const c = @cImport({
 const config = @import("config");
 pub const lang = config.lang;
 
+/// The length of Luau vector values, either 3 or 4.
+pub const luau_vector_size = if (config.luau_use_4_vector) 4 else 3;
+
 /// This function is defined in luau.cpp and must be called to define the assertion printer
 extern "c" fn zig_registerAssertionHandler() void;
 
@@ -139,6 +142,7 @@ pub const LuaType = enum(i5) {
     boolean = c.LUA_TBOOLEAN,
     light_userdata = c.LUA_TLIGHTUSERDATA,
     number = c.LUA_TNUMBER,
+    vector = c.LUA_TVECTOR,
     string = c.LUA_TSTRING,
     table = c.LUA_TTABLE,
     function = c.LUA_TFUNCTION,
@@ -520,6 +524,11 @@ pub const Lua = struct {
         return c.lua_isuserdata(lua.state, index) != 0;
     }
 
+    /// Returns true if the value at the given index is a vector
+    pub fn isVector(lua: *Lua, index: i32) bool {
+        return c.lua_isvector(lua.state, index);
+    }
+
     /// Returns true if the value at index1 is smaller than the value at index2, following the
     /// semantics of the Lua < operator.
     /// See https://www.lua.org/manual/5.4/manual.html#lua_lessthan
@@ -712,6 +721,17 @@ pub const Lua = struct {
     pub fn pushValue(lua: *Lua, index: i32) void {
         c.lua_pushvalue(lua.state, index);
     }
+
+    fn pushVector3(lua: *Lua, x: f32, y: f32, z: f32) void {
+        c.lua_pushvector(lua.state, x, y, z);
+    }
+
+    fn pushVector4(lua: *Lua, x: f32, y: f32, z: f32, w: f32) void {
+        c.lua_pushvector(lua.state, x, y, z, w);
+    }
+
+    /// Pushes a floating point 3-vector (or 4-vector if configured) `v` onto the stack
+    pub const pushVector = if (luau_vector_size == 3) pushVector3 else pushVector4;
 
     /// Returns true if the two values in indices `index1` and `index2` are primitively equal
     /// Bypasses __eq metamethods
@@ -924,6 +944,20 @@ pub const Lua = struct {
 
     pub fn toUserdataTagged(lua: *Lua, comptime T: type, index: i32, tag: i32) !*T {
         if (c.lua_touserdatatagged(lua.state, index, tag)) |ptr| return opaqueCast(T, ptr);
+        return error.Fail;
+    }
+
+    /// Converts the Lua value at the given `index` to a 3- or 4-vector.
+    /// The Lua value must be a vector.
+    pub fn toVector(lua: *Lua, index: i32) ![luau_vector_size]f32 {
+        const res = c.lua_tovector(lua.state, index);
+        if (res) |r| {
+            switch (luau_vector_size) {
+                3 => return [_]f32{ r[0], r[1], r[2] },
+                4 => return [_]f32{ r[0], r[1], r[2], r[3] },
+                else => @compileError("invalid luau_vector_size - should not happen"),
+            }
+        }
         return error.Fail;
     }
 
