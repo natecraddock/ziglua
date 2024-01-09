@@ -1,6 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
-const ziglua = @import("lib.zig");
+const ziglua = @import("ziglua");
 
 const AllocFn = ziglua.AllocFn;
 const Buffer = ziglua.Buffer;

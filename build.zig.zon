@@ -1,6 +1,27 @@
 .{
     .name = "ziglua",
-    .description = "Zig bindings for the Lua C API",
     .version = "0.1.0",
     .paths = .{ "" },
+
+    .dependencies = .{
+        .lua51 = .{
+            .url = "https://www.lua.org/ftp/lua-5.1.5.tar.gz",
+            .hash = "1220089572fb380fb4679b16421fc53851a8226bcebc9ce44463a0f4ada5c9bd737f",
+        },
+
+        .lua52 = .{
+            .url = "https://www.lua.org/ftp/lua-5.2.4.tar.gz",
+            .hash = "1220d5b2b39738f0644d9ed5b7431973f1a16b937ef86d4cf85887ef3e9fda7a3379",
+        },
+
+        .lua53 = .{
+            .url = "https://www.lua.org/ftp/lua-5.3.6.tar.gz",
+            .hash = "1220937a223531ef6b3fea8f653dc135310b0e84805e7efa148870191f5ab915c828",
+        },
+
+        .lua54 = .{
+            .url = "https://www.lua.org/ftp/lua-5.4.6.tar.gz",
+            .hash = "1220f93ada1fa077ab096bf88a5b159ad421dbf6a478edec78ddb186d0c21d3476d9",
+        },
+    },
 }
