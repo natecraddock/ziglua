@@ -4,10 +4,10 @@ const Build = std.Build;
 const Step = std.Build.Step;
 
 pub const LuaVersion = enum {
-    lua_51,
-    lua_52,
-    lua_53,
-    lua_54,
+    lua51,
+    lua52,
+    lua53,
+    lua54,
     luau,
 };
 
@@ -18,40 +18,43 @@ pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const lua_version = b.option(LuaVersion, "version", "Lua API and library version") orelse .lua_54;
+    const lua_version = b.option(LuaVersion, "version", "Lua API and library version") orelse .lua54;
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
+
+    const upstream = b.dependency(@tagName(lua_version), .{});
 
     // Zig module
     const ziglua = b.addModule("ziglua", .{
         .root_source_file = switch (lua_version) {
-            .lua_51 => .{ .path = "src/ziglua-5.1/lib.zig" },
-            .lua_52 => .{ .path = "src/ziglua-5.2/lib.zig" },
-            .lua_53 => .{ .path = "src/ziglua-5.3/lib.zig" },
-            .lua_54 => .{ .path = "src/ziglua-5.4/lib.zig" },
+            .lua51 => .{ .path = "src/ziglua-5.1/lib.zig" },
+            .lua52 => .{ .path = "src/ziglua-5.2/lib.zig" },
+            .lua53 => .{ .path = "src/ziglua-5.3/lib.zig" },
+            .lua54 => .{ .path = "src/ziglua-5.4/lib.zig" },
             .luau => .{ .path = "src/zigluau/lib.zig" },
         },
     });
 
     const lib = switch (lua_version) {
-        .lua_51, .lua_52, .lua_53, .lua_54 => buildLua(b, target, optimize, lua_version, shared),
         .luau => buildLuau(b, target, optimize, shared),
+        else => buildLua(b, target, optimize, upstream, lua_version, shared),
     };
 
-    b.installArtifact(lib);
+    ziglua.addIncludePath(upstream.path("src"));
+    ziglua.linkLibrary(lib);
 
     // Tests
     const tests = b.addTest(.{
         .root_source_file = switch (lua_version) {
-            .lua_51 => .{ .path = "src/ziglua-5.1/tests.zig" },
-            .lua_52 => .{ .path = "src/ziglua-5.2/tests.zig" },
-            .lua_53 => .{ .path = "src/ziglua-5.3/tests.zig" },
-            .lua_54 => .{ .path = "src/ziglua-5.4/tests.zig" },
+            .lua51 => .{ .path = "src/ziglua-5.1/tests.zig" },
+            .lua52 => .{ .path = "src/ziglua-5.2/tests.zig" },
+            .lua53 => .{ .path = "src/ziglua-5.3/tests.zig" },
+            .lua54 => .{ .path = "src/ziglua-5.4/tests.zig" },
             .luau => .{ .path = "src/zigluau/tests.zig" },
         },
         .target = target,
         .optimize = optimize,
     });
-    tests.linkLibrary(lib);
+    tests.root_module.addImport("ziglua", ziglua);
 
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run ziglua tests");
@@ -71,7 +74,6 @@ pub fn build(b: *Build) void {
             .optimize = optimize,
         });
         exe.root_module.addImport("ziglua", ziglua);
-        exe.linkLibrary(lib);
 
         const artifact = b.addInstallArtifact(exe, .{});
         const exe_step = b.step(b.fmt("install-example-{s}", .{example[0]}), b.fmt("Install {s} example", .{example[0]}));
@@ -86,16 +88,17 @@ pub fn build(b: *Build) void {
     }
 }
 
-fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, lua_version: LuaVersion, shared: bool) *Step.Compile {
+fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lua_version: LuaVersion, shared: bool) *Step.Compile {
+
     const lib_opts = .{
         .name = "lua",
         .target = target,
         .optimize = optimize,
         .version = switch (lua_version) {
-            .lua_51 => std.SemanticVersion{ .major = 5, .minor = 1, .patch = 5 },
-            .lua_52 => std.SemanticVersion{ .major = 5, .minor = 2, .patch = 4 },
-            .lua_53 => std.SemanticVersion{ .major = 5, .minor = 3, .patch = 6 },
-            .lua_54 => std.SemanticVersion{ .major = 5, .minor = 4, .patch = 6 },
+            .lua51 => std.SemanticVersion{ .major = 5, .minor = 1, .patch = 5 },
+            .lua52 => std.SemanticVersion{ .major = 5, .minor = 2, .patch = 4 },
+            .lua53 => std.SemanticVersion{ .major = 5, .minor = 3, .patch = 6 },
+            .lua54 => std.SemanticVersion{ .major = 5, .minor = 4, .patch = 6 },
             else => unreachable,
         },
     };
@@ -104,14 +107,7 @@ fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Optim
     else
         b.addStaticLibrary(lib_opts);
 
-    const lib_dir = switch (lua_version) {
-        .lua_51 => "lib/lua-5.1/src",
-        .lua_52 => "lib/lua-5.2/src",
-        .lua_53 => "lib/lua-5.3/src",
-        .lua_54 => "lib/lua-5.4/src",
-        else => unreachable,
-    };
-    lib.addIncludePath(.{ .path = lib_dir });
+    lib.addIncludePath(upstream.path("src"));
 
     const flags = [_][]const u8{
         // Standard version used in Lua Makefile
@@ -130,21 +126,16 @@ fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Optim
     };
 
     const lua_source_files = switch (lua_version) {
-        .lua_51 => &lua_51_source_files,
-        .lua_52 => &lua_52_source_files,
-        .lua_53 => &lua_53_source_files,
-        .lua_54 => &lua_54_source_files,
+        .lua51 => &lua_51_source_files,
+        .lua52 => &lua_52_source_files,
+        .lua53 => &lua_53_source_files,
+        .lua54 => &lua_54_source_files,
         else => unreachable,
     };
     for (lua_source_files) |file| {
-        lib.addCSourceFile(.{ .file = .{ .path = b.pathJoin(&.{ lib_dir, file }) }, .flags = &flags });
+        lib.addCSourceFile(.{ .file = upstream.path(file), .flags = &flags });
     }
     lib.linkLibC();
-
-    lib.installHeader(b.pathJoin(&.{ lib_dir, "lua.h" }), "lua/lua.h");
-    lib.installHeader(b.pathJoin(&.{ lib_dir, "lualib.h" }), "lua/lualib.h");
-    lib.installHeader(b.pathJoin(&.{ lib_dir, "lauxlib.h" }), "lua/lauxlib.h");
-    lib.installHeader(b.pathJoin(&.{ lib_dir, "luaconf.h" }), "lua/luaconf.h");
 
     return lib;
 }
@@ -181,150 +172,150 @@ fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Opti
     lib.addCSourceFile(.{ .file = .{ .path = "src/zigluau/luau.cpp" }, .flags = &flags });
     lib.linkLibCpp();
 
-    lib.installHeader("lib/luau/VM/include/lua.h", "lua/lua.h");
-    lib.installHeader("lib/luau/VM/include/lualib.h", "lua/lualib.h");
-    lib.installHeader("lib/luau/VM/include/luaconf.h", "lua/luaconf.h");
-    lib.installHeader("lib/luau/Compiler/include/luacode.h", "lua/luacode.h");
+    lib.installHeader("lib/luau/VM/include/lua.h", "lua.h");
+    lib.installHeader("lib/luau/VM/include/lualib.h", "lualib.h");
+    lib.installHeader("lib/luau/VM/include/luaconf.h", "luaconf.h");
+    lib.installHeader("lib/luau/Compiler/include/luacode.h", "luacode.h");
 
     return lib;
 }
 
 const lua_51_source_files = [_][]const u8{
-    "lapi.c",
-    "lcode.c",
-    "ldebug.c",
-    "ldo.c",
-    "ldump.c",
-    "lfunc.c",
-    "lgc.c",
-    "llex.c",
-    "lmem.c",
-    "lobject.c",
-    "lopcodes.c",
-    "lparser.c",
-    "lstate.c",
-    "lstring.c",
-    "ltable.c",
-    "ltm.c",
-    "lundump.c",
-    "lvm.c",
-    "lzio.c",
-    "lauxlib.c",
-    "lbaselib.c",
-    "ldblib.c",
-    "liolib.c",
-    "lmathlib.c",
-    "loslib.c",
-    "ltablib.c",
-    "lstrlib.c",
-    "loadlib.c",
-    "linit.c",
+    "src/lapi.c",
+    "src/lcode.c",
+    "src/ldebug.c",
+    "src/ldo.c",
+    "src/ldump.c",
+    "src/lfunc.c",
+    "src/lgc.c",
+    "src/llex.c",
+    "src/lmem.c",
+    "src/lobject.c",
+    "src/lopcodes.c",
+    "src/lparser.c",
+    "src/lstate.c",
+    "src/lstring.c",
+    "src/ltable.c",
+    "src/ltm.c",
+    "src/lundump.c",
+    "src/lvm.c",
+    "src/lzio.c",
+    "src/lauxlib.c",
+    "src/lbaselib.c",
+    "src/ldblib.c",
+    "src/liolib.c",
+    "src/lmathlib.c",
+    "src/loslib.c",
+    "src/ltablib.c",
+    "src/lstrlib.c",
+    "src/loadlib.c",
+    "src/linit.c",
 };
 
 const lua_52_source_files = [_][]const u8{
-    "lapi.c",
-    "lcode.c",
-    "lctype.c",
-    "ldebug.c",
-    "ldo.c",
-    "ldump.c",
-    "lfunc.c",
-    "lgc.c",
-    "llex.c",
-    "lmem.c",
-    "lobject.c",
-    "lopcodes.c",
-    "lparser.c",
-    "lstate.c",
-    "lstring.c",
-    "ltable.c",
-    "ltm.c",
-    "lundump.c",
-    "lvm.c",
-    "lzio.c",
-    "lauxlib.c",
-    "lbaselib.c",
-    "lbitlib.c",
-    "lcorolib.c",
-    "ldblib.c",
-    "liolib.c",
-    "lmathlib.c",
-    "loslib.c",
-    "lstrlib.c",
-    "ltablib.c",
-    "loadlib.c",
-    "linit.c",
+    "src/lapi.c",
+    "src/lcode.c",
+    "src/lctype.c",
+    "src/ldebug.c",
+    "src/ldo.c",
+    "src/ldump.c",
+    "src/lfunc.c",
+    "src/lgc.c",
+    "src/llex.c",
+    "src/lmem.c",
+    "src/lobject.c",
+    "src/lopcodes.c",
+    "src/lparser.c",
+    "src/lstate.c",
+    "src/lstring.c",
+    "src/ltable.c",
+    "src/ltm.c",
+    "src/lundump.c",
+    "src/lvm.c",
+    "src/lzio.c",
+    "src/lauxlib.c",
+    "src/lbaselib.c",
+    "src/lbitlib.c",
+    "src/lcorolib.c",
+    "src/ldblib.c",
+    "src/liolib.c",
+    "src/lmathlib.c",
+    "src/loslib.c",
+    "src/lstrlib.c",
+    "src/ltablib.c",
+    "src/loadlib.c",
+    "src/linit.c",
 };
 
 const lua_53_source_files = [_][]const u8{
-    "lapi.c",
-    "lcode.c",
-    "lctype.c",
-    "ldebug.c",
-    "ldo.c",
-    "ldump.c",
-    "lfunc.c",
-    "lgc.c",
-    "llex.c",
-    "lmem.c",
-    "lobject.c",
-    "lopcodes.c",
-    "lparser.c",
-    "lstate.c",
-    "lstring.c",
-    "ltable.c",
-    "ltm.c",
-    "lundump.c",
-    "lvm.c",
-    "lzio.c",
-    "lauxlib.c",
-    "lbaselib.c",
-    "lbitlib.c",
-    "lcorolib.c",
-    "ldblib.c",
-    "liolib.c",
-    "lmathlib.c",
-    "loslib.c",
-    "lstrlib.c",
-    "ltablib.c",
-    "lutf8lib.c",
-    "loadlib.c",
-    "linit.c",
+    "src/lapi.c",
+    "src/lcode.c",
+    "src/lctype.c",
+    "src/ldebug.c",
+    "src/ldo.c",
+    "src/ldump.c",
+    "src/lfunc.c",
+    "src/lgc.c",
+    "src/llex.c",
+    "src/lmem.c",
+    "src/lobject.c",
+    "src/lopcodes.c",
+    "src/lparser.c",
+    "src/lstate.c",
+    "src/lstring.c",
+    "src/ltable.c",
+    "src/ltm.c",
+    "src/lundump.c",
+    "src/lvm.c",
+    "src/lzio.c",
+    "src/lauxlib.c",
+    "src/lbaselib.c",
+    "src/lbitlib.c",
+    "src/lcorolib.c",
+    "src/ldblib.c",
+    "src/liolib.c",
+    "src/lmathlib.c",
+    "src/loslib.c",
+    "src/lstrlib.c",
+    "src/ltablib.c",
+    "src/lutf8lib.c",
+    "src/loadlib.c",
+    "src/linit.c",
 };
 
 const lua_54_source_files = [_][]const u8{
-    "lapi.c",
-    "lcode.c",
-    "lctype.c",
-    "ldebug.c",
-    "ldo.c",
-    "ldump.c",
-    "lfunc.c",
-    "lgc.c",
-    "llex.c",
-    "lmem.c",
-    "lobject.c",
-    "lopcodes.c",
-    "lparser.c",
-    "lstate.c",
-    "lstring.c",
-    "ltable.c",
-    "ltm.c",
-    "lundump.c",
-    "lvm.c",
-    "lzio.c",
-    "lauxlib.c",
-    "lbaselib.c",
-    "lcorolib.c",
-    "ldblib.c",
-    "liolib.c",
-    "lmathlib.c",
-    "loadlib.c",
-    "loslib.c",
-    "lstrlib.c",
-    "ltablib.c",
-    "lutf8lib.c",
-    "linit.c",
+    "src/lapi.c",
+    "src/lcode.c",
+    "src/lctype.c",
+    "src/ldebug.c",
+    "src/ldo.c",
+    "src/ldump.c",
+    "src/lfunc.c",
+    "src/lgc.c",
+    "src/llex.c",
+    "src/lmem.c",
+    "src/lobject.c",
+    "src/lopcodes.c",
+    "src/lparser.c",
+    "src/lstate.c",
+    "src/lstring.c",
+    "src/ltable.c",
+    "src/ltm.c",
+    "src/lundump.c",
+    "src/lvm.c",
+    "src/lzio.c",
+    "src/lauxlib.c",
+    "src/lbaselib.c",
+    "src/lcorolib.c",
+    "src/ldblib.c",
+    "src/liolib.c",
+    "src/lmathlib.c",
+    "src/loadlib.c",
+    "src/loslib.c",
+    "src/lstrlib.c",
+    "src/ltablib.c",
+    "src/lutf8lib.c",
+    "src/linit.c",
 };
 
 const luau_source_files = [_][]const u8{
