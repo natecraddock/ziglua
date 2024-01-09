@@ -4,10 +4,9 @@
 const std = @import("std");
 
 const c = @cImport({
-    @cInclude("lua/lua.h");
-    @cInclude("lua/lualib.h");
-
-    @cInclude("lua/luacode.h");
+    @cInclude("lua.h");
+    @cInclude("lualib.h");
+    @cInclude("luacode.h");
 });
 
 /// This function is defined in luau.cpp and must be called to define the assertion printer
