@@ -35,11 +35,20 @@ pub fn build(b: *Build) void {
     });
 
     const lib = switch (lua_version) {
-        .luau => buildLuau(b, target, optimize, shared),
+        .luau => buildLuau(b, target, optimize, upstream, shared),
         else => buildLua(b, target, optimize, upstream, lua_version, shared),
     };
 
-    ziglua.addIncludePath(upstream.path("src"));
+    switch (lua_version) {
+        .luau => {
+            ziglua.addIncludePath(upstream.path("Common/include"));
+            ziglua.addIncludePath(upstream.path("Compiler/include"));
+            ziglua.addIncludePath(upstream.path("Ast/include"));
+            ziglua.addIncludePath(upstream.path("VM/include"));
+        },
+        else => ziglua.addIncludePath(upstream.path("src")),
+    }
+
     ziglua.linkLibrary(lib);
 
     // Tests
@@ -89,7 +98,6 @@ pub fn build(b: *Build) void {
 }
 
 fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lua_version: LuaVersion, shared: bool) *Step.Compile {
-
     const lib_opts = .{
         .name = "lua",
         .target = target,
@@ -141,7 +149,7 @@ fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Optim
 }
 
 /// Luau has diverged enough from Lua (C++, project structure, ...) that it is easier to separate the build logic
-fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, shared: bool) *Step.Compile {
+fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, shared: bool) *Step.Compile {
     const lib_opts = .{
         .name = "luau",
         .target = target,
@@ -153,11 +161,10 @@ fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Opti
     else
         b.addStaticLibrary(lib_opts);
 
-    const lib_dir = "lib/luau/VM";
-    lib.addIncludePath(.{ .path = "lib/luau/Common/include" });
-    lib.addIncludePath(.{ .path = "lib/luau/Compiler/include" });
-    lib.addIncludePath(.{ .path = "lib/luau/Ast/include" });
-    lib.addIncludePath(.{ .path = b.pathJoin(&.{ lib_dir, "include" }) });
+    lib.addIncludePath(upstream.path("Common/include"));
+    lib.addIncludePath(upstream.path("Compiler/include"));
+    lib.addIncludePath(upstream.path("Ast/include"));
+    lib.addIncludePath(upstream.path("VM/include"));
 
     const flags = [_][]const u8{
         "-DLUA_USE_LONGJMP=1",
@@ -167,15 +174,10 @@ fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Opti
     };
 
     for (luau_source_files) |file| {
-        lib.addCSourceFile(.{ .file = .{ .path = file }, .flags = &flags });
+        lib.addCSourceFile(.{ .file = upstream.path(file), .flags = &flags });
     }
     lib.addCSourceFile(.{ .file = .{ .path = "src/zigluau/luau.cpp" }, .flags = &flags });
     lib.linkLibCpp();
-
-    lib.installHeader("lib/luau/VM/include/lua.h", "lua.h");
-    lib.installHeader("lib/luau/VM/include/lualib.h", "lualib.h");
-    lib.installHeader("lib/luau/VM/include/luaconf.h", "luaconf.h");
-    lib.installHeader("lib/luau/Compiler/include/luacode.h", "luacode.h");
 
     return lib;
 }
@@ -319,55 +321,55 @@ const lua_54_source_files = [_][]const u8{
 };
 
 const luau_source_files = [_][]const u8{
-    "lib/luau/Compiler/src/BuiltinFolding.cpp",
-    "lib/luau/Compiler/src/Builtins.cpp",
-    "lib/luau/Compiler/src/BytecodeBuilder.cpp",
-    "lib/luau/Compiler/src/Compiler.cpp",
-    "lib/luau/Compiler/src/ConstantFolding.cpp",
-    "lib/luau/Compiler/src/CostModel.cpp",
-    "lib/luau/Compiler/src/TableShape.cpp",
-    "lib/luau/Compiler/src/Types.cpp",
-    "lib/luau/Compiler/src/ValueTracking.cpp",
-    "lib/luau/Compiler/src/lcode.cpp",
+    "Compiler/src/BuiltinFolding.cpp",
+    "Compiler/src/Builtins.cpp",
+    "Compiler/src/BytecodeBuilder.cpp",
+    "Compiler/src/Compiler.cpp",
+    "Compiler/src/ConstantFolding.cpp",
+    "Compiler/src/CostModel.cpp",
+    "Compiler/src/TableShape.cpp",
+    "Compiler/src/Types.cpp",
+    "Compiler/src/ValueTracking.cpp",
+    "Compiler/src/lcode.cpp",
 
-    "lib/luau/VM/src/lapi.cpp",
-    "lib/luau/VM/src/laux.cpp",
-    "lib/luau/VM/src/lbaselib.cpp",
-    "lib/luau/VM/src/lbitlib.cpp",
-    "lib/luau/VM/src/lbuffer.cpp",
-    "lib/luau/VM/src/lbuflib.cpp",
-    "lib/luau/VM/src/lbuiltins.cpp",
-    "lib/luau/VM/src/lcorolib.cpp",
-    "lib/luau/VM/src/ldblib.cpp",
-    "lib/luau/VM/src/ldebug.cpp",
-    "lib/luau/VM/src/ldo.cpp",
-    "lib/luau/VM/src/lfunc.cpp",
-    "lib/luau/VM/src/lgc.cpp",
-    "lib/luau/VM/src/lgcdebug.cpp",
-    "lib/luau/VM/src/linit.cpp",
-    "lib/luau/VM/src/lmathlib.cpp",
-    "lib/luau/VM/src/lmem.cpp",
-    "lib/luau/VM/src/lnumprint.cpp",
-    "lib/luau/VM/src/lobject.cpp",
-    "lib/luau/VM/src/loslib.cpp",
-    "lib/luau/VM/src/lperf.cpp",
-    "lib/luau/VM/src/lstate.cpp",
-    "lib/luau/VM/src/lstring.cpp",
-    "lib/luau/VM/src/lstrlib.cpp",
-    "lib/luau/VM/src/ltable.cpp",
-    "lib/luau/VM/src/ltablib.cpp",
-    "lib/luau/VM/src/ltm.cpp",
-    "lib/luau/VM/src/ludata.cpp",
-    "lib/luau/VM/src/lutf8lib.cpp",
-    "lib/luau/VM/src/lvmexecute.cpp",
-    "lib/luau/VM/src/lvmload.cpp",
-    "lib/luau/VM/src/lvmutils.cpp",
+    "VM/src/lapi.cpp",
+    "VM/src/laux.cpp",
+    "VM/src/lbaselib.cpp",
+    "VM/src/lbitlib.cpp",
+    "VM/src/lbuffer.cpp",
+    "VM/src/lbuflib.cpp",
+    "VM/src/lbuiltins.cpp",
+    "VM/src/lcorolib.cpp",
+    "VM/src/ldblib.cpp",
+    "VM/src/ldebug.cpp",
+    "VM/src/ldo.cpp",
+    "VM/src/lfunc.cpp",
+    "VM/src/lgc.cpp",
+    "VM/src/lgcdebug.cpp",
+    "VM/src/linit.cpp",
+    "VM/src/lmathlib.cpp",
+    "VM/src/lmem.cpp",
+    "VM/src/lnumprint.cpp",
+    "VM/src/lobject.cpp",
+    "VM/src/loslib.cpp",
+    "VM/src/lperf.cpp",
+    "VM/src/lstate.cpp",
+    "VM/src/lstring.cpp",
+    "VM/src/lstrlib.cpp",
+    "VM/src/ltable.cpp",
+    "VM/src/ltablib.cpp",
+    "VM/src/ltm.cpp",
+    "VM/src/ludata.cpp",
+    "VM/src/lutf8lib.cpp",
+    "VM/src/lvmexecute.cpp",
+    "VM/src/lvmload.cpp",
+    "VM/src/lvmutils.cpp",
 
-    "lib/luau/Ast/src/Ast.cpp",
-    "lib/luau/Ast/src/Confusables.cpp",
-    "lib/luau/Ast/src/Lexer.cpp",
-    "lib/luau/Ast/src/Location.cpp",
-    "lib/luau/Ast/src/Parser.cpp",
-    "lib/luau/Ast/src/StringUtils.cpp",
-    "lib/luau/Ast/src/TimeTrace.cpp",
+    "Ast/src/Ast.cpp",
+    "Ast/src/Confusables.cpp",
+    "Ast/src/Lexer.cpp",
+    "Ast/src/Location.cpp",
+    "Ast/src/Parser.cpp",
+    "Ast/src/StringUtils.cpp",
+    "Ast/src/TimeTrace.cpp",
 };
