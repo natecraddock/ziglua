@@ -23,7 +23,7 @@ pub fn build(b: *Build) void {
 
     // Zig module
     const ziglua = b.addModule("ziglua", .{
-        .source_file = switch (lua_version) {
+        .root_source_file = switch (lua_version) {
             .lua_51 => .{ .path = "src/ziglua-5.1/lib.zig" },
             .lua_52 => .{ .path = "src/ziglua-5.2/lib.zig" },
             .lua_53 => .{ .path = "src/ziglua-5.3/lib.zig" },
@@ -70,7 +70,7 @@ pub fn build(b: *Build) void {
             .target = target,
             .optimize = optimize,
         });
-        exe.addModule("ziglua", ziglua);
+        exe.root_module.addImport("ziglua", ziglua);
         exe.linkLibrary(lib);
 
         const artifact = b.addInstallArtifact(exe, .{});
@@ -86,7 +86,7 @@ pub fn build(b: *Build) void {
     }
 }
 
-fn buildLua(b: *Build, target: std.zig.CrossTarget, optimize: std.builtin.OptimizeMode, lua_version: LuaVersion, shared: bool) *Step.Compile {
+fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, lua_version: LuaVersion, shared: bool) *Step.Compile {
     const lib_opts = .{
         .name = "lua",
         .target = target,
@@ -111,17 +111,14 @@ fn buildLua(b: *Build, target: std.zig.CrossTarget, optimize: std.builtin.Optimi
         .lua_54 => "lib/lua-5.4/src",
         else => unreachable,
     };
-    lib.addIncludePath(.{ .path = b.pathJoin(&.{ lib_dir, "include" }) });
-
-    const os_tag = target.os_tag orelse
-        (std.zig.system.NativeTargetInfo.detect(target) catch unreachable).target.os.tag;
+    lib.addIncludePath(.{ .path = lib_dir });
 
     const flags = [_][]const u8{
         // Standard version used in Lua Makefile
         "-std=gnu99",
 
         // Define target-specific macro
-        switch (os_tag) {
+        switch (target.result.os.tag) {
             .linux => "-DLUA_USE_LINUX",
             .macos => "-DLUA_USE_MACOSX",
             .windows => "-DLUA_USE_WINDOWS",
@@ -153,7 +150,7 @@ fn buildLua(b: *Build, target: std.zig.CrossTarget, optimize: std.builtin.Optimi
 }
 
 /// Luau has diverged enough from Lua (C++, project structure, ...) that it is easier to separate the build logic
-fn buildLuau(b: *Build, target: std.zig.CrossTarget, optimize: std.builtin.OptimizeMode, shared: bool) *Step.Compile {
+fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, shared: bool) *Step.Compile {
     const lib_opts = .{
         .name = "luau",
         .target = target,
@@ -170,10 +167,6 @@ fn buildLuau(b: *Build, target: std.zig.CrossTarget, optimize: std.builtin.Optim
     lib.addIncludePath(.{ .path = "lib/luau/Compiler/include" });
     lib.addIncludePath(.{ .path = "lib/luau/Ast/include" });
     lib.addIncludePath(.{ .path = b.pathJoin(&.{ lib_dir, "include" }) });
-
-    const os_tag = target.os_tag orelse
-        (std.zig.system.NativeTargetInfo.detect(target) catch unreachable).target.os.tag;
-    _ = os_tag;
 
     const flags = [_][]const u8{
         "-DLUA_USE_LONGJMP=1",
