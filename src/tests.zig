@@ -2184,3 +2184,68 @@ test "compile and run bytecode" {
     // produced bytecode in text format, but the API doesn't support it.
     try testing.expect(bc1.len < bc2.len);
 }
+
+test "userdata dtor" {
+    if (ziglua.lang != .luau) return;
+    var gc_hits: i32 = 0;
+
+    const Data = struct {
+        gc_hits_ptr: *i32,
+
+        pub fn dtor(udata: *anyopaque) void {
+            const self: *@This() = @alignCast(@ptrCast(udata));
+            self.gc_hits_ptr.* = self.gc_hits_ptr.* + 1;
+        }
+    };
+
+    // create a Lua-owned pointer to a Data, configure Data with a destructor.
+    {
+        var lua = try Lua.init(testing.allocator);
+        defer lua.deinit(); // forces dtors to be called at the latest
+
+        var data = lua.newUserdataDtor(Data, ziglua.wrap(Data.dtor));
+        data.gc_hits_ptr = &gc_hits;
+        try expectEqual(@as(*const anyopaque, @ptrCast(data)), try lua.toPointer(1));
+        try testing.expectEqual(@as(i32, 0), gc_hits);
+        lua.pop(1); // don't let the stack hold a ref to the user data
+        lua.gcCollect();
+        try testing.expectEqual(@as(i32, 1), gc_hits);
+        lua.gcCollect();
+        try testing.expectEqual(@as(i32, 1), gc_hits);
+    }
+}
+
+test "tagged userdata" {
+    if (ziglua.lang != .luau) return;
+
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit(); // forces dtors to be called at the latest
+
+    const Data = struct {
+        val: i32,
+    };
+
+    // create a Lua-owned tagged pointer
+    var data = lua.newUserdataTagged(Data, 13);
+    data.val = 1;
+
+    const data2 = try lua.toUserdataTagged(Data, -1, 13);
+    try testing.expectEqual(data.val, data2.val);
+
+    var tag = try lua.userdataTag(-1);
+    try testing.expectEqual(@as(i32, 13), tag);
+
+    lua.setUserdataTag(-1, 100);
+    tag = try lua.userdataTag(-1);
+    try testing.expectEqual(@as(i32, 100), tag);
+
+    // Test that tag mismatch error handling works.  Userdata is not tagged with 123.
+    try expectError(error.Fail, lua.toUserdataTagged(Data, -1, 123));
+
+    // should not fail
+    _ = try lua.toUserdataTagged(Data, -1, 100);
+
+    // Integer is not userdata, so userdataTag should fail.
+    lua.pushInteger(13);
+    try expectError(error.Fail, lua.userdataTag(-1));
+}
