@@ -37,27 +37,12 @@ In a nutshell, Ziglua is a simple wrapper around the C API you would get by usin
 While there are some helper functions added to complement the C API, Ziglua aims to remain low-level. This allows full access to the Lua API through a layer of Zig's improvements over C.
 
 ## Integrating Ziglua in your project
-First create a `build.zig.zon` file in your Zig project if you do not already have one. Add a ziglua dependency.
 
-```
-.{
-    .name = "myproject",
-    .version = "0.0.1",
-    .dependencies = .{
-        .ziglua = .{
-            // Use a tagged release of Ziglua tracking a stable Zig release
-            .url = "https://github.com/natecraddock/ziglua/archive/refs/tags/0.2.0.tar.gz",
+Find the archive url of the Ziglua version you want to integrate with your project. For example, the url for the commit **41a110981cf016465f72208c3f1732fd4c92a694** is https://github.com/natecraddock/ziglua/archive/41a110981cf016465f72208c3f1732fd4c92a694.tar.gz.
 
-            // Or a url with a hash for a specific Ziglua commit
-            .url = "https://github.com/natecraddock/ziglua/archive/ab111adb06d2d4dc187ee9e1e352617ca8659155.tar.gz",
-        },
-    }
-}
-```
+Then run `zig fetch --save <url>`. This will add the dependency to your `build.zig.zon` file.
 
-When you run `zig build` it will instruct you to add a `.hash` field to this file.
-
-In your `build.zig` file create and use the dependency
+Then in your `build.zig` file you can use the dependency.
 
 ```zig
 pub fn build(b: *std.Build) void {
@@ -71,13 +56,30 @@ pub fn build(b: *std.Build) void {
     // ... snip ...
 
     // add the ziglua module and lua artifact
-    exe.addModule("ziglua", ziglua.module("ziglua"));
-    exe.linkLibrary(ziglua.artifact("lua"));
+    exe.root_module.addImport("ziglua", ziglua.module("ziglua"));
 
 }
 ```
 
-This will compile the Lua C sources and link with your project. The `ziglua` module will now be available in your code. Here is a simple example that pushes and inspects an integer on the Lua stack:
+This will compile the Lua C sources and link with your project.
+
+There are currently two additional options that can be passed to `b.dependency()`:
+
+* `.version`: Set the Lua version to build and embed. Defaults to `.lua54`. Possible values are `.lua51`, `.lua52`, `.lua53`, `.lua54`, and `luau`.
+* `.shared`: Defaults to `false` for embedding in a Zig program. Set to `true` to dynamically link the Lua source code (useful for creating shared modules).
+
+For example, here is a `b.dependency()` call that and links against a shared Lua 5.2 library:
+
+```zig
+const ziglua = b.dependency("ziglua", .{
+    .target = target,
+    .optimize = optimize,
+    .version = .lua52,
+    .shared = true,
+});
+``````
+
+The `ziglua` module will now be available in your code. Here is a simple example that pushes and inspects an integer on the Lua stack:
 
 ```zig
 const std = @import("std");
