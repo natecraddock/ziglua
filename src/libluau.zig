@@ -36,6 +36,9 @@ pub const AllocFn = *const fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize
 /// See https://www.lua.org/manual/5.1/manual.html#lua_CFunction for the protocol
 pub const CFn = *const fn (state: ?*LuaState) callconv(.C) c_int;
 
+/// Type for C userdata destructors
+pub const CUserdataDtorFn = *const fn (userdata: *anyopaque) callconv(.C) void;
+
 /// The internal Lua debug structure
 /// See https://www.lua.org/manual/5.1/manual.html#lua_Debug
 const Debug = c.lua_Debug;
@@ -566,6 +569,41 @@ pub const Lua = struct {
         return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
     }
 
+    pub fn newUserdataTagged(lua: *Lua, comptime T: type, tag: i32) *T {
+        const UTAG_PROXY = c.LUA_UTAG_LIMIT + 1; // not exposed in headers
+        std.debug.assert((tag >= 0 and tag < c.LUA_UTAG_LIMIT) or tag == UTAG_PROXY); // Luau will do the same assert, this is easier to debug
+        // safe to .? because this function throws a Lua error on out of memory
+        // so the returned pointer should never be null
+        const ptr = c.lua_newuserdatatagged(lua.state, @sizeOf(T), tag).?;
+        return opaqueCast(T, ptr);
+    }
+
+    /// This function allocates a new userdata of the given type with an associated
+    /// destructor callback.
+    ///
+    /// Returns a pointer to the Lua-owned data
+    ///
+    /// Note: Luau doesn't support the usual Lua __gc metatable destructor.  Use this instead.
+    pub fn newUserdataDtor(lua: *Lua, comptime T: type, dtor_fn: CUserdataDtorFn) *T {
+        // safe to .? because this function throws a Lua error on out of memory
+        // so the returned pointer should never be null
+        const ptr = c.lua_newuserdatadtor(lua.state, @sizeOf(T), @ptrCast(dtor_fn)).?;
+        return opaqueCast(T, ptr);
+    }
+
+    /// Set userdata tag at the given index
+    pub fn setUserdataTag(lua: *Lua, index: i32, tag: i32) void {
+        std.debug.assert((tag >= 0 and tag < c.LUA_UTAG_LIMIT)); // Luau will do the same assert, this is easier to debug
+        c.lua_setuserdatatag(lua.state, index, tag);
+    }
+
+    /// Returns the tag of a userdata at the given index
+    pub fn userdataTag(lua: *Lua, index: i32) !i32 {
+        const tag = c.lua_userdatatag(lua.state, index);
+        if (tag == -1) return error.Fail;
+        return tag;
+    }
+
     /// Pops a key from the stack, and pushes a key-value pair from the table at the given index.
     /// See https://www.lua.org/manual/5.1/manual.html#lua_next
     pub fn next(lua: *Lua, index: i32) bool {
@@ -881,6 +919,11 @@ pub const Lua = struct {
             const size = @as(u32, @intCast(lua.objectLen(index))) / @sizeOf(T);
             return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
         }
+        return error.Fail;
+    }
+
+    pub fn toUserdataTagged(lua: *Lua, comptime T: type, index: i32, tag: i32) !*T {
+        if (c.lua_touserdatatagged(lua.state, index, tag)) |ptr| return opaqueCast(T, ptr);
         return error.Fail;
     }
 
@@ -1420,6 +1463,7 @@ pub const ZigFn = fn (lua: *Lua) i32;
 pub const ZigContFn = fn (lua: *Lua, status: Status, ctx: i32) i32;
 pub const ZigReaderFn = fn (lua: *Lua, data: *anyopaque) ?[]const u8;
 pub const ZigWriterFn = fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool;
+pub const ZigUserdataDtorFn = fn (data: *anyopaque) void;
 
 fn TypeOfWrap(comptime T: type) type {
     return switch (T) {
@@ -1427,6 +1471,7 @@ fn TypeOfWrap(comptime T: type) type {
         ZigFn => CFn,
         ZigReaderFn => CReaderFn,
         ZigWriterFn => CWriterFn,
+        ZigUserdataDtorFn => CUserdataDtorFn,
         else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
     };
 }
@@ -1441,6 +1486,7 @@ pub fn wrap(comptime value: anytype) TypeOfWrap(@TypeOf(value)) {
         ZigFn => wrapZigFn(value),
         ZigReaderFn => wrapZigReaderFn(value),
         ZigWriterFn => wrapZigWriterFn(value),
+        ZigUserdataDtorFn => wrapZigUserdataDtorFn(value),
         else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
     };
 }
@@ -1452,6 +1498,15 @@ fn wrapZigFn(comptime f: ZigFn) CFn {
             // this is called by Lua, state should never be null
             var lua: Lua = .{ .state = state.? };
             return @call(.always_inline, f, .{&lua});
+        }
+    }.inner;
+}
+
+/// Wrap a ZigFn in a CFn for passing to the API
+fn wrapZigUserdataDtorFn(comptime f: ZigUserdataDtorFn) CUserdataDtorFn {
+    return struct {
+        fn inner(userdata: *anyopaque) callconv(.C) void {
+            return @call(.always_inline, f, .{userdata});
         }
     }.inner;
 }
