@@ -4,9 +4,14 @@
     .paths = .{""},
 
     .dependencies = .{
+
+        // We do not use the lua.org version of Lua 5.1.5 because there is a known security issue
+        // (CVE-2014-5461) that will not be backported. This is the most resonable solution at
+        // the moment. Maybe there will be a way to apply a patch with the build system in the
+        // future.
         .lua51 = .{
-            .url = "https://www.lua.org/ftp/lua-5.1.5.tar.gz",
-            .hash = "1220089572fb380fb4679b16421fc53851a8226bcebc9ce44463a0f4ada5c9bd737f",
+            .url = "https://github.com/natecraddock/lua/archive/refs/tags/5.1.5-1.tar.gz",
+            .hash = "12203fe1feebb81635f8df5a5a7242733e441fe3f3043989c8e6b4d6720e96988813",
         },
 
         .lua52 = .{
