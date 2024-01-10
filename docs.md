@@ -10,59 +10,6 @@ This documentation provides
 
 Documentation on each individual function is found in the source code.
 
-## Build Documentation
-
-Example `build.zig.zon` file. The hash in the url is the hash of the commit you are using.
-
-```
-.{
-    .name = "myproject",
-    .version = "0.0.1",
-    .dependencies = .{
-        .ziglua = .{
-            .url = "https://github.com/natecraddock/ziglua/archive/ab111adb06d2d4dc187ee9e1e352617ca8659155.tar.gz",
-            .hash = "12206cf9e90462ee6e14f593ea6e0802b9fe434429ba10992a1451e32900f741005c",
-        },
-    }
-}
-```
-
-Example usage in `build.zig`.
-
-```zig
-pub fn build(b: *std.Build) void {
-    // ... snip ...
-
-    const ziglua = b.dependency("ziglua", .{
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // ... snip ...
-
-    // add the ziglua module and lua artifact
-    exe.addModule("ziglua", ziglua.module("ziglua"));
-    exe.linkLibrary(ziglua.artifact("lua"));
-
-}
-```
-
-There are currently two additional options that can be passed to `b.dependency()`:
-
-* `.version`: Set the Lua version to build and embed. Defaults to `.lua_54`. Possible values are `.lua_51`, `.lua_52`, `.lua_53`, and `.lua_54`.
-* `.shared`: Defaults to `false` for embedding in a Zig program. Set to `true` to dynamically link the Lua source code (useful for creating shared modules).
-
-For example, here is a `b.dependency()` call that and links against a shared Lua 5.2 library:
-
-```zig
-const ziglua = b.dependency("ziglua", .{
-    .target = target,
-    .optimize = optimize,
-    .version = .lua52,
-    .shared = true,
-});
-```
-
 ## Moving from the C API to Zig
 
 While efforts have been made to keep the Ziglua API similar to the C API, many changes have been made including:
