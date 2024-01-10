@@ -1,11 +1,11 @@
 .PHONY: docs
 
 test:
-	zig build test --summary failures -Dversion=lua51
-	zig build test --summary failures -Dversion=lua52
-	zig build test --summary failures -Dversion=lua53
-	zig build test --summary failures -Dversion=lua54
-	zig build test --summary failures -Dversion=luau
+	zig build test --summary failures -Dlang=lua51
+	zig build test --summary failures -Dlang=lua52
+	zig build test --summary failures -Dlang=lua53
+	zig build test --summary failures -Dlang=lua54
+	zig build test --summary failures -Dlang=luau
 
 	zig build install-example-interpreter
 	zig build install-example-zig-function

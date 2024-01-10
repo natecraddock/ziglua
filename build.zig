@@ -3,7 +3,7 @@ const std = @import("std");
 const Build = std.Build;
 const Step = std.Build.Step;
 
-pub const LuaVersion = enum {
+pub const Language = enum {
     lua51,
     lua52,
     lua53,
@@ -18,14 +18,14 @@ pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const lua_version = b.option(LuaVersion, "version", "Lua API and library version") orelse .lua54;
+    const lang = b.option(Language, "lang", "Lua language version to build") orelse .lua54;
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
 
-    const upstream = b.dependency(@tagName(lua_version), .{});
+    const upstream = b.dependency(@tagName(lang), .{});
 
     // Zig module
     const ziglua = b.addModule("ziglua", .{
-        .root_source_file = switch (lua_version) {
+        .root_source_file = switch (lang) {
             .lua51 => .{ .path = "src/ziglua-5.1/lib.zig" },
             .lua52 => .{ .path = "src/ziglua-5.2/lib.zig" },
             .lua53 => .{ .path = "src/ziglua-5.3/lib.zig" },
@@ -34,12 +34,12 @@ pub fn build(b: *Build) void {
         },
     });
 
-    const lib = switch (lua_version) {
+    const lib = switch (lang) {
         .luau => buildLuau(b, target, optimize, upstream, shared),
-        else => buildLua(b, target, optimize, upstream, lua_version, shared),
+        else => buildLua(b, target, optimize, upstream, lang, shared),
     };
 
-    switch (lua_version) {
+    switch (lang) {
         .luau => {
             ziglua.addIncludePath(upstream.path("Common/include"));
             ziglua.addIncludePath(upstream.path("Compiler/include"));
@@ -53,7 +53,7 @@ pub fn build(b: *Build) void {
 
     // Tests
     const tests = b.addTest(.{
-        .root_source_file = switch (lua_version) {
+        .root_source_file = switch (lang) {
             .lua51 => .{ .path = "src/ziglua-5.1/tests.zig" },
             .lua52 => .{ .path = "src/ziglua-5.2/tests.zig" },
             .lua53 => .{ .path = "src/ziglua-5.3/tests.zig" },
@@ -97,12 +97,12 @@ pub fn build(b: *Build) void {
     }
 }
 
-fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lua_version: LuaVersion, shared: bool) *Step.Compile {
+fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lang: Language, shared: bool) *Step.Compile {
     const lib_opts = .{
         .name = "lua",
         .target = target,
         .optimize = optimize,
-        .version = switch (lua_version) {
+        .version = switch (lang) {
             .lua51 => std.SemanticVersion{ .major = 5, .minor = 1, .patch = 5 },
             .lua52 => std.SemanticVersion{ .major = 5, .minor = 2, .patch = 4 },
             .lua53 => std.SemanticVersion{ .major = 5, .minor = 3, .patch = 6 },
@@ -133,7 +133,7 @@ fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Optim
         if (optimize == .Debug) "-DLUA_USE_APICHECK" else "",
     };
 
-    const lua_source_files = switch (lua_version) {
+    const lua_source_files = switch (lang) {
         .lua51 => &lua_51_source_files,
         .lua52 => &lua_52_source_files,
         .lua53 => &lua_53_source_files,

@@ -65,7 +65,7 @@ This will compile the Lua C sources and link with your project.
 
 There are currently two additional options that can be passed to `b.dependency()`:
 
-* `.version`: Set the Lua version to build and embed. Defaults to `.lua54`. Possible values are `.lua51`, `.lua52`, `.lua53`, `.lua54`, and `luau`.
+* `.lang`: Set the Lua language to build and embed. Defaults to `.lua54`. Possible values are `.lua51`, `.lua52`, `.lua53`, `.lua54`, and `luau`.
 * `.shared`: Defaults to `false` for embedding in a Zig program. Set to `true` to dynamically link the Lua source code (useful for creating shared modules).
 
 For example, here is a `b.dependency()` call that and links against a shared Lua 5.2 library:
@@ -74,7 +74,7 @@ For example, here is a `b.dependency()` call that and links against a shared Lua
 const ziglua = b.dependency("ziglua", .{
     .target = target,
     .optimize = optimize,
-    .version = .lua52,
+    .lang = .lua52,
     .shared = true,
 });
 ``````
