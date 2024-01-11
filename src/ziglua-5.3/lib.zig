@@ -9,6 +9,9 @@ const c = @cImport({
     @cInclude("lauxlib.h");
 });
 
+const config = @import("config");
+pub const lang = config.lang;
+
 const Allocator = std.mem.Allocator;
 
 // Types

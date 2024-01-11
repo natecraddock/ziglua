@@ -9,6 +9,9 @@ const c = @cImport({
     @cInclude("luacode.h");
 });
 
+const config = @import("config");
+pub const lang = config.lang;
+
 /// This function is defined in luau.cpp and must be called to define the assertion printer
 extern "c" fn zig_registerAssertionHandler() void;
 

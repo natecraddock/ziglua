@@ -34,6 +34,11 @@ pub fn build(b: *Build) void {
         },
     });
 
+    // Expose build configuration to the ziglua module
+    const config = b.addOptions();
+    config.addOption(Language, "lang", lang);
+    ziglua.addOptions("config", config);
+
     const lib = switch (lang) {
         .luau => buildLuau(b, target, optimize, upstream, shared),
         else => buildLua(b, target, optimize, upstream, lang, shared),
