@@ -58,13 +58,7 @@ pub fn build(b: *Build) void {
 
     // Tests
     const tests = b.addTest(.{
-        .root_source_file = switch (lang) {
-            .lua51 => .{ .path = "src/ziglua-5.1/tests.zig" },
-            .lua52 => .{ .path = "src/ziglua-5.2/tests.zig" },
-            .lua53 => .{ .path = "src/ziglua-5.3/tests.zig" },
-            .lua54 => .{ .path = "src/ziglua-5.4/tests.zig" },
-            .luau => .{ .path = "src/zigluau/tests.zig" },
-        },
+        .root_source_file = .{ .path = "src/tests.zig" },
         .target = target,
         .optimize = optimize,
     });
