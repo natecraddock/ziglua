@@ -114,6 +114,7 @@ pub const Integer = c.lua_Integer;
 /// Bitflag for the Lua standard libraries
 pub const Libs = packed struct {
     base: bool = false,
+    coroutine: bool = false,
     package: bool = false,
     string: bool = false,
     utf8: bool = false,
@@ -411,8 +412,10 @@ pub const Lua = struct {
 
     /// Pushes onto the stack the value of the global name
     /// See https://www.lua.org/manual/5.1/manual.html#lua_getglobal
-    pub fn getGlobal(lua: *Lua, name: [:0]const u8) LuaType {
-        return @enumFromInt(c.lua_getglobal(lua.state, name.ptr));
+    pub fn getGlobal(lua: *Lua, name: [:0]const u8) !LuaType {
+        const lua_type: LuaType = @enumFromInt(c.lua_getglobal(lua.state, name.ptr));
+        if (lua_type == .nil) return error.Fail;
+        return lua_type;
     }
 
     /// If the value at the given index has a metatable, the function pushes that metatable onto the stack
@@ -1258,6 +1261,7 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_openlibs
     pub fn open(lua: *Lua, libs: Libs) void {
         if (libs.base) lua.requireF("", c.luaopen_base);
+        if (libs.coroutine) lua.requireF(c.LUA_COLIBNAME, c.luaopen_coroutine);
         if (libs.string) lua.requireF(c.LUA_STRLIBNAME, c.luaopen_string);
         if (libs.table) lua.requireF(c.LUA_TABLIBNAME, c.luaopen_table);
         if (libs.math) lua.requireF(c.LUA_MATHLIBNAME, c.luaopen_math);
@@ -1282,9 +1286,19 @@ pub const Lua = struct {
         _ = c.luaopen_base(lua.state);
     }
 
+    /// Open the coroutine standard library
+    pub fn openCoroutine(lua: *Lua) void {
+        _ = c.luaopen_coroutine(lua.state);
+    }
+
     /// Open the string standard library
     pub fn openString(lua: *Lua) void {
         _ = c.luaopen_string(lua.state);
+    }
+
+    /// Open the UTF-8 standard library
+    pub fn openUtf8(lua: *Lua) void {
+        _ = c.luaopen_utf8(lua.state);
     }
 
     /// Open the table standard library
