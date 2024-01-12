@@ -18,9 +18,13 @@ fn expectStringContains(actual: []const u8, expected_contains: []const u8) !void
     return error.TestExpectedStringContains;
 }
 
-fn expectEqualStringsSentinel(expected: []const u8, actual: [*:0]const u8) !void {
-    return expectEqualStrings(expected, std.mem.span(actual));
-}
+// Helper functions
+//
+// For the most part, it is easy to test each Lua version simulataneously. Although each
+// version offers a different API, there are more similarities than differences. Using
+// ziglua.lang is usually enough to handle the differences. Some common functions like
+// toInteger differ enough to require these helper functions to handle the differences
+// to keep the test code more readable
 
 /// Return true if ziglua.lang matches any of the given langs
 inline fn langIn(langs: anytype) bool {
@@ -28,21 +32,21 @@ inline fn langIn(langs: anytype) bool {
     return false;
 }
 
-/// toInteger that always returns an error union to make testing easier
+/// toInteger that always returns an error union
 inline fn toInteger(lua: *Lua, index: i32) !ziglua.Integer {
     if (ziglua.lang == .lua51) {
         return lua.toInteger(index);
     } else return try lua.toInteger(index);
 }
 
-/// toNumber that always returns an error union to make testing easier
+/// toNumber that always returns an error union
 inline fn toNumber(lua: *Lua, index: i32) !ziglua.Number {
     if (ziglua.lang == .lua51) {
         return lua.toNumber(index);
     } else return try lua.toNumber(index);
 }
 
-/// getGlobal that always returns an error union to make testing easier
+/// getGlobal that always returns an error union
 inline fn getGlobal(lua: *Lua, name: [:0]const u8) !ziglua.LuaType {
     if (ziglua.lang == .lua51 or ziglua.lang == .lua52) {
         lua.getGlobal(name);
@@ -51,6 +55,7 @@ inline fn getGlobal(lua: *Lua, name: [:0]const u8) !ziglua.LuaType {
     return try lua.getGlobal(name);
 }
 
+/// getGlobal that always returns a LuaType
 inline fn getIndex(lua: *Lua, index: i32, i: ziglua.Integer) ziglua.LuaType {
     if (ziglua.lang == .lua53 or ziglua.lang == .lua54) {
         return lua.getIndex(index, i);
@@ -59,22 +64,25 @@ inline fn getIndex(lua: *Lua, index: i32, i: ziglua.Integer) ziglua.LuaType {
     return lua.typeOf(-1);
 }
 
+/// getTagle that always returns a LuaType
 inline fn getTable(lua: *Lua, index: i32) ziglua.LuaType {
-    if (ziglua.lang == .lua53 or ziglua.lang == .lua54 or ziglua.lang == .luau) {
+    if (langIn(.{ .lua53, .lua54, .luau })) {
         return lua.getTable(index);
     }
     lua.getTable(index);
     return lua.typeOf(-1);
 }
 
+/// rawGetTable that always returns a LuaType
 inline fn rawGetTable(lua: *Lua, index: i32) ziglua.LuaType {
-    if (ziglua.lang == .lua53 or ziglua.lang == .lua54 or ziglua.lang == .luau) {
+    if (langIn(.{ .lua53, .lua54, .luau })) {
         return lua.rawGetTable(index);
     }
     lua.rawGetTable(index);
     return lua.typeOf(-1);
 }
 
+/// pushFunction that sets the name for Luau
 inline fn pushFunction(lua: *Lua, c_fn: ziglua.CFn) void {
     if (ziglua.lang == .luau) return lua.pushFunction(c_fn, "");
     lua.pushFunction(c_fn);
@@ -1462,7 +1470,7 @@ test "aux opt functions" {
             expectEqual(10, l.optInteger(1, 10)) catch unreachable;
             expectEqualStrings("zig", l.optBytes(2, "zig")) catch unreachable;
             expectEqual(1.23, l.optNumber(3, 1.23)) catch unreachable;
-            expectEqualStringsSentinel("lang", l.optString(4, "lang")) catch unreachable;
+            expectEqualStrings("lang", std.mem.span(l.optString(4, "lang"))) catch unreachable;
             return 0;
         }
     }.inner);
