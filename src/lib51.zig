@@ -1390,6 +1390,7 @@ pub const Lua = struct {
     }
 
     /// Opens a library
+    /// See https://www.lua.org/manual/5.1/manual.html#luaL_register
     pub fn registerFns(lua: *Lua, libname: ?[:0]const u8, funcs: []const FnReg) void {
         // translated from the implementation of luaI_openlib so we can use a slice of
         // FnReg without requiring a sentinel end value
