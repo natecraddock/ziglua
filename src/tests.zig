@@ -2168,7 +2168,7 @@ test "compile and run bytecode" {
     try lua.loadBytecode("...", bc);
     try lua.protectedCall(0, 1, 0);
     const v = try lua.toInteger(-1);
-    try testing.expectEqual(@as(i32, 133), v);
+    try expectEqual(133, v);
 
     // Try mutable globals.  Calls to mutable globals should produce longer bytecode.
     const src2 = "Foo.print()\nBar.print()";
@@ -2182,7 +2182,7 @@ test "compile and run bytecode" {
     defer testing.allocator.free(bc2);
     // A really crude check for changed bytecode.  Better would be to match
     // produced bytecode in text format, but the API doesn't support it.
-    try testing.expect(bc1.len < bc2.len);
+    try expect(bc1.len < bc2.len);
 }
 
 test "userdata dtor" {
@@ -2205,13 +2205,13 @@ test "userdata dtor" {
 
         var data = lua.newUserdataDtor(Data, ziglua.wrap(Data.dtor));
         data.gc_hits_ptr = &gc_hits;
-        try expectEqual(@as(*const anyopaque, @ptrCast(data)), try lua.toPointer(1));
-        try testing.expectEqual(@as(i32, 0), gc_hits);
+        try expectEqual(@as(*anyopaque, @ptrCast(data)), try lua.toPointer(1));
+        try expectEqual(0, gc_hits);
         lua.pop(1); // don't let the stack hold a ref to the user data
         lua.gcCollect();
-        try testing.expectEqual(@as(i32, 1), gc_hits);
+        try expectEqual(1, gc_hits);
         lua.gcCollect();
-        try testing.expectEqual(@as(i32, 1), gc_hits);
+        try expectEqual(1, gc_hits);
     }
 }
 
@@ -2233,11 +2233,11 @@ test "tagged userdata" {
     try testing.expectEqual(data.val, data2.val);
 
     var tag = try lua.userdataTag(-1);
-    try testing.expectEqual(@as(i32, 13), tag);
+    try testing.expectEqual(13, tag);
 
     lua.setUserdataTag(-1, 100);
     tag = try lua.userdataTag(-1);
-    try testing.expectEqual(@as(i32, 100), tag);
+    try testing.expectEqual(100, tag);
 
     // Test that tag mismatch error handling works.  Userdata is not tagged with 123.
     try expectError(error.Fail, lua.toUserdataTagged(Data, -1, 123));
