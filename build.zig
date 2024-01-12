@@ -26,11 +26,11 @@ pub fn build(b: *Build) void {
     // Zig module
     const ziglua = b.addModule("ziglua", .{
         .root_source_file = switch (lang) {
-            .lua51 => .{ .path = "src/ziglua-5.1/lib.zig" },
-            .lua52 => .{ .path = "src/ziglua-5.2/lib.zig" },
-            .lua53 => .{ .path = "src/ziglua-5.3/lib.zig" },
-            .lua54 => .{ .path = "src/ziglua-5.4/lib.zig" },
-            .luau => .{ .path = "src/zigluau/lib.zig" },
+            .lua51 => .{ .path = "src/lib51.zig" },
+            .lua52 => .{ .path = "src/lib52.zig" },
+            .lua53 => .{ .path = "src/lib53.zig" },
+            .lua54 => .{ .path = "src/lib54.zig" },
+            .luau => .{ .path = "src/libluau.zig" },
         },
     });
 
@@ -175,7 +175,7 @@ fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Opti
     for (luau_source_files) |file| {
         lib.addCSourceFile(.{ .file = upstream.path(file), .flags = &flags });
     }
-    lib.addCSourceFile(.{ .file = .{ .path = "src/zigluau/luau.cpp" }, .flags = &flags });
+    lib.addCSourceFile(.{ .file = .{ .path = "src/luau.cpp" }, .flags = &flags });
     lib.linkLibCpp();
 
     return lib;
