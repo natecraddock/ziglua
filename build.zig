@@ -44,6 +44,9 @@ pub fn build(b: *Build) void {
         else => buildLua(b, target, optimize, upstream, lang, shared),
     };
 
+    // Expose the Lua artifact
+    b.installArtifact(lib);
+
     switch (lang) {
         .luau => {
             ziglua.addIncludePath(upstream.path("Common/include"));
