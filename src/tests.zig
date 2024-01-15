@@ -2318,3 +2318,115 @@ test "luau 4-vectors" {
         try expectEqual([4]f32{ 6, 8, 10, 12 }, vec4);
     }
 }
+
+test "useratom" {
+    if (ziglua.lang != .luau) return;
+
+    const useratomCb = struct {
+        pub fn inner(str: []const u8) i16 {
+            if (std.mem.eql(u8, str, "method_one")) {
+                return 0;
+            } else if (std.mem.eql(u8, str, "another_method")) {
+                return 1;
+            }
+            return -1;
+        }
+    }.inner;
+
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+    lua.setUserAtomCallbackFn(ziglua.wrap(useratomCb));
+
+    _ = lua.pushString("unknownatom");
+    _ = lua.pushString("method_one");
+    _ = lua.pushString("another_method");
+
+    const atom_idx0, const str0 = try lua.toStringAtom(-2);
+    const atom_idx1, const str1 = try lua.toStringAtom(-1);
+    const atom_idx2, const str2 = try lua.toStringAtom(-3);
+    try testing.expect(std.mem.eql(u8, str0, "method_one"));
+    try testing.expect(std.mem.eql(u8, str1, "another_method"));
+    try testing.expect(std.mem.eql(u8, str2, "unknownatom")); // should work, but returns -1 for atom idx
+
+    try expectEqual(0, atom_idx0);
+    try expectEqual(1, atom_idx1);
+    try expectEqual(-1, atom_idx2);
+
+    lua.pushInteger(13);
+    try expectError(error.Fail, lua.toStringAtom(-1));
+}
+
+test "namecall" {
+    if (ziglua.lang != .luau) return;
+
+    const funcs = struct {
+        const dot_idx: i32 = 0;
+        const sum_idx: i32 = 1;
+
+        // The useratom callback to initially form a mapping from method names to
+        // integer indices. The indices can then be used to quickly dispatch the right
+        // method in namecalls without needing to perform string compares.
+        pub fn useratomCb(str: []const u8) i16 {
+            if (std.mem.eql(u8, str, "dot")) {
+                return dot_idx;
+            }
+            if (std.mem.eql(u8, str, "sum")) {
+                return sum_idx;
+            }
+            return -1;
+        }
+
+        pub fn vectorNamecall(l: *Lua) i32 {
+            const atom_idx, _ = l.namecallAtom() catch {
+                l.raiseErrorStr("%s is not a valid vector method", .{l.checkString(1)});
+            };
+            switch (atom_idx) {
+                dot_idx => {
+                    const a = l.checkVector(1);
+                    const b = l.checkVector(2);
+                    l.pushNumber(a[0] * b[0] + a[1] * b[1] + a[2] * b[2]); // vec3 dot
+                    return 1;
+                },
+                sum_idx => {
+                    const a = l.checkVector(1);
+                    l.pushNumber(a[0] + a[1] + a[2]);
+                    return 1;
+                },
+                else => unreachable,
+            }
+        }
+    };
+
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+    lua.setUserAtomCallbackFn(ziglua.wrap(funcs.useratomCb));
+
+    lua.register("vector", ziglua.wrap(vectorCtor));
+    lua.pushVector(0, 0, 0);
+
+    try lua.newMetatable("vector");
+    lua.pushString("__namecall");
+    lua.pushFunction(ziglua.wrap(funcs.vectorNamecall), "vector_namecall");
+    lua.setTable(-3);
+
+    lua.setReadonly(-1, true);
+    lua.setMetatable(-2);
+
+    // Vector setup, try some lua code on them.
+    try lua.doString(
+        \\local a = vector(1, 2, 3)
+        \\local b = vector(3, 2, 1)
+        \\return a:dot(b)
+    );
+    const d = try lua.toNumber(-1);
+    lua.pop(-1);
+    try expectEqual(10, d);
+
+    try lua.doString(
+        \\local a = vector(1, 2, 3)
+        \\return a:sum()
+    );
+    const s = try lua.toNumber(-1);
+    lua.pop(-1);
+    try expectEqual(6, s);
+}
