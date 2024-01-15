@@ -1995,8 +1995,19 @@ fn wrapZigWriterFn(comptime f: ZigWriterFn) CWriterFn {
     }.inner;
 }
 
-/// Export a Zig function to be used as a Zig (C) Module
-pub fn exportFn(comptime name: []const u8, comptime func: ZigFn) void {
-    const declaration = wrap(func);
-    @export(declaration, .{ .name = "luaopen_" ++ name, .linkage = .Strong });
+/// Export a Zig function to be used as a the entry point to a Lua module
+///
+/// Exported as luaopen_[name]
+pub fn exportFn(comptime name: []const u8, comptime func: ZigFn) CFn {
+    return struct {
+        fn luaopen(state: ?*LuaState) callconv(.C) c_int {
+            const declaration = comptime wrap(func);
+
+            return @call(.always_inline, declaration, .{state});
+        }
+
+        comptime {
+            @export(luaopen, .{ .name = "luaopen_" ++ name });
+        }
+    }.luaopen;
 }
