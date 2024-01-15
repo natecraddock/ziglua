@@ -107,6 +107,32 @@ pub fn build(b: *Build) void {
         const run_step = b.step(b.fmt("run-example-{s}", .{example[0]}), b.fmt("Run {s} example", .{example[0]}));
         run_step.dependOn(&run_cmd.step);
     }
+
+    const docs = b.addTest(.{
+        .root_source_file = switch (lang) {
+            .lua51 => .{ .path = "src/lib51.zig" },
+            .lua52 => .{ .path = "src/lib52.zig" },
+            .lua53 => .{ .path = "src/lib53.zig" },
+            .lua54 => .{ .path = "src/lib54.zig" },
+            .luau => .{ .path = "src/libluau.zig" },
+        },
+    });
+    docs.root_module.addOptions("config", config);
+
+    const install_docs = b.addInstallDirectory(.{
+        .source_dir = docs.getEmittedDocs(),
+        .install_dir = .prefix,
+        .install_subdir = switch (lang) {
+            .lua51 => "docs/lua51",
+            .lua52 => "docs/lua52",
+            .lua53 => "docs/lua53",
+            .lua54 => "docs/lua54",
+            .luau => "docs/luau",
+        },
+    });
+
+    const docs_step = b.step("docs", "Build and install the documentation");
+    docs_step.dependOn(&install_docs.step);
 }
 
 fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lang: Language, shared: bool) *Step.Compile {
