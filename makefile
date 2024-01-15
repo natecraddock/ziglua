@@ -1,4 +1,4 @@
-.PHONY: docs
+.PHONY: test docs
 
 test:
 	zig build test --summary failures -Dlang=lua51
@@ -9,6 +9,7 @@ test:
 
 	zig build install-example-interpreter
 	zig build install-example-zig-function
+	zig build -Dlang=luau install-example-luau-bytecode
 
 docs:
 	mkdir -p docs
