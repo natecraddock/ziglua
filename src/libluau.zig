@@ -42,6 +42,9 @@ pub const CFn = *const fn (state: ?*LuaState) callconv(.C) c_int;
 /// Type for C userdata destructors
 pub const CUserdataDtorFn = *const fn (userdata: *anyopaque) callconv(.C) void;
 
+/// Type for C useratom callback
+pub const CUserAtomCallbackFn = *const fn (str: [*c]const u8, len: usize) callconv(.C) i16;
+
 /// The internal Lua debug structure
 /// See https://www.lua.org/manual/5.1/manual.html#lua_Debug
 const Debug = c.lua_Debug;
@@ -324,6 +327,14 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.1/manual.html#lua_createtable
     pub fn createTable(lua: *Lua, num_arr: i32, num_rec: i32) void {
         c.lua_createtable(lua.state, num_arr, num_rec);
+    }
+
+    pub fn setReadonly(lua: *Lua, idx: i32, enabled: bool) void {
+        c.lua_setreadonly(lua.state, idx, @intFromBool(enabled));
+    }
+
+    pub fn getReadonly(lua: *Lua, idx: i32) bool {
+        return c.lua_getreadonly(lua.state, idx) != 0;
     }
 
     /// Returns true if the two values at the indexes are equal following the semantics of the
@@ -961,6 +972,26 @@ pub const Lua = struct {
         return error.Fail;
     }
 
+    /// Converts the Lua string at the given `index` to a string atom.
+    /// The Lua value must be a string.
+    pub fn toStringAtom(lua: *Lua, index: i32) !struct { i32, [:0]const u8 } {
+        var atom: c_int = undefined;
+        if (c.lua_tostringatom(lua.state, index, &atom)) |ptr| {
+            return .{ atom, std.mem.span(ptr) };
+        }
+        return error.Fail;
+    }
+
+    /// Retrieve the user atom index and name for the method being
+    /// invoked in a namecall.
+    pub fn namecallAtom(lua: *Lua) !struct { i32, [:0]const u8 } {
+        var atom: c_int = undefined;
+        if (c.lua_namecallatom(lua.state, &atom)) |ptr| {
+            return .{ atom, std.mem.span(ptr) };
+        }
+        return error.Fail;
+    }
+
     /// Returns the `LuaType` of the value at the given index
     /// Note that this is equivalent to lua_type but because type is a Zig primitive it is renamed to `typeOf`
     /// See https://www.lua.org/manual/5.1/manual.html#lua_type
@@ -1069,6 +1100,12 @@ pub const Lua = struct {
         return error.Fail;
     }
 
+    pub fn setUserAtomCallbackFn(lua: *Lua, cb: CUserAtomCallbackFn) void {
+        if (c.lua_callbacks(lua.state)) |cb_struct| {
+            cb_struct.*.useratom = cb;
+        }
+    }
+
     // Auxiliary library functions
     //
     // Auxiliary library functions are included in alphabetical order.
@@ -1086,6 +1123,13 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_argerror
     pub fn argError(lua: *Lua, arg: i32, extra_msg: [*:0]const u8) noreturn {
         _ = c.luaL_argerror(lua.state, arg, extra_msg);
+        unreachable;
+    }
+
+    /// Raises a type error for the argument arg of the C function that called it, using a standard message; tname is a "name" for the expected type. This function never returns.
+    /// See https://www.lua.org/manual/5.4/manual.html#luaL_typeerror
+    pub fn typeError(lua: *Lua, arg: i32, type_name: [:0]const u8) noreturn {
+        _ = c.luaL_typeerror(lua.state, arg, type_name.ptr);
         unreachable;
     }
 
@@ -1180,6 +1224,14 @@ pub const Lua = struct {
         const ptr = c.luaL_checkudata(lua.state, arg, name.ptr).?;
         const size = @as(u32, @intCast(lua.objectLen(arg))) / @sizeOf(T);
         return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
+    }
+
+    /// Checks whether the function argument `arg` is a vector and returns the vector as a floating point slice.
+    pub fn checkVector(lua: *Lua, arg: i32) [luau_vector_size]f32 {
+        const vec = lua.toVector(arg) catch {
+            lua.typeError(arg, lua.typeName(LuaType.vector));
+        };
+        return vec;
     }
 
     /// Loads and runs the given string
@@ -1498,6 +1550,7 @@ pub const ZigContFn = fn (lua: *Lua, status: Status, ctx: i32) i32;
 pub const ZigReaderFn = fn (lua: *Lua, data: *anyopaque) ?[]const u8;
 pub const ZigWriterFn = fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool;
 pub const ZigUserdataDtorFn = fn (data: *anyopaque) void;
+pub const ZigUserAtomCallbackFn = fn (str: []const u8) i16;
 
 fn TypeOfWrap(comptime T: type) type {
     return switch (T) {
@@ -1506,6 +1559,7 @@ fn TypeOfWrap(comptime T: type) type {
         ZigReaderFn => CReaderFn,
         ZigWriterFn => CWriterFn,
         ZigUserdataDtorFn => CUserdataDtorFn,
+        ZigUserAtomCallbackFn => CUserAtomCallbackFn,
         else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
     };
 }
@@ -1521,6 +1575,7 @@ pub fn wrap(comptime value: anytype) TypeOfWrap(@TypeOf(value)) {
         ZigReaderFn => wrapZigReaderFn(value),
         ZigWriterFn => wrapZigWriterFn(value),
         ZigUserdataDtorFn => wrapZigUserdataDtorFn(value),
+        ZigUserAtomCallbackFn => wrapZigUserAtomCallbackFn(value),
         else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
     };
 }
@@ -1541,6 +1596,19 @@ fn wrapZigUserdataDtorFn(comptime f: ZigUserdataDtorFn) CUserdataDtorFn {
     return struct {
         fn inner(userdata: *anyopaque) callconv(.C) void {
             return @call(.always_inline, f, .{userdata});
+        }
+    }.inner;
+}
+
+/// Wrap a ZigFn in a CFn for passing to the API
+fn wrapZigUserAtomCallbackFn(comptime f: ZigUserAtomCallbackFn) CUserAtomCallbackFn {
+    return struct {
+        fn inner(str: [*c]const u8, len: usize) callconv(.C) i16 {
+            if (str) |s| {
+                const buf = s[0..len];
+                return @call(.always_inline, f, .{buf});
+            }
+            return -1;
         }
     }.inner;
 }
