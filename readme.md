@@ -109,11 +109,4 @@ Please make suggestions, report bugs, and create pull requests. Anyone is welcom
 
 I only use a subset of the Lua API through Ziglua, so if there are parts that aren't easy to use or understand, please fix it yourself or let me know!
 
-## Acknowledgements
-Thanks to the following sources:
-
-* [zoltan](https://github.com/ranciere/zoltan) for insights into compiling Lua with Zig
-* [zig-autolua](https://github.com/daurnimator/zig-autolua) for help on writing an alloc function
-* [mach-glfw](https://github.com/hexops/mach-glfw) for inspiration on a clean `build.zig`
-
-And finally [Lua](https://lua.org). Thank you to the Lua team for creating such a great language!
+Thank you to the [Lua](https://lua.org) team for creating such a great language!
