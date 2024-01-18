@@ -12,7 +12,9 @@ pub fn main() anyerror!void {
     defer _ = gpa.deinit();
 
     // Initialize The Lua vm and get a reference to the main thread
-    var lua = try ziglua.Lua.init(allocator);
+    //
+    // Passing a Zig allocator to the Lua state requires a stable pointer
+    var lua = try ziglua.Lua.init(&allocator);
     defer lua.deinit();
 
     // Open all Lua standard libraries

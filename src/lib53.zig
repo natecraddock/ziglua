@@ -311,7 +311,6 @@ pub const CWriterFn = *const fn (state: ?*LuaState, buf: ?*const anyopaque, size
 /// A Zig wrapper around the Lua C API
 /// Represents a Lua state or thread and contains the entire state of the Lua interpreter
 pub const Lua = struct {
-    allocator: ?*Allocator = null,
     state: *LuaState,
 
     const alignment = @alignOf(std.c.max_align_t);
@@ -347,28 +346,15 @@ pub const Lua = struct {
 
     /// Initialize a Lua state with the given allocator
     /// See https://www.lua.org/manual/5.3/manual.html#lua_newstate
-    pub fn init(allocator: Allocator) !Lua {
-        // the userdata passed to alloc needs to be a pointer with a consistent address
-        // so we allocate an Allocator struct to hold a copy of the allocator's data
-        // TODO: could we just pass a pointer to the init function?
-        const allocator_ptr = allocator.create(Allocator) catch return error.Memory;
-        allocator_ptr.* = allocator;
-
-        const state = c.lua_newstate(alloc, allocator_ptr) orelse return error.Memory;
-        return Lua{
-            .allocator = allocator_ptr,
-            .state = state,
-        };
+    pub fn init(allocator: *const Allocator) !Lua {
+        // @constCast() is safe here because Lua does not mutate the pointer internally
+        const state = c.lua_newstate(alloc, @constCast(allocator)) orelse return error.Memory;
+        return Lua{ .state = state };
     }
 
     /// Deinitialize a Lua state and free all memory
     pub fn deinit(lua: *Lua) void {
         lua.close();
-        if (lua.allocator) |a| {
-            const allocator = a;
-            allocator.destroy(a);
-            lua.allocator = null;
-        }
     }
 
     // Library functions

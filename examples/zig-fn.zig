@@ -22,7 +22,9 @@ pub fn main() anyerror!void {
     defer _ = gpa.deinit();
 
     // Initialize The Lua vm and get a reference to the main thread
-    var lua = try Lua.init(allocator);
+    //
+    // Passing a Zig allocator to the Lua state requires a stable pointer
+    var lua = try Lua.init(&allocator);
     defer lua.deinit();
 
     // Push the adder function to the Lua stack.
