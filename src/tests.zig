@@ -155,6 +155,37 @@ test "alloc functions" {
     }
 }
 
+test "Zig allocator access" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const inner = struct {
+        fn inner(l: *Lua) i32 {
+            const allocator = l.allocator();
+
+            const num = toInteger(l, 1) catch unreachable;
+
+            // Use the allocator
+            const nums = allocator.alloc(i32, @intCast(num)) catch unreachable;
+            defer allocator.free(nums);
+
+            // Do something pointless to use the slice
+            var sum: i32 = 0;
+            for (nums, 0..) |*n, i| n.* = @intCast(i);
+            for (nums) |n| sum += n;
+
+            l.pushInteger(sum);
+            return 1;
+        }
+    }.inner;
+
+    pushFunction(&lua, ziglua.wrap(inner));
+    lua.pushInteger(10);
+    try lua.protectedCall(1, 1, 0);
+
+    try expectEqual(45, try toInteger(&lua, -1));
+}
+
 test "standard library loading" {
     // open all standard libraries
     {

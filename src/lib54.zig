@@ -326,39 +326,57 @@ pub const Lua = struct {
         // just like malloc() returns a pointer "which is suitably aligned for any built-in type",
         // the memory allocated by this function should also be aligned for any type that Lua may
         // desire to allocate. use the largest alignment for the target
-        const allocator = opaqueCast(Allocator, data.?);
+        const allocator_ptr = opaqueCast(Allocator, data.?);
 
         if (@as(?[*]align(alignment) u8, @ptrCast(@alignCast(ptr)))) |prev_ptr| {
             const prev_slice = prev_ptr[0..osize];
 
             // when nsize is zero the allocator must behave like free and return null
             if (nsize == 0) {
-                allocator.free(prev_slice);
+                allocator_ptr.free(prev_slice);
                 return null;
             }
 
             // when nsize is not zero the allocator must behave like realloc
-            const new_ptr = allocator.realloc(prev_slice, nsize) catch return null;
+            const new_ptr = allocator_ptr.realloc(prev_slice, nsize) catch return null;
             return new_ptr.ptr;
         } else if (nsize == 0) {
             return null;
         } else {
             // ptr is null, allocate a new block of memory
-            const new_ptr = allocator.alignedAlloc(u8, alignment, nsize) catch return null;
+            const new_ptr = allocator_ptr.alignedAlloc(u8, alignment, nsize) catch return null;
             return new_ptr.ptr;
         }
     }
 
     /// Initialize a Lua state with the given allocator
-    pub fn init(allocator: *const Allocator) !Lua {
+    pub fn init(allocator_ptr: *const Allocator) !Lua {
         // @constCast() is safe here because Lua does not mutate the pointer internally
-        const state = c.lua_newstate(alloc, @constCast(allocator)) orelse return error.Memory;
+        const state = c.lua_newstate(alloc, @constCast(allocator_ptr)) orelse return error.Memory;
         return Lua{ .state = state };
     }
 
     /// Deinitialize a Lua state and free all memory
     pub fn deinit(lua: *Lua) void {
         lua.close();
+    }
+
+    /// Returns the std.mem.Allocator used to initialize this Lua state
+    ///
+    /// This function is not safe to use on Lua states created without a Zig allocator.
+    /// If the user data passed to Lua was null, this function will panic. Otherwise use
+    /// of the returned Allocator is undefined and will likely cause a segfault.
+    pub fn allocator(lua: *Lua) Allocator {
+        var data: ?*Allocator = undefined;
+        _ = lua.getAllocFn(@ptrCast(&data));
+
+        if (data) |allocator_ptr| {
+            // Although the Allocator is passed to Lua as a pointer, return a
+            // copy to make use more convenient.
+            return allocator_ptr.*;
+        }
+
+        @panic("Lua.allocator() invalid on Lua states created without a Zig allocator");
     }
 
     // Library functions
@@ -728,8 +746,8 @@ pub const Lua = struct {
 
     /// Creates a new independent state and returns its main thread
     /// See https://www.lua.org/manual/5.4/manual.html#lua_newstate
-    pub fn newState(alloc_fn: AllocFn, data: ?*anyopaque) !Lua {
-        const state = c.lua_newstate(alloc_fn, data) orelse return error.Memory;
+    pub fn newState(alloc_fn: AllocFn, data: ?*const anyopaque) !Lua {
+        const state = c.lua_newstate(alloc_fn, @constCast(data)) orelse return error.Memory;
         return Lua{ .state = state };
     }
 
