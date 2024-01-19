@@ -182,9 +182,13 @@ fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Optim
         .lua54 => &lua_54_source_files,
         else => unreachable,
     };
-    for (lua_source_files) |file| {
-        lib.addCSourceFile(.{ .file = upstream.path(file), .flags = &flags });
-    }
+
+    lib.addCSourceFiles(.{
+        .dependency = upstream,
+        .files = lua_source_files,
+        .flags = &flags,
+    });
+
     lib.linkLibC();
 
     installHeader(lib, upstream.path("src/lua.h"), "lua.h");
@@ -226,9 +230,11 @@ fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Opti
         if (luau_use_4_vector) "-DLUA_VECTOR_SIZE=4" else "",
     };
 
-    for (luau_source_files) |file| {
-        lib.addCSourceFile(.{ .file = upstream.path(file), .flags = &flags });
-    }
+    lib.addCSourceFiles(.{
+        .dependency = upstream,
+        .files = &luau_source_files,
+        .flags = &flags,
+    });
     lib.addCSourceFile(.{ .file = .{ .path = "src/luau.cpp" }, .flags = &flags });
     lib.linkLibCpp();
 
