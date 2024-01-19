@@ -23,6 +23,10 @@ pub fn build(b: *Build) void {
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
     const upstream = b.dependency(@tagName(lang), .{});
 
+    if (lang == .luau and shared) {
+        std.debug.panic("Luau does not support compiling or loading shared modules", .{});
+    }
+
     // Zig module
     const ziglua = b.addModule("ziglua", .{
         .root_source_file = switch (lang) {
