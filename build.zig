@@ -50,7 +50,7 @@ pub fn build(b: *Build) void {
     }
 
     const lib = switch (lang) {
-        .luau => buildLuau(b, target, optimize, upstream, shared, luau_use_4_vector),
+        .luau => buildLuau(b, target, optimize, upstream, luau_use_4_vector),
         else => buildLua(b, target, optimize, upstream, lang, shared),
     };
 
@@ -205,17 +205,13 @@ fn installHeader(cs: *Build.Step.Compile, src_path: Build.LazyPath, dest_rel_pat
 }
 
 /// Luau has diverged enough from Lua (C++, project structure, ...) that it is easier to separate the build logic
-fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, shared: bool, luau_use_4_vector: bool) *Step.Compile {
-    const lib_opts = .{
+fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, luau_use_4_vector: bool) *Step.Compile {
+    const lib = b.addStaticLibrary(.{
         .name = "luau",
         .target = target,
         .optimize = optimize,
         .version = std.SemanticVersion{ .major = 0, .minor = 607, .patch = 0 },
-    };
-    const lib = if (shared)
-        b.addSharedLibrary(lib_opts)
-    else
-        b.addStaticLibrary(lib_opts);
+    });
 
     lib.addIncludePath(upstream.path("Common/include"));
     lib.addIncludePath(upstream.path("Compiler/include"));
