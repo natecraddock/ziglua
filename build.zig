@@ -176,7 +176,7 @@ fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Optim
     };
 
     const lua_source_files = switch (lang) {
-        .lua51 => &lua_51_source_files,
+        .lua51 => &lua_base_source_files,
         .lua52 => &lua_52_source_files,
         .lua53 => &lua_53_source_files,
         .lua54 => &lua_54_source_files,
@@ -246,7 +246,7 @@ fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Opti
     return lib;
 }
 
-const lua_51_source_files = [_][]const u8{
+const lua_base_source_files = [_][]const u8{
     "src/lapi.c",
     "src/lcode.c",
     "src/ldebug.c",
@@ -278,110 +278,23 @@ const lua_51_source_files = [_][]const u8{
     "src/linit.c",
 };
 
-const lua_52_source_files = [_][]const u8{
-    "src/lapi.c",
-    "src/lcode.c",
+const lua_52_source_files = lua_base_source_files ++ [_][]const u8{
     "src/lctype.c",
-    "src/ldebug.c",
-    "src/ldo.c",
-    "src/ldump.c",
-    "src/lfunc.c",
-    "src/lgc.c",
-    "src/llex.c",
-    "src/lmem.c",
-    "src/lobject.c",
-    "src/lopcodes.c",
-    "src/lparser.c",
-    "src/lstate.c",
-    "src/lstring.c",
-    "src/ltable.c",
-    "src/ltm.c",
-    "src/lundump.c",
-    "src/lvm.c",
-    "src/lzio.c",
-    "src/lauxlib.c",
-    "src/lbaselib.c",
     "src/lbitlib.c",
     "src/lcorolib.c",
-    "src/ldblib.c",
-    "src/liolib.c",
-    "src/lmathlib.c",
-    "src/loslib.c",
-    "src/lstrlib.c",
-    "src/ltablib.c",
-    "src/loadlib.c",
-    "src/linit.c",
 };
 
-const lua_53_source_files = [_][]const u8{
-    "src/lapi.c",
-    "src/lcode.c",
+const lua_53_source_files = lua_base_source_files ++ [_][]const u8{
     "src/lctype.c",
-    "src/ldebug.c",
-    "src/ldo.c",
-    "src/ldump.c",
-    "src/lfunc.c",
-    "src/lgc.c",
-    "src/llex.c",
-    "src/lmem.c",
-    "src/lobject.c",
-    "src/lopcodes.c",
-    "src/lparser.c",
-    "src/lstate.c",
-    "src/lstring.c",
-    "src/ltable.c",
-    "src/ltm.c",
-    "src/lundump.c",
-    "src/lvm.c",
-    "src/lzio.c",
-    "src/lauxlib.c",
-    "src/lbaselib.c",
     "src/lbitlib.c",
     "src/lcorolib.c",
-    "src/ldblib.c",
-    "src/liolib.c",
-    "src/lmathlib.c",
-    "src/loslib.c",
-    "src/lstrlib.c",
-    "src/ltablib.c",
     "src/lutf8lib.c",
-    "src/loadlib.c",
-    "src/linit.c",
 };
 
-const lua_54_source_files = [_][]const u8{
-    "src/lapi.c",
-    "src/lcode.c",
+const lua_54_source_files = lua_base_source_files ++ [_][]const u8{
     "src/lctype.c",
-    "src/ldebug.c",
-    "src/ldo.c",
-    "src/ldump.c",
-    "src/lfunc.c",
-    "src/lgc.c",
-    "src/llex.c",
-    "src/lmem.c",
-    "src/lobject.c",
-    "src/lopcodes.c",
-    "src/lparser.c",
-    "src/lstate.c",
-    "src/lstring.c",
-    "src/ltable.c",
-    "src/ltm.c",
-    "src/lundump.c",
-    "src/lvm.c",
-    "src/lzio.c",
-    "src/lauxlib.c",
-    "src/lbaselib.c",
     "src/lcorolib.c",
-    "src/ldblib.c",
-    "src/liolib.c",
-    "src/lmathlib.c",
-    "src/loadlib.c",
-    "src/loslib.c",
-    "src/lstrlib.c",
-    "src/ltablib.c",
     "src/lutf8lib.c",
-    "src/linit.c",
 };
 
 const luau_source_files = [_][]const u8{
