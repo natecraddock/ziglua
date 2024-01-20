@@ -7,6 +7,8 @@ const c = @cImport({
     @cInclude("lua.h");
     @cInclude("lualib.h");
     @cInclude("lauxlib.h");
+
+    if (lang == .luajit) @cInclude("luajit.h");
 });
 
 const config = @import("config");
