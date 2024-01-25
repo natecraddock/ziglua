@@ -30,14 +30,7 @@ pub fn build(b: *Build) void {
 
     // Zig module
     const ziglua = b.addModule("ziglua", .{
-        .root_source_file = switch (lang) {
-            .lua51 => .{ .path = "src/lib51.zig" },
-            .lua52 => .{ .path = "src/lib52.zig" },
-            .lua53 => .{ .path = "src/lib53.zig" },
-            .lua54 => .{ .path = "src/lib54.zig" },
-            .luajit => .{ .path = "src/lib51.zig" },
-            .luau => .{ .path = "src/libluau.zig" },
-        },
+        .root_source_file = .{ .path = "src/lib.zig" },
     });
 
     // Expose build configuration to the ziglua module
@@ -116,14 +109,7 @@ pub fn build(b: *Build) void {
     }
 
     const docs = b.addTest(.{
-        .root_source_file = switch (lang) {
-            .lua51 => .{ .path = "src/lib51.zig" },
-            .lua52 => .{ .path = "src/lib52.zig" },
-            .lua53 => .{ .path = "src/lib53.zig" },
-            .lua54 => .{ .path = "src/lib54.zig" },
-            .luajit => .{ .path = "src/lib51.zig" },
-            .luau => .{ .path = "src/libluau.zig" },
-        },
+        .root_source_file = .{ .path = "src/lib.zig" },
     });
     docs.root_module.addOptions("config", config);
 

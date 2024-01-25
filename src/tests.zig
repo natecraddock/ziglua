@@ -1107,18 +1107,18 @@ test "userdata and uservalues" {
     } else if (ziglua.lang == .lua54) {
         // assign the user values
         lua.pushNumber(1234.56);
-        try lua.setIndexUserValue(1, 1);
+        try lua.setUserValue(1, 1);
 
         _ = lua.pushString("test string");
-        try lua.setIndexUserValue(1, 2);
+        try lua.setUserValue(1, 2);
 
-        try expectEqual(.number, try lua.getIndexUserValue(1, 1));
+        try expectEqual(.number, try lua.getUserValue(1, 1));
         try expectEqual(1234.56, try lua.toNumber(-1));
-        try expectEqual(.string, try lua.getIndexUserValue(1, 2));
+        try expectEqual(.string, try lua.getUserValue(1, 2));
         try expectEqualStrings("test string", try lua.toBytes(-1));
 
-        try expectError(error.Fail, lua.setIndexUserValue(1, 3));
-        try expectError(error.Fail, lua.getIndexUserValue(1, 3));
+        try expectError(error.Fail, lua.setUserValue(1, 3));
+        try expectError(error.Fail, lua.getUserValue(1, 3));
     }
 }
 
