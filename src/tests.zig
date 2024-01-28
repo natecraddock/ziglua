@@ -26,6 +26,8 @@ fn expectStringContains(actual: []const u8, expected_contains: []const u8) !void
 // toInteger differ enough to require these helper functions to handle the differences
 // to keep the test code more readable
 
+// TODO: implement as much of this as is reasonable in the shared lib.zig and remove these
+
 /// Return true if ziglua.lang matches any of the given langs
 inline fn langIn(langs: anytype) bool {
     inline for (langs) |lang| if (ziglua.lang == lang) return true;
@@ -48,7 +50,7 @@ inline fn toNumber(lua: *Lua, index: i32) !ziglua.Number {
 
 /// getGlobal that always returns an error union
 inline fn getGlobal(lua: *Lua, name: [:0]const u8) !ziglua.LuaType {
-    if (langIn(.{ .lua51, .lua52, .luajit })) {
+    if (langIn(.{ .lua51, .luajit })) {
         lua.getGlobal(name);
         return lua.typeOf(-1);
     }
@@ -66,7 +68,7 @@ inline fn getIndex(lua: *Lua, index: i32, i: ziglua.Integer) ziglua.LuaType {
 
 /// getTagle that always returns a LuaType
 inline fn getTable(lua: *Lua, index: i32) ziglua.LuaType {
-    if (langIn(.{ .lua53, .lua54, .luau })) {
+    if (langIn(.{ .lua52, .lua53, .lua54, .luau })) {
         return lua.getTable(index);
     }
     lua.getTable(index);
@@ -75,7 +77,7 @@ inline fn getTable(lua: *Lua, index: i32) ziglua.LuaType {
 
 /// rawGetTable that always returns a LuaType
 inline fn rawGetTable(lua: *Lua, index: i32) ziglua.LuaType {
-    if (langIn(.{ .lua53, .lua54, .luau })) {
+    if (langIn(.{ .lua52, .lua53, .lua54, .luau })) {
         return lua.rawGetTable(index);
     }
     lua.rawGetTable(index);
@@ -674,42 +676,20 @@ test "global table" {
     lua.open(.{ .math = true, .base = true });
     lua.pushGlobalTable();
 
-    if (ziglua.lang == .lua52) {
-        // find the print function
-        _ = lua.pushString("print");
-        lua.getTable(-2);
-        try expectEqual(.function, lua.typeOf(-1));
+    // find the print function
+    _ = lua.pushString("print");
+    try expectEqual(.function, lua.getTable(-2));
 
-        // index the global table in the global table
-        lua.getField(-2, "_G");
-        try expectEqual(.table, lua.typeOf(-1));
+    // index the global table in the global table
+    try expectEqual(.table, lua.getField(-2, "_G"));
 
-        // find pi in the math table
-        lua.getField(-1, "math");
-        try expectEqual(.table, lua.typeOf(-1));
-        lua.getField(-1, "pi");
-        try expectEqual(.number, lua.typeOf(-1));
+    // find pi in the math table
+    try expectEqual(.table, lua.getField(-1, "math"));
+    try expectEqual(.number, lua.getField(-1, "pi"));
 
-        // but the string table should be nil
-        lua.pop(2);
-        lua.getField(-1, "string");
-        try expectEqual(.nil, lua.typeOf(-1));
-    } else {
-        // find the print function
-        _ = lua.pushString("print");
-        try expectEqual(.function, lua.getTable(-2));
-
-        // index the global table in the global table
-        try expectEqual(.table, lua.getField(-2, "_G"));
-
-        // find pi in the math table
-        try expectEqual(.table, lua.getField(-1, "math"));
-        try expectEqual(.number, lua.getField(-1, "pi"));
-
-        // but the string table should be nil
-        lua.pop(2);
-        try expectEqual(.nil, lua.getField(-1, "string"));
-    }
+    // but the string table should be nil
+    lua.pop(2);
+    try expectEqual(.nil, lua.getField(-1, "string"));
 }
 
 const sub = struct {
