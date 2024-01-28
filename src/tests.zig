@@ -48,42 +48,6 @@ inline fn toNumber(lua: *Lua, index: i32) !ziglua.Number {
     } else return try lua.toNumber(index);
 }
 
-/// getGlobal that always returns an error union
-inline fn getGlobal(lua: *Lua, name: [:0]const u8) !ziglua.LuaType {
-    if (langIn(.{ .lua51, .luajit })) {
-        lua.getGlobal(name);
-        return lua.typeOf(-1);
-    }
-    return try lua.getGlobal(name);
-}
-
-/// getGlobal that always returns a LuaType
-inline fn getIndex(lua: *Lua, index: i32, i: ziglua.Integer) ziglua.LuaType {
-    if (ziglua.lang == .lua53 or ziglua.lang == .lua54) {
-        return lua.getIndex(index, i);
-    }
-    _ = lua.rawGetIndex(index, i);
-    return lua.typeOf(-1);
-}
-
-/// getTagle that always returns a LuaType
-inline fn getTable(lua: *Lua, index: i32) ziglua.LuaType {
-    if (langIn(.{ .lua52, .lua53, .lua54, .luau })) {
-        return lua.getTable(index);
-    }
-    lua.getTable(index);
-    return lua.typeOf(-1);
-}
-
-/// rawGetTable that always returns a LuaType
-inline fn rawGetTable(lua: *Lua, index: i32) ziglua.LuaType {
-    if (langIn(.{ .lua52, .lua53, .lua54, .luau })) {
-        return lua.rawGetTable(index);
-    }
-    lua.rawGetTable(index);
-    return lua.typeOf(-1);
-}
-
 /// pushFunction that sets the name for Luau
 inline fn pushFunction(lua: *Lua, c_fn: ziglua.CFn) void {
     if (ziglua.lang == .luau) return lua.pushFunction(c_fn, "");
@@ -446,7 +410,7 @@ test "executing string contents" {
     try lua.loadString("a = f(2)");
     try lua.protectedCall(0, 0, 0);
 
-    try expectEqual(.number, try getGlobal(&lua, "a"));
+    try expectEqual(.number, try lua.getGlobal("a"));
     try expectEqual(12, try toInteger(&lua, 1));
 
     try expectError(if (ziglua.lang == .luau) error.Fail else error.Syntax, lua.loadString("bad syntax"));
@@ -558,7 +522,7 @@ test "calling a function" {
 
     lua.register("zigadd", ziglua.wrap(add));
 
-    _ = try getGlobal(&lua, "zigadd");
+    _ = try lua.getGlobal("zigadd");
     lua.pushInteger(10);
     lua.pushInteger(32);
 
@@ -724,7 +688,7 @@ test "function registration" {
         lua.registerFns("testlib", &funcs);
 
         // testlib.add(1, 2)
-        _ = try getGlobal(&lua, "testlib");
+        _ = try lua.getGlobal("testlib");
         _ = lua.getField(-1, "add");
         lua.pushInteger(1);
         lua.pushInteger(2);
@@ -875,22 +839,25 @@ test "table access" {
     defer lua.deinit();
 
     try lua.doString("a = { [1] = 'first', key = 'value', ['other one'] = 1234 }");
-    _ = try getGlobal(&lua, "a");
+    _ = try lua.getGlobal("a");
 
     if (ziglua.lang == .lua53 or ziglua.lang == .lua54) {
         try expectEqual(.string, lua.rawGetIndex(1, 1));
         try expectEqualStrings("first", try lua.toBytes(-1));
     }
 
-    try expectEqual(.string, getIndex(&lua, 1, 1));
+    try expectEqual(.string, switch (ziglua.lang) {
+        .lua53, .lua54 => lua.getIndex(1, 1),
+        else => lua.rawGetIndex(1, 1),
+    });
     try expectEqualStrings("first", try lua.toBytes(-1));
 
     _ = lua.pushString("key");
-    try expectEqual(.string, getTable(&lua, 1));
+    try expectEqual(.string, lua.getTable(1));
     try expectEqualStrings("value", try lua.toBytes(-1));
 
     _ = lua.pushString("other one");
-    try expectEqual(.number, rawGetTable(&lua, 1));
+    try expectEqual(.number, lua.rawGetTable(1));
     try expectEqual(1234, try toInteger(&lua, -1));
 
     // a.name = "ziglua"
@@ -923,7 +890,7 @@ test "table access" {
     lua.setField(1, "bool");
 
     try lua.doString("b = a.bool");
-    try expectEqual(.boolean, try getGlobal(&lua, "b"));
+    try expectEqual(.boolean, try lua.getGlobal("b"));
     try expect(lua.toBoolean(-1));
 
     // create array [1, 2, 3, 4, 5]
@@ -993,7 +960,7 @@ test "dump and load" {
     // store a function in a global
     try lua.doString("f = function(x) return function(n) return n + x end end");
     // put the function on the stack
-    _ = try getGlobal(&lua, "f");
+    _ = try lua.getGlobal("f");
 
     const writer = struct {
         fn inner(l: *Lua, buf: []const u8, data: *anyopaque) bool {
@@ -1126,7 +1093,7 @@ test "upvalues" {
     // call the function repeatedly, each time ensuring the result increases by one
     var expected: i32 = 1;
     while (expected <= 10) : (expected += 1) {
-        _ = try getGlobal(&lua, "counter");
+        _ = try lua.getGlobal("counter");
         lua.call(0, 1);
         try expectEqual(expected, try toInteger(&lua, -1));
         lua.pop(1);
@@ -1138,7 +1105,7 @@ test "table traversal" {
     defer lua.deinit();
 
     try lua.doString("t = { key = 'value', second = true, third = 1 }");
-    _ = try getGlobal(&lua, "t");
+    _ = try lua.getGlobal("t");
 
     lua.pushNil();
 
@@ -1371,7 +1338,7 @@ test "resuming" {
         \\  return "done"
         \\end
     );
-    _ = try getGlobal(&thread, "counter");
+    _ = try thread.getGlobal("counter");
 
     var i: i32 = 1;
     while (i <= 5) : (i += 1) {
@@ -1587,7 +1554,7 @@ test "loadBuffer" {
     } else _ = try lua.loadBuffer("global = 10", "chunkname", .text);
 
     try lua.protectedCall(0, ziglua.mult_return, 0);
-    _ = try getGlobal(&lua, "global");
+    _ = try lua.getGlobal("global");
     try expectEqual(10, try toInteger(&lua, -1));
 }
 
@@ -1610,7 +1577,7 @@ test "where" {
         \\ret = whereFn()
     );
 
-    _ = try getGlobal(&lua, "ret");
+    _ = try lua.getGlobal("ret");
     try expectEqualStrings("[string \"...\"]:2: ", try lua.toBytes(-1));
 }
 
@@ -1669,7 +1636,7 @@ test "metatables" {
     }
 
     // set the len metamethod to the function f
-    _ = try getGlobal(&lua, "f");
+    _ = try lua.getGlobal("f");
     lua.setField(1, "__len");
 
     lua.newTable();
@@ -1739,7 +1706,7 @@ test "traceback" {
     lua.setGlobal("tracebackFn");
     try lua.doString("res = tracebackFn()");
 
-    _ = try getGlobal(&lua, "res");
+    _ = try lua.getGlobal("res");
     try expectEqualStrings("\nstack traceback:\n\t[string \"res = tracebackFn()\"]:1: in main chunk", try lua.toBytes(-1));
 }
 
@@ -1754,7 +1721,7 @@ test "getSubtable" {
         \\  b = {},
         \\}
     );
-    _ = try getGlobal(&lua, "a");
+    _ = try lua.getGlobal("a");
 
     // get the subtable a.b
     try lua.getSubtable(-1, "b");
@@ -1891,13 +1858,13 @@ test "function environments" {
     lua.pushInteger(10);
     lua.setGlobal("x");
 
-    _ = try getGlobal(&lua, "test");
+    _ = try lua.getGlobal("test");
     try lua.protectedCall(0, 1, 0);
     try testing.expectEqual(10, lua.toInteger(1));
     lua.pop(1);
 
     // now set the functions table to have a different value of x
-    _ = try getGlobal(&lua, "test");
+    _ = try lua.getGlobal("test");
     lua.newTable();
     lua.pushInteger(20);
     lua.setField(2, "x");
@@ -1907,7 +1874,7 @@ test "function environments" {
     try testing.expectEqual(20, lua.toInteger(1));
     lua.pop(1);
 
-    _ = try getGlobal(&lua, "test");
+    _ = try lua.getGlobal("test");
     lua.getFnEnvironment(1);
     _ = lua.getField(2, "x");
     try testing.expectEqual(20, lua.toInteger(3));
@@ -1938,7 +1905,7 @@ test "debug interface" {
         \\  return x + y
         \\end
     );
-    _ = try getGlobal(&lua, "f");
+    _ = try lua.getGlobal("f");
 
     var info: DebugInfo = undefined;
     lua.getInfo(.{
@@ -1997,7 +1964,7 @@ test "debug interface" {
     try expectEqual(ziglua.wrap(hook), lua.getHook());
     try expectEqual(ziglua.HookMask{ .call = true, .line = true, .ret = true }, lua.getHookMask());
 
-    _ = try getGlobal(&lua, "f");
+    _ = try lua.getGlobal("f");
     lua.pushNumber(3);
     try lua.protectedCall(1, 1, 0);
 }
@@ -2015,7 +1982,7 @@ test "debug interface Lua 5.1 and Luau" {
         \\  return x + y
         \\end
     );
-    _ = try getGlobal(&lua, "f");
+    _ = try lua.getGlobal("f");
 
     var info: DebugInfo = undefined;
 
@@ -2087,7 +2054,7 @@ test "debug interface Lua 5.1 and Luau" {
     try expectEqual(@as(?ziglua.CHookFn, ziglua.wrap(hook)), lua.getHook());
     try expectEqual(ziglua.HookMask{ .call = true, .line = true, .ret = true }, lua.getHookMask());
 
-    lua.getGlobal("f");
+    _ = try lua.getGlobal("f");
     lua.pushNumber(3);
     try lua.protectedCall(1, 1, 0);
 }
@@ -2104,7 +2071,7 @@ test "debug upvalues" {
         \\end
         \\addone = f(1)
     );
-    _ = try getGlobal(&lua, "addone");
+    _ = try lua.getGlobal("addone");
 
     // index doesn't exist
     try expectError(error.Fail, lua.getUpvalue(1, 2));
@@ -2134,8 +2101,8 @@ test "debug upvalues" {
         \\addthree = f(3)
     );
 
-    _ = try getGlobal(&lua, "addone");
-    _ = try getGlobal(&lua, "addthree");
+    _ = try lua.getGlobal("addone");
+    _ = try lua.getGlobal("addthree");
 
     // now addone and addthree share the same upvalue
     lua.upvalueJoin(-2, 1, -1, 1);
