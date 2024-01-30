@@ -2644,3 +2644,17 @@ test "autoCall" {
     const sum = try lua.autoCall(usize, "add", .{ 1, 2 });
     try std.testing.expect(3 == sum);
 }
+
+test "get set" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    lua.set("hello", true);
+    try testing.expect(try lua.get(bool, "hello"));
+
+    lua.set("world", 1000);
+    try testing.expect(try lua.get(u64, "world") == 1000);
+
+    lua.set("foo", 'a');
+    try testing.expect(try lua.get(u8, "foo") == 'a');
+}

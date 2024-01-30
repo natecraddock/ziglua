@@ -647,7 +647,7 @@ pub const Lua = struct {
     ///lua internal function from lua 5.4
     ///(i) <= LUA_REGISTRYINDEX
     fn isPseudo(index: i32) bool {
-        return index < c.LUA_REGISTRYINDEX;
+        return index <= c.LUA_REGISTRYINDEX;
     }
 
     /// Returns the acceptable index index converted into an equivalent absolute index
@@ -3263,6 +3263,18 @@ pub const Lua = struct {
     pub fn autoPushFunction(lua: *Lua, function: anytype) void {
         const Interface = GenerateInterface(function);
         lua.pushFunction(wrap(Interface.interface));
+    }
+
+    ///get any lua global
+    pub fn get(lua: *Lua, comptime ReturnType: type, name: [:0]const u8) !ReturnType {
+        _ = try lua.getGlobal(name);
+        return try lua.toAny(ReturnType, -1);
+    }
+
+    ///set any lua global
+    pub fn set(lua: *Lua, name: [:0]const u8, value: anytype) void {
+        lua.pushAny(value);
+        lua.setGlobal(name);
     }
 };
 
