@@ -644,10 +644,28 @@ pub const Lua = struct {
     // Library functions are included in alphabetical order.
     // Each is kept similar to the original C API function while also making it easy to use from Zig
 
+    ///lua internal function from lua 5.4
+    ///(i) <= LUA_REGISTRYINDEX
+    fn isPseudo(index: i32) bool {
+        return index < c.LUA_REGISTRYINDEX;
+    }
+
     /// Returns the acceptable index index converted into an equivalent absolute index
     /// See https://www.lua.org/manual/5.4/manual.html#lua_absindex
     pub fn absIndex(lua: *Lua, index: i32) i32 {
-        return c.lua_absindex(lua.state, index);
+        switch (lang) {
+            .lua51, .luajit => {
+                if (index > 0 or isPseudo(index)) {
+                    return index;
+                } else {
+                    const result = lua.getTop() + 1 + index;
+                    return @intCast(result);
+                }
+            },
+            else => {
+                return c.lua_absindex(lua.state, index);
+            },
+        }
     }
 
     /// Performs an arithmetic or bitwise operation over the value(s) at the top of the stack,
@@ -3096,12 +3114,28 @@ pub const Lua = struct {
         const index = lua.absIndex(raw_index);
         switch (@typeInfo(T)) {
             .Int => {
-                const result = try lua.toInteger(index);
-                return @intCast(result);
+                switch (comptime lang) {
+                    .lua51, .luajit => {
+                        const result = lua.toInteger(index);
+                        return @as(T, @intCast(result));
+                    },
+                    else => {
+                        const result = try lua.toInteger(index);
+                        return @as(T, @intCast(result));
+                    },
+                }
             },
             .Float => {
-                const result = try lua.toNumber(index);
-                return @floatCast(result);
+                switch (comptime lang) {
+                    .lua51, .luajit => {
+                        const result = lua.toNumber(index);
+                        return @as(T, @floatCast(result));
+                    },
+                    else => {
+                        const result = try lua.toNumber(index);
+                        return @as(T, @floatCast(result));
+                    },
+                }
             },
             .Pointer => |param_info| {
                 switch (param_info.size) {
