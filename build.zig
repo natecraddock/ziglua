@@ -257,7 +257,7 @@ fn buildLuaJIT(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Op
     });
     minilua.linkLibC();
     minilua.root_module.sanitize_c = false;
-    minilua.addCSourceFile(.{.file = upstream.path("src/host/minilua.c")});
+    minilua.addCSourceFile(.{ .file = upstream.path("src/host/minilua.c") });
 
     // Generate the buildvm_arch.h file using minilua
     const dynasm_run = b.addRunArtifact(minilua);
@@ -282,7 +282,7 @@ fn buildLuaJIT(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Op
     dynasm_run.addArg("-o");
     const buildvm_arch_h = dynasm_run.addOutputFileArg("buildvm_arch.h");
 
-    dynasm_run.addFileArg(upstream.path(switch(target.result.cpu.arch) {
+    dynasm_run.addFileArg(upstream.path(switch (target.result.cpu.arch) {
         .x86 => "src/vm_x86.dasc",
         .x86_64 => "src/vm_x64.dasc",
         .arm, .armeb => "src/vm_arm.dasc",
@@ -469,7 +469,7 @@ const lua_54_source_files = lua_base_source_files ++ [_][]const u8{
     "src/lutf8lib.c",
 };
 
-const luajit_lib = [_][]const u8 {
+const luajit_lib = [_][]const u8{
     "src/lib_base.c",
     "src/lib_math.c",
     "src/lib_bit.c",
