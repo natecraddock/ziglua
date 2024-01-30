@@ -3185,6 +3185,7 @@ pub const Lua = struct {
         const index = lua.absIndex(raw_index);
 
         if (!lua.isTable(index)) {
+            std.log.err("Parsing lua table failed because value at index {} is not a table", .{raw_index});
             return error.value_not_a_table;
         }
         std.debug.assert(lua.typeOf(index) == .table);
@@ -3199,6 +3200,7 @@ pub const Lua = struct {
                 if (field.default_value) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
                 } else {
+                    std.log.err("Parsing lua table failed because field {s} is missing", .{field_name});
                     return error.lua_table_missing_value;
                 }
             } else {
