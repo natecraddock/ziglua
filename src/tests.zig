@@ -169,7 +169,7 @@ test "standard library loading" {
             .lua51 => lua.open(.{ .base = true, .package = true, .string = true, .table = true, .math = true, .io = true, .os = true, .debug = true }),
             .lua52 => lua.open(.{ .base = true, .coroutine = true, .package = true, .string = true, .table = true, .math = true, .io = true, .os = true, .debug = true, .bit = true }),
             .lua53, .lua54 => lua.open(.{ .base = true, .coroutine = true, .package = true, .string = true, .utf8 = true, .table = true, .math = true, .io = true, .os = true, .debug = true }),
-            .luau => lua.open(.{ .base = true, .coroutine = true, .package = true, .string = true, .utf8 = true, .table = true, .math = true, .io = true, .os = true, .debug = true }),
+            .luau => lua.open(.{ .base = true, .coroutine = true, .string = true, .utf8 = true, .table = true, .math = true, .io = true, .os = true, .debug = true }),
             .luajit => {
                 // TODO: why do tests crash?
             },
