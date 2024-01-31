@@ -3232,8 +3232,6 @@ pub const Lua = struct {
         }
         return struct {
             pub fn interface(lua: *Lua) i32 {
-
-                //somehow create an anon tuple here of all the values we get from lua
                 var parameters: std.meta.ArgsTuple(@TypeOf(function)) = undefined;
 
                 inline for (info.Fn.params, 0..) |param, i| {
