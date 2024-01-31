@@ -644,18 +644,12 @@ pub const Lua = struct {
     // Library functions are included in alphabetical order.
     // Each is kept similar to the original C API function while also making it easy to use from Zig
 
-    ///lua internal function from lua 5.4
-    ///(i) <= LUA_REGISTRYINDEX
-    fn isPseudo(index: i32) bool {
-        return index <= c.LUA_REGISTRYINDEX;
-    }
-
     /// Returns the acceptable index index converted into an equivalent absolute index
     /// See https://www.lua.org/manual/5.4/manual.html#lua_absindex
     pub fn absIndex(lua: *Lua, index: i32) i32 {
         switch (lang) {
             .lua51, .luajit => {
-                if (index > 0 or isPseudo(index)) {
+                if (index > 0 or index <= registry_index) {
                     return index;
                 } else {
                     const result = lua.getTop() + 1 + index;
@@ -3040,12 +3034,12 @@ pub const Lua = struct {
     pub fn pushAny(lua: *Lua, value: anytype) void {
         switch (@typeInfo(@TypeOf(value))) {
             .Int, .ComptimeInt => {
-                const casted: Integer = @intCast(value);
-                lua.pushInteger(casted);
+                //const casted: Integer = @intCast(value);
+                lua.pushInteger(@intCast(value));
             },
             .Float, .ComptimeFloat => {
-                const casted: Number = @floatCast(value);
-                lua.pushNumber(casted);
+                //const casted: Number = @floatCast(value);
+                lua.pushNumber(@floatCast(value));
             },
             .Pointer => |info| {
                 switch (info.size) {
@@ -3186,7 +3180,7 @@ pub const Lua = struct {
 
         if (!lua.isTable(index)) {
             std.log.err("Parsing lua table failed because value at index {} is not a table", .{raw_index});
-            return error.value_not_a_table;
+            return error.ValueNotATable;
         }
         std.debug.assert(lua.typeOf(index) == .table);
 
@@ -3201,7 +3195,7 @@ pub const Lua = struct {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
                 } else {
                     std.log.err("Parsing lua table failed because field {s} is missing", .{field_name});
-                    return error.lua_table_missing_value;
+                    return error.LuaTableMissingValue;
                 }
             } else {
                 @field(result, field.name) = try lua.toAny(field.type, -1);
@@ -3213,7 +3207,7 @@ pub const Lua = struct {
 
     ///automatically calls a lua function with the given arguments
     pub fn autoCall(lua: *Lua, comptime ReturnType: type, func_name: [:0]const u8, args: anytype) !ReturnType {
-        if (try lua.getGlobal(func_name) != LuaType.function) return error.invalid_function_name;
+        if (try lua.getGlobal(func_name) != LuaType.function) return error.InvalidFunctionName;
 
         inline for (args) |arg| {
             lua.pushAny(arg);
