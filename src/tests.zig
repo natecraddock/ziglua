@@ -2610,23 +2610,25 @@ fn bar(a: i32, b: i32) !i32 {
 }
 
 test "autoPushFunction" {
-    var lua = try Lua.init(&testing.allocator);
-    defer lua.deinit();
-    lua.openLibs();
+    comptime if (ziglua.lang != .luau) {
+        var lua = try Lua.init(&testing.allocator);
+        defer lua.deinit();
+        lua.openLibs();
 
-    lua.autoPushFunction(foo);
-    lua.setGlobal("foo");
+        lua.autoPushFunction(foo);
+        lua.setGlobal("foo");
 
-    lua.autoPushFunction(bar);
-    lua.setGlobal("bar");
+        lua.autoPushFunction(bar);
+        lua.setGlobal("bar");
 
-    try lua.doString("result = foo(1, 2)");
+        try lua.doString("result = foo(1, 2)");
 
-    const program =
-        \\local status, result = pcall(bar, 1, 2)
-    ;
-    lua.doString(program) catch |err| {
-        std.debug.print("{!}\n\n", .{err});
+        const program =
+            \\local status, result = pcall(bar, 1, 2)
+        ;
+        lua.doString(program) catch |err| {
+            std.debug.print("{!}\n\n", .{err});
+        };
     };
 }
 

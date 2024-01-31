@@ -3094,6 +3094,9 @@ pub const Lua = struct {
                     lua.setTable(-3);
                 }
             },
+            .Fn => {
+                lua.autoPushFunction(value);
+            },
             .Void => {},
             else => {
                 @compileLog(value);
