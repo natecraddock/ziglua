@@ -2610,7 +2610,7 @@ fn bar(a: i32, b: i32) !i32 {
 }
 
 test "autoPushFunction" {
-    comptime if (ziglua.lang != .luau) {
+    if (ziglua.lang != .luau) {
         var lua = try Lua.init(&testing.allocator);
         defer lua.deinit();
         lua.openLibs();
@@ -2629,7 +2629,7 @@ test "autoPushFunction" {
         lua.doString(program) catch |err| {
             std.debug.print("{!}\n\n", .{err});
         };
-    };
+    }
 }
 
 test "autoCall" {
