@@ -143,7 +143,7 @@ test "Zig allocator access" {
     lua.pushInteger(10);
     try lua.protectedCall(1, 1, 0);
 
-    try expectEqual(45, try toInteger(&lua, -1));
+    try expectEqual(45, try toInteger(lua, -1));
 }
 
 test "standard library loading" {
@@ -301,7 +301,7 @@ test "type of and getting values" {
     lua.pushInteger(1);
     try expectEqual(.number, lua.typeOf(-1));
     try expect(lua.isNumber(-1));
-    try expectEqual(1, try toInteger(&lua, -1));
+    try expectEqual(1, try toInteger(lua, -1));
     try expectEqualStrings("number", lua.typeNameIndex(-1));
 
     var value: i32 = 0;
@@ -313,12 +313,12 @@ test "type of and getting values" {
     lua.pushNumber(0.1);
     try expectEqual(.number, lua.typeOf(-1));
     try expect(lua.isNumber(-1));
-    try expectEqual(0.1, try toNumber(&lua, -1));
+    try expectEqual(0.1, try toNumber(lua, -1));
 
     _ = lua.pushThread();
     try expectEqual(.thread, lua.typeOf(-1));
     try expect(lua.isThread(-1));
-    try expectEqual(lua.state, (try lua.toThread(-1)).state);
+    try expectEqual(lua, (try lua.toThread(-1)));
 
     try expectEqualStrings("all your codebase are belong to us", lua.pushStringZ("all your codebase are belong to us"));
     try expectEqual(.string, lua.typeOf(-1));
@@ -388,7 +388,7 @@ test "executing string contents" {
     try lua.protectedCall(0, 0, 0);
 
     try expectEqual(.number, try lua.getGlobal("a"));
-    try expectEqual(12, try toInteger(&lua, 1));
+    try expectEqual(12, try toInteger(lua, 1));
 
     try expectError(if (ziglua.lang == .luau) error.Fail else error.Syntax, lua.loadString("bad syntax"));
     try lua.loadString("a = g()");
@@ -505,7 +505,7 @@ test "calling a function" {
 
     // protectedCall is preferred, but we might as well test call when we know it is safe
     lua.call(2, 1);
-    try expectEqual(42, try toInteger(&lua, 1));
+    try expectEqual(42, try toInteger(lua, 1));
 }
 
 test "calling a function with cProtectedCall" {
@@ -836,7 +836,7 @@ test "table access" {
 
     _ = lua.pushStringZ("other one");
     try expectEqual(.number, lua.rawGetTable(1));
-    try expectEqual(1234, try toInteger(&lua, -1));
+    try expectEqual(1234, try toInteger(lua, -1));
 
     // a.name = "ziglua"
     _ = lua.pushStringZ("name");
@@ -984,7 +984,7 @@ test "dump and load" {
     // now call the new function (which should return the value + 5)
     lua.pushInteger(6);
     try lua.protectedCall(1, 1, 0);
-    try expectEqual(11, try toInteger(&lua, -1));
+    try expectEqual(11, try toInteger(lua, -1));
 }
 
 test "threads" {
@@ -1070,7 +1070,7 @@ test "upvalues" {
     while (expected <= 10) : (expected += 1) {
         _ = try lua.getGlobal("counter");
         lua.call(0, 1);
-        try expectEqual(expected, try toInteger(&lua, -1));
+        try expectEqual(expected, try toInteger(lua, -1));
         lua.pop(1);
     }
 }
@@ -1096,7 +1096,7 @@ test "table traversal" {
             },
             .number => {
                 try expectEqualStrings("third", try lua.toString(-2));
-                try expectEqual(1, try toInteger(&lua, -1));
+                try expectEqual(1, try toInteger(lua, -1));
             },
             else => unreachable,
         }
@@ -1456,25 +1456,25 @@ test "checkOption" {
     lua.pushFunction(function);
     _ = lua.pushStringZ("one");
     try lua.protectedCall(1, 1, 0);
-    try expectEqual(1, try toInteger(&lua, -1));
+    try expectEqual(1, try toInteger(lua, -1));
     lua.pop(1);
 
     lua.pushFunction(function);
     _ = lua.pushStringZ("two");
     try lua.protectedCall(1, 1, 0);
-    try expectEqual(2, try toInteger(&lua, -1));
+    try expectEqual(2, try toInteger(lua, -1));
     lua.pop(1);
 
     lua.pushFunction(function);
     _ = lua.pushStringZ("three");
     try lua.protectedCall(1, 1, 0);
-    try expectEqual(3, try toInteger(&lua, -1));
+    try expectEqual(3, try toInteger(lua, -1));
     lua.pop(1);
 
     // try the default now
     lua.pushFunction(function);
     try lua.protectedCall(0, 1, 0);
-    try expectEqual(1, try toInteger(&lua, -1));
+    try expectEqual(1, try toInteger(lua, -1));
     lua.pop(1);
 
     // check the raised error
@@ -1515,7 +1515,7 @@ test "loadBuffer" {
 
     try lua.protectedCall(0, ziglua.mult_return, 0);
     _ = try lua.getGlobal("global");
-    try expectEqual(10, try toInteger(&lua, -1));
+    try expectEqual(10, try toInteger(lua, -1));
 }
 
 test "where" {
@@ -1608,7 +1608,7 @@ test "metatables" {
     }
 
     try lua.callMeta(-1, "__len");
-    try expectEqual(10, try toNumber(&lua, -1));
+    try expectEqual(10, try toNumber(lua, -1));
 }
 
 test "args and errors" {
@@ -2038,7 +2038,7 @@ test "debug upvalues" {
 
     // inspect the upvalue (should be x)
     try expectEqualStrings(if (ziglua.lang == .luau) "" else "x", try lua.getUpvalue(-1, 1));
-    try expectEqual(1, try toNumber(&lua, -1));
+    try expectEqual(1, try toNumber(lua, -1));
     lua.pop(1);
 
     // now make the function an "add five" function
@@ -2051,7 +2051,7 @@ test "debug upvalues" {
     // call the new function (should return 7)
     lua.pushNumber(2);
     try lua.protectedCall(1, 1, 0);
-    try expectEqual(7, try toNumber(&lua, -1));
+    try expectEqual(7, try toNumber(lua, -1));
 
     if (langIn(.{ .lua51, .luajit, .luau })) return;
 
@@ -2565,12 +2565,12 @@ test "pushAny" {
 
     //int
     try lua.pushAny(1);
-    const my_int = try toInteger(&lua, -1);
+    const my_int = try toInteger(lua, -1);
     try testing.expect(my_int == 1);
 
     //float
     try lua.pushAny(1.0);
-    const my_float = try toNumber(&lua, -1);
+    const my_float = try toNumber(lua, -1);
     try testing.expect(my_float == 1.0);
 
     //bool
