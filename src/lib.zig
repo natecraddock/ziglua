@@ -1443,31 +1443,37 @@ pub const Lua = struct {
         c.lua_pushboolean(lua.state, @intFromBool(b));
     }
 
-    fn pushClosureLua(lua: *Lua, c_fn: CFn, n: i32) void {
-        c.lua_pushcclosure(lua.state, c_fn, n);
-    }
-
-    fn pushClosureLuau(lua: *Lua, c_fn: CFn, name: [:0]const u8, n: i32) void {
-        c.lua_pushcclosurek(lua.state, c_fn, name, n, null);
-    }
-
-    /// Pushes a new Closure onto the stack
-    /// `n` tells how many upvalues this function will have
-    /// See https://www.lua.org/manual/5.1/manual.html#lua_pushcclosure
-    pub const pushClosure = if (lang == .luau) pushClosureLuau else pushClosureLua;
-
-    fn pushFunctionLua(lua: *Lua, c_fn: CFn) void {
-        lua.pushClosure(c_fn, 0);
-    }
-
-    fn pushFunctionLuau(lua: *Lua, c_fn: CFn, name: [:0]const u8) void {
-        lua.pushClosure(c_fn, name, 0);
-    }
-
     /// Pushes a new Closure onto the stack
     /// `n` tells how many upvalues this function will have
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushcclosure
-    pub const pushFunction = if (lang == .luau) pushFunctionLuau else pushFunctionLua;
+    pub fn pushClosure(lua: *Lua, c_fn: CFn, n: i32) void {
+        switch (lang) {
+            .luau => c.lua_pushcclosurek(lua.state, c_fn, "ZigFn", n, null),
+            else => c.lua_pushcclosure(lua.state, c_fn, n),
+        }
+    }
+
+    /// Pushes a new Closure onto the stack with a debugname
+    /// `n` tells how many upvalues this function will have
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_pushcclosure
+    pub fn pushClosureNamed(lua: *Lua, c_fn: CFn, debugname: [:0]const u8, n: i32) void {
+        c.lua_pushcclosurek(lua.state, c_fn, debugname, n, null);
+    }
+
+    /// Pushes a new function onto the stack
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_pushcfunction
+    pub fn pushFunction(lua: *Lua, c_fn: CFn) void {
+        switch (lang) {
+            .luau => c.lua_pushcclosurek(lua.state, c_fn, "ZigFn", 0, null),
+            else => c.lua_pushcfunction(lua.state, c_fn),
+        }
+    }
+
+    /// Pushes a new function onto the stack with a debugname
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_pushcfunction
+    pub fn pushFunctionNamed(lua: *Lua, c_fn: CFn, debugname: [:0]const u8) void {
+        c.lua_pushcclosurek(lua.state, c_fn, debugname, 0, null);
+    }
 
     /// Push a formatted string onto the stack and return a pointer to the string
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushfstring
@@ -1672,7 +1678,7 @@ pub const Lua = struct {
     pub fn register(lua: *Lua, name: [:0]const u8, c_fn: CFn) void {
         switch (lang) {
             .luau => {
-                lua.pushFunction(c_fn, name);
+                lua.pushFunction(c_fn);
                 lua.setGlobal(name);
             },
             else => c.lua_register(lua.state, name.ptr, c_fn),
@@ -2815,10 +2821,7 @@ pub const Lua = struct {
         }
         for (funcs) |f| {
             // TODO: handle null functions
-            switch (lang) {
-                .luau => lua.pushFunction(f.func.?, f.name),
-                else => lua.pushFunction(f.func.?),
-            }
+            lua.pushFunction(f.func.?);
             lua.setField(-2, f.name);
         }
     }
@@ -2829,12 +2832,7 @@ pub const Lua = struct {
     pub fn requireF(lua: *Lua, mod_name: [:0]const u8, open_fn: CFn, global: bool) void {
         switch (lang) {
             .lua51, .luajit, .luau => {
-                if (lang == .luau) {
-                    lua.pushFunction(open_fn, mod_name);
-                } else {
-                    lua.pushFunction(open_fn);
-                }
-
+                lua.pushFunction(open_fn);
                 _ = lua.pushString(mod_name);
                 lua.call(1, 0);
             },

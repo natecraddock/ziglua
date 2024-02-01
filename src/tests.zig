@@ -48,12 +48,6 @@ inline fn toNumber(lua: *Lua, index: i32) !ziglua.Number {
     } else return try lua.toNumber(index);
 }
 
-/// pushFunction that sets the name for Luau
-inline fn pushFunction(lua: *Lua, c_fn: ziglua.CFn) void {
-    if (ziglua.lang == .luau) return lua.pushFunction(c_fn, "");
-    lua.pushFunction(c_fn);
-}
-
 fn alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque {
     _ = data;
 
@@ -145,7 +139,7 @@ test "Zig allocator access" {
         }
     }.inner;
 
-    pushFunction(&lua, ziglua.wrap(inner));
+    lua.pushFunction(ziglua.wrap(inner));
     lua.pushInteger(10);
     try lua.protectedCall(1, 1, 0);
 
@@ -347,7 +341,7 @@ test "type of and getting values" {
     try expectEqual(.string, lua.typeOf(-1));
     try expect(lua.isString(-1));
 
-    if (ziglua.lang == .luau) lua.pushFunction(ziglua.wrap(add), "add") else lua.pushFunction(ziglua.wrap(add));
+    lua.pushFunction(ziglua.wrap(add));
     try expectEqual(.function, lua.typeOf(-1));
     try expect(lua.isCFunction(-1));
     try expect(lua.isFunction(-1));
@@ -875,10 +869,7 @@ test "table access" {
     // create a metatable (it isn't a useful one)
     lua.newTable();
 
-    if (ziglua.lang == .luau)
-        lua.pushFunction(ziglua.wrap(add), "add")
-    else
-        lua.pushFunction(ziglua.wrap(add));
+    lua.pushFunction(ziglua.wrap(add));
     lua.setField(-2, "__len");
     lua.setMetatable(1);
 
@@ -1087,7 +1078,7 @@ test "upvalues" {
 
     // Initialize the counter at 0
     lua.pushInteger(0);
-    if (ziglua.lang == .luau) lua.pushClosure(ziglua.wrap(counter), "counter", 1) else lua.pushClosure(ziglua.wrap(counter), 1);
+    lua.pushClosure(ziglua.wrap(counter), 1);
     lua.setGlobal("counter");
 
     // call the function repeatedly, each time ensuring the result increases by one
@@ -1191,7 +1182,7 @@ test "raise error" {
         }
     }.inner;
 
-    if (ziglua.lang == .luau) lua.pushFunction(ziglua.wrap(makeError), "makeError") else lua.pushFunction(ziglua.wrap(makeError));
+    lua.pushFunction(ziglua.wrap(makeError));
     try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
     try expectEqualStrings("makeError made an error", try lua.toBytes(-1));
 }
@@ -1307,11 +1298,10 @@ test "yielding no continuation" {
             return l.yield(1);
         }
     }.inner);
+    thread.pushFunction(func);
     if (ziglua.lang == .luau) {
-        thread.pushFunction(func, "yieldfn");
         _ = try thread.resumeThread(null, 0);
     } else {
-        thread.pushFunction(func);
         _ = try thread.resumeThread(0);
     }
 
@@ -1367,20 +1357,20 @@ test "aux check functions" {
         }
     }.inner);
 
-    pushFunction(&lua, function);
+    lua.pushFunction(function);
     lua.protectedCall(0, 0, 0) catch {
         try expectStringContains("argument #1", try lua.toBytes(-1));
         lua.pop(-1);
     };
 
-    pushFunction(&lua, function);
+    lua.pushFunction(function);
     lua.pushNil();
     lua.protectedCall(1, 0, 0) catch {
         try expectStringContains("number expected", try lua.toBytes(-1));
         lua.pop(-1);
     };
 
-    pushFunction(&lua, function);
+    lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
     lua.protectedCall(2, 0, 0) catch {
@@ -1388,7 +1378,7 @@ test "aux check functions" {
         lua.pop(-1);
     };
 
-    pushFunction(&lua, function);
+    lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
     _ = lua.pushBytes("hello world");
@@ -1397,7 +1387,7 @@ test "aux check functions" {
         lua.pop(-1);
     };
 
-    pushFunction(&lua, function);
+    lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
     _ = lua.pushBytes("hello world");
@@ -1407,7 +1397,7 @@ test "aux check functions" {
         lua.pop(-1);
     };
 
-    pushFunction(&lua, function);
+    lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
     _ = lua.pushBytes("hello world");
@@ -1432,7 +1422,7 @@ test "aux check functions" {
         };
     }
 
-    pushFunction(&lua, function);
+    lua.pushFunction(function);
     // test pushFail here (currently acts the same as pushNil)
     if (ziglua.lang == .lua54) lua.pushFail() else lua.pushNil();
     lua.pushInteger(3);
@@ -1460,10 +1450,10 @@ test "aux opt functions" {
         }
     }.inner);
 
-    pushFunction(&lua, function);
+    lua.pushFunction(function);
     try lua.protectedCall(0, 0, 0);
 
-    pushFunction(&lua, function);
+    lua.pushFunction(function);
     lua.pushInteger(10);
     _ = lua.pushBytes("zig");
     lua.pushNumber(1.23);
@@ -1493,32 +1483,32 @@ test "checkOption" {
         }
     }.inner);
 
-    pushFunction(&lua, function);
+    lua.pushFunction(function);
     _ = lua.pushString("one");
     try lua.protectedCall(1, 1, 0);
     try expectEqual(1, try toInteger(&lua, -1));
     lua.pop(1);
 
-    pushFunction(&lua, function);
+    lua.pushFunction(function);
     _ = lua.pushString("two");
     try lua.protectedCall(1, 1, 0);
     try expectEqual(2, try toInteger(&lua, -1));
     lua.pop(1);
 
-    pushFunction(&lua, function);
+    lua.pushFunction(function);
     _ = lua.pushString("three");
     try lua.protectedCall(1, 1, 0);
     try expectEqual(3, try toInteger(&lua, -1));
     lua.pop(1);
 
     // try the default now
-    pushFunction(&lua, function);
+    lua.pushFunction(function);
     try lua.protectedCall(0, 1, 0);
     try expectEqual(1, try toInteger(&lua, -1));
     lua.pop(1);
 
     // check the raised error
-    pushFunction(&lua, function);
+    lua.pushFunction(function);
     _ = lua.pushString("unknown");
     try expectError(error.Runtime, lua.protectedCall(1, 1, 0));
     try expectStringContains("(invalid option 'unknown')", try lua.toBytes(-1));
@@ -1569,7 +1559,7 @@ test "where" {
         }
     }.inner);
 
-    pushFunction(&lua, whereFn);
+    lua.pushFunction(whereFn);
     lua.setGlobal("whereFn");
 
     try lua.doString(
@@ -1662,7 +1652,7 @@ test "args and errors" {
         }
     }.inner);
 
-    pushFunction(&lua, argCheck);
+    lua.pushFunction(argCheck);
     try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
 
     const raisesError = ziglua.wrap(struct {
@@ -1672,7 +1662,7 @@ test "args and errors" {
         }
     }.inner);
 
-    pushFunction(&lua, raisesError);
+    lua.pushFunction(raisesError);
     try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
     try expectEqualStrings("some error zig!", try lua.toBytes(-1));
 
@@ -1755,7 +1745,7 @@ test "userdata" {
         }
     }.inner);
 
-    pushFunction(&lua, checkUdata);
+    lua.pushFunction(checkUdata);
 
     {
         var t = if (ziglua.lang == .lua54) lua.newUserdata(Type, 0) else lua.newUserdata(Type);
@@ -1840,7 +1830,7 @@ test "userdata slices" {
         }
     }.inner;
 
-    pushFunction(&lua, ziglua.wrap(udataFn));
+    lua.pushFunction(ziglua.wrap(udataFn));
     lua.pushValue(2);
 
     try lua.protectedCall(1, 0, 0);
@@ -2387,7 +2377,7 @@ test "namecall" {
 
     try lua.newMetatable("vector");
     lua.pushString("__namecall");
-    lua.pushFunction(ziglua.wrap(funcs.vectorNamecall), "vector_namecall");
+    lua.pushFunctionNamed(ziglua.wrap(funcs.vectorNamecall), "vector_namecall");
     lua.setTable(-3);
 
     lua.setReadonly(-1, true);
