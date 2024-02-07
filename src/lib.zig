@@ -647,7 +647,19 @@ pub const Lua = struct {
     /// Returns the acceptable index index converted into an equivalent absolute index
     /// See https://www.lua.org/manual/5.4/manual.html#lua_absindex
     pub fn absIndex(lua: *Lua, index: i32) i32 {
-        return c.lua_absindex(lua.state, index);
+        switch (lang) {
+            .lua51, .luajit => {
+                if (index > 0 or index <= registry_index) {
+                    return index;
+                } else {
+                    const result = lua.getTop() + 1 + index;
+                    return @intCast(result);
+                }
+            },
+            else => {
+                return c.lua_absindex(lua.state, index);
+            },
+        }
     }
 
     /// Performs an arithmetic or bitwise operation over the value(s) at the top of the stack,
@@ -3012,6 +3024,252 @@ pub const Lua = struct {
     /// Open the bit32 standard library
     pub fn openBit32(lua: *Lua) void {
         _ = c.luaopen_bit32(lua.state);
+    }
+
+    /// Pushes any valid zig value onto the stack,
+    /// Works with ints, floats, booleans, structs,
+    /// optionals, and strings
+    pub fn pushAny(lua: *Lua, value: anytype) !void {
+        switch (@typeInfo(@TypeOf(value))) {
+            .Int, .ComptimeInt => {
+                lua.pushInteger(@intCast(value));
+            },
+            .Float, .ComptimeFloat => {
+                lua.pushNumber(@floatCast(value));
+            },
+            .Pointer => |info| {
+                switch (info.size) {
+                    .One => {
+                        if (@typeInfo(info.child) == .Array) {
+                            if (@typeInfo(info.child).Array.child != u8) {
+                                @compileError("only u8 arrays can be pushed");
+                            }
+                            _ = lua.pushString(&(value.*));
+                        } else {
+                            if (info.is_const) {
+                                @compileLog(value);
+                                @compileError("Pointer must not be const");
+                            }
+                            lua.pushLightUserdata(@ptrCast(value));
+                        }
+                    },
+                    .C, .Many, .Slice => {
+                        if (info.child != u8) {
+                            @compileError("Only u8 slices (strings) are valid slice types");
+                        }
+                        if (info.sentinel) |sentinel| {
+                            const casted: *info.child = @ptrCast(@constCast(sentinel));
+                            if (casted.* != 0) {
+                                @compileError("Sentinel of slice must be a null terminator");
+                            }
+                            _ = lua.pushString(value);
+                        } else {
+                            const null_terminated = try lua.allocator().dupeZ(u8, value);
+                            defer lua.allocator().free(null_terminated);
+                            _ = lua.pushString(null_terminated);
+                        }
+                    },
+                }
+            },
+            .Bool => {
+                lua.pushBoolean(value);
+            },
+            .Optional, .Null => {
+                if (value == null) {
+                    lua.pushNil();
+                } else {
+                    try lua.pushAny(value.?);
+                }
+            },
+            .Struct => |info| {
+                lua.createTable(0, 0);
+                inline for (info.fields) |field| {
+                    try lua.pushAny(field.name);
+                    try lua.pushAny(@field(value, field.name));
+                    lua.setTable(-3);
+                }
+            },
+            .Fn => {
+                lua.autoPushFunction(value);
+            },
+            .Void => {},
+            else => {
+                @compileLog(value);
+                @compileError("Invalid type given");
+            },
+        }
+    }
+
+    /// Converts the specified index of the lua stack to the specified
+    /// type if possible and returns it
+    pub fn toAny(lua: *Lua, comptime T: type, index: i32) !T {
+
+        //TODO implement enums
+        switch (@typeInfo(T)) {
+            .Int => {
+                switch (comptime lang) {
+                    .lua51, .luajit => {
+                        const result = lua.toInteger(index);
+                        return @as(T, @intCast(result));
+                    },
+                    else => {
+                        const result = try lua.toInteger(index);
+                        return @as(T, @intCast(result));
+                    },
+                }
+            },
+            .Float => {
+                switch (comptime lang) {
+                    .lua51, .luajit => {
+                        const result = lua.toNumber(index);
+                        return @as(T, @floatCast(result));
+                    },
+                    else => {
+                        const result = try lua.toNumber(index);
+                        return @as(T, @floatCast(result));
+                    },
+                }
+            },
+            .Pointer => |param_info| {
+                switch (param_info.size) {
+                    .Slice, .Many => {
+                        if (param_info.child != u8) {
+                            @compileError("Only u8 arrays (strings) may be parameters");
+                        }
+                        if (!param_info.is_const) {
+                            @compileError("Slice must be a const slice");
+                        }
+                        const string: [*:0]const u8 = try lua.toString(index);
+                        const end = std.mem.indexOfSentinel(u8, 0, string);
+
+                        if (param_info.sentinel == null) {
+                            return string[0..end];
+                        } else {
+                            return string[0..end :0];
+                        }
+                    },
+                    else => {
+                        return try lua.toUserdata(param_info.child, index);
+                    },
+                }
+            },
+            .Bool => {
+                return lua.toBoolean(index);
+            },
+            .Struct => {
+                return try lua.toStruct(T, index);
+            },
+            .Optional => {
+                if (lua.isNil(index)) {
+                    lua.pop(1);
+                    return null;
+                } else {
+                    return try lua.toAny(@typeInfo(T).Optional.child, index);
+                }
+            },
+            else => {
+                @compileError("Invalid parameter type");
+            },
+        }
+    }
+
+    /// Converts value at given index to a zig struct if possible
+    fn toStruct(lua: *Lua, comptime T: type, raw_index: i32) !T {
+        const index = lua.absIndex(raw_index);
+
+        if (!lua.isTable(index)) {
+            return error.ValueNotATable;
+        }
+        std.debug.assert(lua.typeOf(index) == .table);
+
+        var result: T = undefined;
+        inline for (@typeInfo(T).Struct.fields) |field| {
+            const field_name = comptime field.name ++ "";
+            _ = lua.pushString(field_name);
+            std.debug.assert(lua.typeOf(index) == .table);
+            const lua_field_type = lua.getTable(index);
+            if (lua_field_type == .nil) {
+                if (field.default_value) |default_value| {
+                    @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
+                } else {
+                    return error.LuaTableMissingValue;
+                }
+            } else {
+                @field(result, field.name) = try lua.toAny(field.type, -1);
+            }
+        }
+
+        return result;
+    }
+
+    ///automatically calls a lua function with the given arguments
+    pub fn autoCall(lua: *Lua, comptime ReturnType: type, func_name: [:0]const u8, args: anytype) !ReturnType {
+        if (try lua.getGlobal(func_name) != LuaType.function) return error.InvalidFunctionName;
+
+        inline for (args) |arg| {
+            try lua.pushAny(arg);
+        }
+
+        const num_results = if (ReturnType == void) 0 else 1;
+        try lua.protectedCall(args.len, num_results, 0);
+        defer lua.setTop(0);
+
+        return lua.toAny(ReturnType, -1);
+    }
+
+    //automatically generates a wrapper function
+    fn GenerateInterface(comptime function: anytype) type {
+        const info = @typeInfo(@TypeOf(function));
+        if (info != .Fn) {
+            @compileLog(info);
+            @compileLog(function);
+            @compileError("function pointer must be passed");
+        }
+        return struct {
+            pub fn interface(lua: *Lua) i32 {
+                var parameters: std.meta.ArgsTuple(@TypeOf(function)) = undefined;
+
+                inline for (info.Fn.params, 0..) |param, i| {
+                    parameters[i] = lua.toAny(param.type.?, (i + 1)) catch |err| {
+                        lua.raiseErrorStr(@errorName(err), .{});
+                    };
+                }
+
+                if (@typeInfo(info.Fn.return_type.?) == .ErrorUnion) {
+                    const result = @call(.auto, function, parameters) catch |err| {
+                        lua.raiseErrorStr(@errorName(err), .{});
+                    };
+                    lua.pushAny(result) catch |err| {
+                        lua.raiseErrorStr(@errorName(err), .{});
+                    };
+                } else {
+                    const result = @call(.auto, function, parameters);
+                    lua.pushAny(result) catch |err| {
+                        lua.raiseErrorStr(@errorName(err), .{});
+                    };
+                }
+
+                return 1;
+            }
+        };
+    }
+
+    ///generates the interface for and pushes a function to the stack
+    pub fn autoPushFunction(lua: *Lua, function: anytype) void {
+        const Interface = GenerateInterface(function);
+        lua.pushFunction(wrap(Interface.interface));
+    }
+
+    ///get any lua global
+    pub fn get(lua: *Lua, comptime ReturnType: type, name: [:0]const u8) !ReturnType {
+        _ = try lua.getGlobal(name);
+        return try lua.toAny(ReturnType, -1);
+    }
+
+    ///set any lua global
+    pub fn set(lua: *Lua, name: [:0]const u8, value: anytype) !void {
+        try lua.pushAny(value);
+        lua.setGlobal(name);
     }
 };
 
