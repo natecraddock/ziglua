@@ -2412,75 +2412,48 @@ test "namecall" {
     try expectEqual(6, s);
 }
 
-test "toAny int" {
+test "toAny" {
     var lua = try Lua.init(&testing.allocator);
     defer lua.deinit();
 
+    //int
     lua.pushInteger(100);
     const my_int = try lua.toAny(i32, -1);
     try testing.expect(my_int == 100);
-}
 
-test "toAny bool" {
-    var lua = try Lua.init(&testing.allocator);
-    defer lua.deinit();
-
+    //bool
     lua.pushBoolean(true);
     const my_bool = try lua.toAny(bool, -1);
     try testing.expect(my_bool);
-}
 
-test "toAny float" {
-    var lua = try Lua.init(&testing.allocator);
-    defer lua.deinit();
-
+    //float
     lua.pushNumber(100.0);
     const my_float = try lua.toAny(f32, -1);
     try testing.expect(my_float == 100.0);
-}
 
-test "toAny []const u8" {
-    var lua = try Lua.init(&testing.allocator);
-    defer lua.deinit();
-
+    //[]const u8
     _ = lua.pushString("hello world");
-    const my_string = try lua.toAny([]const u8, -1);
-    try testing.expect(std.mem.eql(u8, my_string, "hello world"));
-}
+    const my_string_1 = try lua.toAny([]const u8, -1);
+    try testing.expect(std.mem.eql(u8, my_string_1, "hello world"));
 
-test "toAny [:0]const u8" {
-    var lua = try Lua.init(&testing.allocator);
-    defer lua.deinit();
-
+    //[:0]const u8
     _ = lua.pushString("hello world");
-    const my_string = try lua.toAny([:0]const u8, -1);
-    try testing.expect(std.mem.eql(u8, my_string, "hello world"));
-}
+    const my_string_2 = try lua.toAny([:0]const u8, -1);
+    try testing.expect(std.mem.eql(u8, my_string_2, "hello world"));
 
-test "toAny [*:0]const u8" {
-    var lua = try Lua.init(&testing.allocator);
-    defer lua.deinit();
-
+    //[*:0]const u8
     _ = lua.pushString("hello world");
-    const my_string = try lua.toAny([*:0]const u8, -1);
-    const end = std.mem.indexOfSentinel(u8, 0, my_string);
-    try testing.expect(std.mem.eql(u8, my_string[0..end], "hello world"));
-}
+    const my_string_3 = try lua.toAny([*:0]const u8, -1);
+    const end = std.mem.indexOfSentinel(u8, 0, my_string_3);
+    try testing.expect(std.mem.eql(u8, my_string_3[0..end], "hello world"));
 
-test "toAny ptr" {
-    var lua = try Lua.init(&testing.allocator);
-    defer lua.deinit();
-
+    //ptr
     var my_value: i32 = 100;
     _ = lua.pushLightUserdata(&my_value);
-    const my_string = try lua.toAny(*i32, -1);
-    try testing.expect(my_string.* == my_value);
-}
+    const my_ptr = try lua.toAny(*i32, -1);
+    try testing.expect(my_ptr.* == my_value);
 
-test "toAny optional" {
-    var lua = try Lua.init(&testing.allocator);
-    defer lua.deinit();
-
+    //optional
     lua.pushNil();
     const maybe = try lua.toAny(?i32, -1);
     try testing.expect(maybe == null);
@@ -2532,56 +2505,39 @@ test "toAny struct recursive" {
     _ = my_struct;
 }
 
-test "pushAny int" {
+test "pushAny" {
     var lua = try Lua.init(&testing.allocator);
     defer lua.deinit();
 
-    lua.pushAny(1);
-    //const value = try lua.toInteger(-1);
-    //try testing.expect(value == 1);
-}
+    //int
+    try lua.pushAny(1);
+    const my_int = try lua.toInteger(-1);
+    try testing.expect(my_int == 1);
 
-test "pushAny float" {
-    var lua = try Lua.init(&testing.allocator);
-    defer lua.deinit();
+    //float
+    try lua.pushAny(1.0);
+    const my_float = try lua.toNumber(-1);
+    try testing.expect(my_float == 1.0);
 
-    lua.pushAny(1.0);
-    //const value = try lua.toNumber(-1);
-    //try testing.expect(value == 1.0);
-}
+    //bool
+    try lua.pushAny(true);
+    const my_bool = lua.toBoolean(-1);
+    try testing.expect(my_bool);
 
-test "pushAny bool" {
-    var lua = try Lua.init(&testing.allocator);
-    defer lua.deinit();
-
-    lua.pushAny(true);
-    const value = lua.toBoolean(-1);
-    try testing.expect(value);
-}
-
-test "pushAny string" {
-    var lua = try Lua.init(&testing.allocator);
-    defer lua.deinit();
-
-    lua.pushAny("hello world");
+    //string literal
+    try lua.pushAny("hello world");
     const value = try lua.toString(-1);
     const end = std.mem.indexOfSentinel(u8, 0, value);
     try testing.expect(std.mem.eql(u8, value[0..end], "hello world"));
-}
 
-test "pushAny null" {
-    var lua = try Lua.init(&testing.allocator);
-    defer lua.deinit();
+    //null
+    try lua.pushAny(null);
+    try testing.expect(try lua.toAny(?f32, -1) == null);
 
-    lua.pushAny(null);
-}
-
-test "pushAny optional" {
-    var lua = try Lua.init(&testing.allocator);
-    defer lua.deinit();
-
-    const value: ?i32 = -1;
-    lua.pushAny(value);
+    //optional
+    const my_optional: ?i32 = -1;
+    try lua.pushAny(my_optional);
+    try testing.expect(try lua.toAny(?i32, -1) == my_optional);
 }
 
 test "pushAny struct" {
@@ -2593,7 +2549,7 @@ test "pushAny struct" {
         bar: bool = false,
         bizz: []const u8 = "hi",
     };
-    lua.pushAny(MyType{});
+    try lua.pushAny(MyType{});
     const value = try lua.toAny(MyType, -1);
     try testing.expect(std.mem.eql(u8, value.bizz, (MyType{}).bizz));
     try testing.expect(value.foo == (MyType{}).foo);
@@ -2651,12 +2607,12 @@ test "get set" {
     var lua = try Lua.init(&testing.allocator);
     defer lua.deinit();
 
-    lua.set("hello", true);
+    try lua.set("hello", true);
     try testing.expect(try lua.get(bool, "hello"));
 
-    lua.set("world", 1000);
+    try lua.set("world", 1000);
     try testing.expect(try lua.get(u64, "world") == 1000);
 
-    lua.set("foo", 'a');
+    try lua.set("foo", 'a');
     try testing.expect(try lua.get(u8, "foo") == 'a');
 }

@@ -3031,14 +3031,12 @@ pub const Lua = struct {
     /// Pushes any valid zig value onto the stack,
     /// Works with ints, floats, booleans, structs,
     /// optionals, and strings
-    pub fn pushAny(lua: *Lua, value: anytype) void {
+    pub fn pushAny(lua: *Lua, value: anytype) !void {
         switch (@typeInfo(@TypeOf(value))) {
             .Int, .ComptimeInt => {
-                //const casted: Integer = @intCast(value);
                 lua.pushInteger(@intCast(value));
             },
             .Float, .ComptimeFloat => {
-                //const casted: Number = @floatCast(value);
                 lua.pushNumber(@floatCast(value));
             },
             .Pointer => |info| {
@@ -3068,9 +3066,8 @@ pub const Lua = struct {
                             }
                             _ = lua.pushString(value);
                         } else {
-                            var null_terminated = lua.allocator().dupeZ(u8, value) catch unreachable;
+                            const null_terminated = try lua.allocator().dupeZ(u8, value);
                             defer lua.allocator().free(null_terminated);
-                            _ = &null_terminated; //required to override unused var error
                             _ = lua.pushString(null_terminated);
                         }
                     },
@@ -3083,14 +3080,14 @@ pub const Lua = struct {
                 if (value == null) {
                     lua.pushNil();
                 } else {
-                    lua.pushAny(value.?);
+                    try lua.pushAny(value.?);
                 }
             },
             .Struct => |info| {
                 lua.createTable(0, 0);
                 inline for (info.fields) |field| {
-                    lua.pushAny(field.name);
-                    lua.pushAny(@field(value, field.name));
+                    try lua.pushAny(field.name);
+                    try lua.pushAny(@field(value, field.name));
                     lua.setTable(-3);
                 }
             },
@@ -3108,6 +3105,8 @@ pub const Lua = struct {
     /// Converts the specified index of the lua stack to the specified
     /// type if possible and returns it
     pub fn toAny(lua: *Lua, comptime T: type, index: i32) !T {
+
+        //TODO implement enums
         switch (@typeInfo(T)) {
             .Int => {
                 switch (comptime lang) {
@@ -3181,7 +3180,6 @@ pub const Lua = struct {
         const index = lua.absIndex(raw_index);
 
         if (!lua.isTable(index)) {
-            std.log.err("Parsing lua table failed because value at index {} is not a table", .{raw_index});
             return error.ValueNotATable;
         }
         std.debug.assert(lua.typeOf(index) == .table);
@@ -3196,7 +3194,6 @@ pub const Lua = struct {
                 if (field.default_value) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
                 } else {
-                    std.log.err("Parsing lua table failed because field {s} is missing", .{field_name});
                     return error.LuaTableMissingValue;
                 }
             } else {
@@ -3212,7 +3209,7 @@ pub const Lua = struct {
         if (try lua.getGlobal(func_name) != LuaType.function) return error.InvalidFunctionName;
 
         inline for (args) |arg| {
-            lua.pushAny(arg);
+            try lua.pushAny(arg);
         }
 
         const num_results = if (ReturnType == void) 0 else 1;
@@ -3244,10 +3241,14 @@ pub const Lua = struct {
                     const result = @call(.auto, function, parameters) catch |err| {
                         lua.raiseErrorStr(@errorName(err), .{});
                     };
-                    lua.pushAny(result);
+                    lua.pushAny(result) catch |err| {
+                        lua.raiseErrorStr(@errorName(err), .{});
+                    };
                 } else {
                     const result = @call(.auto, function, parameters);
-                    lua.pushAny(result);
+                    lua.pushAny(result) catch |err| {
+                        lua.raiseErrorStr(@errorName(err), .{});
+                    };
                 }
 
                 return 1;
@@ -3268,8 +3269,8 @@ pub const Lua = struct {
     }
 
     ///set any lua global
-    pub fn set(lua: *Lua, name: [:0]const u8, value: anytype) void {
-        lua.pushAny(value);
+    pub fn set(lua: *Lua, name: [:0]const u8, value: anytype) !void {
+        try lua.pushAny(value);
         lua.setGlobal(name);
     }
 };
