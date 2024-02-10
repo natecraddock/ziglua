@@ -3136,19 +3136,20 @@ pub const Lua = struct {
             .Pointer => |param_info| {
                 switch (param_info.size) {
                     .Slice, .Many => {
-                        if (param_info.child != u8) {
-                            @compileError("Only u8 arrays (strings) may be parameters");
-                        }
-                        if (!param_info.is_const) {
-                            @compileError("Slice must be a const slice");
-                        }
-                        const string: [*:0]const u8 = try lua.toString(index);
-                        const end = std.mem.indexOfSentinel(u8, 0, string);
+                        if (param_info.child == u8) {
+                            if (!param_info.is_const) {
+                                @compileError("Slice must be a const slice");
+                            }
+                            const string: [*:0]const u8 = try lua.toString(index);
+                            const end = std.mem.indexOfSentinel(u8, 0, string);
 
-                        if (param_info.sentinel == null) {
-                            return string[0..end];
+                            if (param_info.sentinel == null) {
+                                return string[0..end];
+                            } else {
+                                return string[0..end :0];
+                            }
                         } else {
-                            return string[0..end :0];
+                            return try lua.toSlice(param_info.child, index);
                         }
                     },
                     else => {
@@ -3183,6 +3184,29 @@ pub const Lua = struct {
                 @compileError("Invalid parameter type");
             },
         }
+    }
+
+    /// Converts a lua array to a zig slice, memory is owned by the caller
+    fn toSlice(lua: *Lua, comptime ChildType: type, raw_index: i32) ![]ChildType {
+        const index = lua.absIndex(raw_index);
+
+        if (!lua.isTable(index)) {
+            return error.ValueNotATable;
+        }
+
+        lua.len(index);
+        const size = try lua.toAny(usize, -1);
+
+        const a = lua.allocator();
+        var result = try std.ArrayListUnmanaged(ChildType).initCapacity(a, size);
+
+        for (1..size + 1) |i| {
+            _ = try lua.pushAny(i);
+            _ = lua.getTable(index);
+            try result.append(a, try lua.toAny(ChildType, -1));
+        }
+
+        return result.items;
     }
 
     /// Converts value at given index to a zig struct if possible
