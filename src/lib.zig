@@ -3145,8 +3145,6 @@ pub const Lua = struct {
     /// Converts the specified index of the lua stack to the specified
     /// type if possible and returns it
     pub fn toAny(lua: *Lua, comptime T: type, index: i32) !T {
-
-        //TODO implement enums
         switch (@typeInfo(T)) {
             .Int => {
                 switch (comptime lang) {

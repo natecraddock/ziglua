@@ -2642,3 +2642,19 @@ test "get set" {
     try lua.set("foo", 'a');
     try testing.expect(try lua.get(u8, "foo") == 'a');
 }
+
+test "array of strings" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const program =
+        \\function strings()
+        \\   return {"hello", "world", "my name", "is foobar"}
+        \\end
+    ;
+
+    try lua.doString(program);
+
+    const strings = try lua.autoCall([]const []const u8, "strings", .{});
+    lua.allocator().free(strings);
+}
