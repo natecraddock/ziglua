@@ -2575,6 +2575,15 @@ test "pushAny struct" {
     try testing.expect(value.bar == (MyType{}).bar);
 }
 
+test "pushAny slice" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    var my_array = [_]u32{ 1, 2, 3, 4, 5 };
+    const my_slice: []u32 = my_array[0..];
+    try lua.pushAny(my_slice);
+}
+
 fn foo(a: i32, b: i32) i32 {
     return a + b;
 }
