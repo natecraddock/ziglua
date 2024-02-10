@@ -3194,19 +3194,21 @@ pub const Lua = struct {
             return error.ValueNotATable;
         }
 
-        lua.len(index);
-        const size = try lua.toAny(usize, -1);
+        var result = std.ArrayListUnmanaged(ChildType){};
+        defer result.deinit(lua.allocator());
 
-        const a = lua.allocator();
-        var result = try std.ArrayListUnmanaged(ChildType).initCapacity(a, size);
-
-        for (1..size + 1) |i| {
+        var i: usize = 1;
+        while (true) : (i += 1) {
             _ = try lua.pushAny(i);
-            _ = lua.getTable(index);
-            try result.append(a, try lua.toAny(ChildType, -1));
+            const value_type = lua.getTable(index);
+            if (value_type == .nil) {
+                break;
+            }
+            try result.append(lua.allocator(), try lua.toAny(ChildType, -1));
         }
 
-        return result.items;
+        //temporary solution to fix mismatched sized free error
+        return try lua.allocator().dupe(ChildType, result.items);
     }
 
     /// Converts value at given index to a zig struct if possible

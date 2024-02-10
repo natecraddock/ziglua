@@ -2511,7 +2511,7 @@ test "toAny slice" {
     try lua.doString(program);
     _ = try lua.getGlobal("list");
     const sliced = try lua.toAny([]u32, -1);
-    defer testing.allocator.free(sliced);
+    defer lua.allocator().free(sliced);
 
     try testing.expect(
         std.mem.eql(u32, &[_]u32{ 1, 2, 3, 4, 5 }, sliced),
