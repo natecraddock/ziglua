@@ -1357,6 +1357,14 @@ pub const Lua = struct {
         return c.lua_objlen(lua.state, index);
     }
 
+    /// returns length of table in any lua version
+    pub fn versionAgnosticLen(lua: *Lua, index: i32) usize {
+        switch (lang) {
+            .lua51, .luau => return @intCast(lua.objectLen(index)),
+            else => return @intCast(lua.rawLen(index)),
+        }
+    }
+
     fn protectedCall51(lua: *Lua, num_args: i32, num_results: i32, err_func: i32) !void {
         // The translate-c version of lua_pcall does not type-check so we must rewrite it
         // (macros don't always translate well with translate-c)
@@ -3164,13 +3172,8 @@ pub const Lua = struct {
                     },
                 }
             },
-
-            //TODO: audit this
             .Pointer => |info| {
                 if (comptime isTypeString(info)) {
-                    //if (!info.is_const) {
-                    //@compileError("Slice must be a const slice");
-                    //}
                     const string: [*:0]const u8 = try lua.toString(index);
                     const end = std.mem.indexOfSentinel(u8, 0, string);
 
@@ -3225,21 +3228,16 @@ pub const Lua = struct {
             return error.ValueNotATable;
         }
 
-        var result = std.ArrayListUnmanaged(ChildType){};
-        defer result.deinit(lua.allocator());
+        const size = lua.versionAgnosticLen(index);
+        var result = try lua.allocator().alloc(ChildType, size);
 
-        var i: usize = 1;
-        while (true) : (i += 1) {
+        for (1..size + 1) |i| {
             _ = try lua.pushAny(i);
-            const value_type = lua.getTable(index);
-            if (value_type == .nil) {
-                break;
-            }
-            try result.append(lua.allocator(), try lua.toAny(ChildType, -1));
+            _ = lua.getTable(index);
+            result[i - 1] = try lua.toAny(ChildType, -1);
         }
 
-        //temporary solution to fix mismatched sized free error
-        return try lua.allocator().dupe(ChildType, result.items);
+        return result;
     }
 
     /// Converts value at given index to a zig struct if possible
