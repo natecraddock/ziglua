@@ -3074,6 +3074,9 @@ pub const Lua = struct {
             .Bool => {
                 lua.pushBoolean(value);
             },
+            .Enum => {
+                _ = lua.pushString(@tagName(value));
+            },
             .Optional, .Null => {
                 if (value == null) {
                     lua.pushNil();
@@ -3155,6 +3158,15 @@ pub const Lua = struct {
             },
             .Bool => {
                 return lua.toBoolean(index);
+            },
+            .Enum => |info| {
+                const string = try lua.toAny([]const u8, index);
+                inline for (info.fields) |enum_member| {
+                    if (std.mem.eql(u8, string, enum_member.name)) {
+                        return @field(T, enum_member.name);
+                    }
+                }
+                return error.InvalidEnumTagName;
             },
             .Struct => {
                 return try lua.toStruct(T, index);

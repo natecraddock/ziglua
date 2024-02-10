@@ -2447,6 +2447,12 @@ test "toAny" {
     lua.pushNil();
     const maybe = try lua.toAny(?i32, -1);
     try testing.expect(maybe == null);
+
+    //enum
+    const MyEnumType = enum { hello, goodbye };
+    _ = lua.pushString("hello");
+    const my_enum = try lua.toAny(MyEnumType, -1);
+    try testing.expect(my_enum == MyEnumType.hello);
 }
 
 test "toAny struct" {
@@ -2528,6 +2534,12 @@ test "pushAny" {
     const my_optional: ?i32 = -1;
     try lua.pushAny(my_optional);
     try testing.expect(try lua.toAny(?i32, -1) == my_optional);
+
+    //enum
+    const MyEnumType = enum { hello, goodbye };
+    try lua.pushAny(MyEnumType.goodbye);
+    const my_enum = try lua.toAny(MyEnumType, -1);
+    try testing.expect(my_enum == MyEnumType.goodbye);
 }
 
 test "pushAny struct" {
