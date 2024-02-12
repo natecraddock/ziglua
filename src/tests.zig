@@ -2608,19 +2608,16 @@ test "autoPushFunction" {
     try lua.doString(
         \\result = foo(1, 2)
     );
-    lua.doString(
+    try lua.doString(
         \\local status, result = pcall(bar, 1, 2)
-    ) catch |err| {
-        std.debug.print("auto push function error: {!}\n", .{err});
-        std.debug.print("{s}\n", .{try lua.toString(-1)});
-        return err;
-    };
+    );
 
     //automatic api construction
     const my_api = .{
         .foo = foo,
         .bar = bar,
     };
+
     try lua.pushAny(my_api);
     lua.setGlobal("api");
 
@@ -2673,13 +2670,3 @@ test "array of strings" {
     const strings = try lua.autoCall([]const []const u8, "strings", .{});
     lua.allocator().free(strings);
 }
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
