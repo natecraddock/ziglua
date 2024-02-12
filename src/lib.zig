@@ -3110,6 +3110,14 @@ pub const Lua = struct {
                     },
                 }
             },
+            .Array => {
+                lua.createTable(0, 0);
+                for (value, 0..) |index_value, i| {
+                    try lua.pushAny(i);
+                    try lua.pushAny(index_value);
+                    lua.setTable(-3);
+                }
+            },
             .Bool => {
                 lua.pushBoolean(value);
             },
