@@ -1651,14 +1651,15 @@ pub const Lua = struct {
     /// For userdata it is the size of the block of memory
     /// For other values the call returns 0
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawlen
-    pub fn rawLen(lua: *Lua, index: i32) switch (lang) {
-        .lua52, .lua53 => usize,
-        else => Unsigned,
-    } {
-        return c.lua_rawlen(lua.state, index);
+    pub fn rawLen(lua: *Lua, index: i32) usize {
+        switch (lang) {
+            .lua51, .luau => return @intCast(c.lua_objlen(lua.state, index)),
+            else => return @intCast(c.lua_rawlen(lua.state, index)),
+        }
     }
 
-    /// Similar to `Lua.setTable()` but does a raw assignment (without metamethods)
+    /// Similar to `Lua.setTable()` but does a raw asskdjfal;sdkfjals;dkfj;dk:q
+    /// gnment (without metamethods)
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawset
     pub fn rawSetTable(lua: *Lua, index: i32) void {
         c.lua_rawset(lua.state, index);
@@ -3026,6 +3027,49 @@ pub const Lua = struct {
         _ = c.luaopen_bit32(lua.state);
     }
 
+    /// Returns if given typeinfo is a string type
+    fn isTypeString(typeinfo: std.builtin.Type.Pointer) bool {
+        const childinfo = @typeInfo(typeinfo.child);
+        if (typeinfo.child == u8 and typeinfo.size != .One) {
+            return true;
+        } else if (typeinfo.size == .One and childinfo == .Array and childinfo.Array.child == u8) {
+            return true;
+        }
+        return false;
+    }
+
+    /// Pushes any string type
+    fn pushAnyString(lua: *Lua, value: anytype) !void {
+        const info = @typeInfo(@TypeOf(value)).Pointer;
+        switch (info.size) {
+            .One => {
+                const childinfo = @typeInfo(info.child).Array;
+                std.debug.assert(childinfo.child == u8);
+                std.debug.assert(childinfo.sentinel != null);
+
+                const casted: *childinfo.child = @ptrCast(@constCast(childinfo.sentinel.?));
+                if (casted.* != 0) {
+                    @compileError("Sentinel of slice must be a null terminator");
+                }
+                _ = lua.pushString(value);
+            },
+            .C, .Many, .Slice => {
+                std.debug.assert(info.child == u8);
+                if (info.sentinel) |sentinel| {
+                    const casted: *info.child = @ptrCast(@constCast(sentinel));
+                    if (casted.* != 0) {
+                        @compileError("Sentinel of slice must be a null terminator");
+                    }
+                    _ = lua.pushString(value);
+                } else {
+                    const null_terminated = try lua.allocator().dupeZ(u8, value);
+                    defer lua.allocator().free(null_terminated);
+                    _ = lua.pushString(null_terminated);
+                }
+            },
+        }
+    }
+
     /// Pushes any valid zig value onto the stack,
     /// Works with ints, floats, booleans, structs,
     /// optionals, and strings
@@ -3038,41 +3082,40 @@ pub const Lua = struct {
                 lua.pushNumber(@floatCast(value));
             },
             .Pointer => |info| {
-                switch (info.size) {
+                if (comptime isTypeString(info)) {
+                    try lua.pushAnyString(value);
+                } else switch (info.size) {
                     .One => {
-                        if (@typeInfo(info.child) == .Array) {
-                            if (@typeInfo(info.child).Array.child != u8) {
-                                @compileError("only u8 arrays can be pushed");
-                            }
-                            _ = lua.pushString(&(value.*));
-                        } else {
-                            if (info.is_const) {
-                                @compileLog(value);
-                                @compileError("Pointer must not be const");
-                            }
-                            lua.pushLightUserdata(@ptrCast(value));
+                        if (info.is_const) {
+                            @compileLog(value);
+                            @compileLog("Lua cannot guarantee that references will not be modified");
+                            @compileError("Pointer must not be const");
                         }
+                        lua.pushLightUserdata(@ptrCast(value));
                     },
                     .C, .Many, .Slice => {
-                        if (info.child != u8) {
-                            @compileError("Only u8 slices (strings) are valid slice types");
-                        }
-                        if (info.sentinel) |sentinel| {
-                            const casted: *info.child = @ptrCast(@constCast(sentinel));
-                            if (casted.* != 0) {
-                                @compileError("Sentinel of slice must be a null terminator");
-                            }
-                            _ = lua.pushString(value);
-                        } else {
-                            const null_terminated = try lua.allocator().dupeZ(u8, value);
-                            defer lua.allocator().free(null_terminated);
-                            _ = lua.pushString(null_terminated);
+                        lua.createTable(0, 0);
+                        for (value, 0..) |index_value, i| {
+                            try lua.pushAny(i);
+                            try lua.pushAny(index_value);
+                            lua.setTable(-3);
                         }
                     },
                 }
             },
+            .Array => {
+                lua.createTable(0, 0);
+                for (value, 0..) |index_value, i| {
+                    try lua.pushAny(i);
+                    try lua.pushAny(index_value);
+                    lua.setTable(-3);
+                }
+            },
             .Bool => {
                 lua.pushBoolean(value);
+            },
+            .Enum => {
+                _ = lua.pushString(@tagName(value));
             },
             .Optional, .Null => {
                 if (value == null) {
@@ -3103,8 +3146,6 @@ pub const Lua = struct {
     /// Converts the specified index of the lua stack to the specified
     /// type if possible and returns it
     pub fn toAny(lua: *Lua, comptime T: type, index: i32) !T {
-
-        //TODO implement enums
         switch (@typeInfo(T)) {
             .Int => {
                 switch (comptime lang) {
@@ -3130,31 +3171,36 @@ pub const Lua = struct {
                     },
                 }
             },
-            .Pointer => |param_info| {
-                switch (param_info.size) {
-                    .Slice, .Many => {
-                        if (param_info.child != u8) {
-                            @compileError("Only u8 arrays (strings) may be parameters");
-                        }
-                        if (!param_info.is_const) {
-                            @compileError("Slice must be a const slice");
-                        }
-                        const string: [*:0]const u8 = try lua.toString(index);
-                        const end = std.mem.indexOfSentinel(u8, 0, string);
+            .Pointer => |info| {
+                if (comptime isTypeString(info)) {
+                    const string: [*:0]const u8 = try lua.toString(index);
+                    const end = std.mem.indexOfSentinel(u8, 0, string);
 
-                        if (param_info.sentinel == null) {
-                            return string[0..end];
-                        } else {
-                            return string[0..end :0];
-                        }
+                    if (info.sentinel == null) {
+                        return string[0..end];
+                    } else {
+                        return string[0..end :0];
+                    }
+                } else switch (info.size) {
+                    .Slice, .Many => {
+                        return try lua.toSlice(info.child, index);
                     },
                     else => {
-                        return try lua.toUserdata(param_info.child, index);
+                        return try lua.toUserdata(info.child, index);
                     },
                 }
             },
             .Bool => {
                 return lua.toBoolean(index);
+            },
+            .Enum => |info| {
+                const string = try lua.toAny([]const u8, index);
+                inline for (info.fields) |enum_member| {
+                    if (std.mem.eql(u8, string, enum_member.name)) {
+                        return @field(T, enum_member.name);
+                    }
+                }
+                return error.InvalidEnumTagName;
             },
             .Struct => {
                 return try lua.toStruct(T, index);
@@ -3171,6 +3217,26 @@ pub const Lua = struct {
                 @compileError("Invalid parameter type");
             },
         }
+    }
+
+    /// Converts a lua array to a zig slice, memory is owned by the caller
+    fn toSlice(lua: *Lua, comptime ChildType: type, raw_index: i32) ![]ChildType {
+        const index = lua.absIndex(raw_index);
+
+        if (!lua.isTable(index)) {
+            return error.ValueNotATable;
+        }
+
+        const size = lua.rawLen(index);
+        var result = try lua.allocator().alloc(ChildType, size);
+
+        for (1..size + 1) |i| {
+            _ = try lua.pushAny(i);
+            _ = lua.getTable(index);
+            result[i - 1] = try lua.toAny(ChildType, -1);
+        }
+
+        return result;
     }
 
     /// Converts value at given index to a zig struct if possible

@@ -2447,6 +2447,12 @@ test "toAny" {
     lua.pushNil();
     const maybe = try lua.toAny(?i32, -1);
     try testing.expect(maybe == null);
+
+    //enum
+    const MyEnumType = enum { hello, goodbye };
+    _ = lua.pushString("hello");
+    const my_enum = try lua.toAny(MyEnumType, -1);
+    try testing.expect(my_enum == MyEnumType.hello);
 }
 
 test "toAny struct" {
@@ -2495,6 +2501,23 @@ test "toAny struct recursive" {
     _ = my_struct;
 }
 
+test "toAny slice" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const program =
+        \\list = {1, 2, 3, 4, 5}
+    ;
+    try lua.doString(program);
+    _ = try lua.getGlobal("list");
+    const sliced = try lua.toAny([]u32, -1);
+    defer lua.allocator().free(sliced);
+
+    try testing.expect(
+        std.mem.eql(u32, &[_]u32{ 1, 2, 3, 4, 5 }, sliced),
+    );
+}
+
 test "pushAny" {
     var lua = try Lua.init(&testing.allocator);
     defer lua.deinit();
@@ -2528,6 +2551,12 @@ test "pushAny" {
     const my_optional: ?i32 = -1;
     try lua.pushAny(my_optional);
     try testing.expect(try lua.toAny(?i32, -1) == my_optional);
+
+    //enum
+    const MyEnumType = enum { hello, goodbye };
+    try lua.pushAny(MyEnumType.goodbye);
+    const my_enum = try lua.toAny(MyEnumType, -1);
+    try testing.expect(my_enum == MyEnumType.goodbye);
 }
 
 test "pushAny struct" {
@@ -2544,6 +2573,16 @@ test "pushAny struct" {
     try testing.expect(std.mem.eql(u8, value.bizz, (MyType{}).bizz));
     try testing.expect(value.foo == (MyType{}).foo);
     try testing.expect(value.bar == (MyType{}).bar);
+}
+
+test "pushAny slice/array" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    var my_array = [_]u32{ 1, 2, 3, 4, 5 };
+    const my_slice: []u32 = my_array[0..];
+    try lua.pushAny(my_slice);
+    try lua.pushAny(my_array);
 }
 
 fn foo(a: i32, b: i32) i32 {
@@ -2566,14 +2605,25 @@ test "autoPushFunction" {
     lua.autoPushFunction(bar);
     lua.setGlobal("bar");
 
-    try lua.doString("result = foo(1, 2)");
-
-    const program =
+    try lua.doString(
+        \\result = foo(1, 2)
+    );
+    try lua.doString(
         \\local status, result = pcall(bar, 1, 2)
-    ;
-    lua.doString(program) catch |err| {
-        std.debug.print("{!}\n\n", .{err});
+    );
+
+    //automatic api construction
+    const my_api = .{
+        .foo = foo,
+        .bar = bar,
     };
+
+    try lua.pushAny(my_api);
+    lua.setGlobal("api");
+
+    try lua.doString(
+        \\api.foo(1, 2)
+    );
 }
 
 test "autoCall" {
@@ -2603,4 +2653,20 @@ test "get set" {
 
     try lua.set("foo", 'a');
     try testing.expect(try lua.get(u8, "foo") == 'a');
+}
+
+test "array of strings" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const program =
+        \\function strings()
+        \\   return {"hello", "world", "my name", "is foobar"}
+        \\end
+    ;
+
+    try lua.doString(program);
+
+    const strings = try lua.autoCall([]const []const u8, "strings", .{});
+    lua.allocator().free(strings);
 }
