@@ -1357,14 +1357,6 @@ pub const Lua = struct {
         return c.lua_objlen(lua.state, index);
     }
 
-    /// returns length of table in any lua version
-    pub fn versionAgnosticLen(lua: *Lua, index: i32) usize {
-        switch (lang) {
-            .lua51, .luau => return @intCast(lua.objectLen(index)),
-            else => return @intCast(lua.rawLen(index)),
-        }
-    }
-
     fn protectedCall51(lua: *Lua, num_args: i32, num_results: i32, err_func: i32) !void {
         // The translate-c version of lua_pcall does not type-check so we must rewrite it
         // (macros don't always translate well with translate-c)
@@ -1659,14 +1651,15 @@ pub const Lua = struct {
     /// For userdata it is the size of the block of memory
     /// For other values the call returns 0
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawlen
-    pub fn rawLen(lua: *Lua, index: i32) switch (lang) {
-        .lua52, .lua53 => usize,
-        else => Unsigned,
-    } {
-        return c.lua_rawlen(lua.state, index);
+    pub fn rawLen(lua: *Lua, index: i32) usize {
+        switch (lang) {
+            .lua51, .luau => return @intCast(c.lua_objlen(lua.state, index)),
+            else => return @intCast(c.lua_rawlen(lua.state, index)),
+        }
     }
 
-    /// Similar to `Lua.setTable()` but does a raw assignment (without metamethods)
+    /// Similar to `Lua.setTable()` but does a raw asskdjfal;sdkfjals;dkfj;dk:q
+    /// gnment (without metamethods)
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawset
     pub fn rawSetTable(lua: *Lua, index: i32) void {
         c.lua_rawset(lua.state, index);
@@ -3058,7 +3051,7 @@ pub const Lua = struct {
                 if (casted.* != 0) {
                     @compileError("Sentinel of slice must be a null terminator");
                 }
-                _ = lua.pushString(&(value.*));
+                _ = lua.pushString(value);
             },
             .C, .Many, .Slice => {
                 std.debug.assert(info.child == u8);
@@ -3234,7 +3227,7 @@ pub const Lua = struct {
             return error.ValueNotATable;
         }
 
-        const size = lua.versionAgnosticLen(index);
+        const size = lua.rawLen(index);
         var result = try lua.allocator().alloc(ChildType, size);
 
         for (1..size + 1) |i| {
