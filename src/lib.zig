@@ -3313,6 +3313,7 @@ pub const Lua = struct {
                 if (field.default_value) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
                 } else {
+                    lua.pop(1);
                     return error.LuaTableMissingValue;
                 }
             } else {
