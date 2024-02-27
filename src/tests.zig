@@ -2636,17 +2636,58 @@ test "autoCall" {
         \\end
     ;
 
+    try lua.doString(program);
+
     for (0..100) |_| {
-        try lua.doString(program);
         const sum = try lua.autoCall(usize, "add", .{ 1, 2 });
         try std.testing.expect(3 == sum);
     }
 
     for (0..100) |_| {
-        try lua.doString(program);
         const sum = try lua.autoCallAlloc(usize, "add", .{ 1, 2 });
         defer sum.deinit();
         try std.testing.expect(3 == sum.value);
+    }
+}
+
+test "autoCall stress test" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const program =
+        \\function add(a, b)
+        \\   return a + b
+        \\end
+        \\
+        \\
+        \\function KeyBindings()
+        \\
+        \\   local bindings = {
+        \\      {['name'] = 'player_right', ['key'] = 'a'},
+        \\      {['name'] = 'player_left',  ['key'] = 'd'},
+        \\      {['name'] = 'player_up',    ['key'] = 'w'},
+        \\      {['name'] = 'player_down',  ['key'] = 's'},
+        \\      {['name'] = 'zoom_in',      ['key'] = '='},
+        \\      {['name'] = 'zoom_out',     ['key'] = '-'},
+        \\      {['name'] = 'debug_mode',   ['key'] = '/'},
+        \\   }
+        \\
+        \\   return bindings
+        \\end
+    ;
+
+    try lua.doString(program);
+
+    const ConfigType = struct {
+        name: []const u8,
+        key: []const u8,
+        shift: bool = false,
+        control: bool = false,
+    };
+
+    for (0..100) |_| {
+        const sum = try lua.autoCallAlloc([]ConfigType, "KeyBindings", .{});
+        defer sum.deinit();
     }
 }
 
@@ -2676,6 +2717,8 @@ test "array of strings" {
 
     try lua.doString(program);
 
-    const strings = try lua.autoCallAlloc([]const []const u8, "strings", .{});
-    defer strings.deinit();
+    for (0..100) |_| {
+        const strings = try lua.autoCallAlloc([]const []const u8, "strings", .{});
+        defer strings.deinit();
+    }
 }

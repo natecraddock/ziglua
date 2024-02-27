@@ -3186,6 +3186,14 @@ pub const Lua = struct {
     /// type if possible and returns it
     /// optional allocator
     fn toAnyInternal(lua: *Lua, comptime T: type, a: ?std.mem.Allocator, comptime allow_alloc: bool, index: i32) !T {
+        const stack_size_on_entry = lua.getTop();
+        defer {
+            if (lua.getTop() != stack_size_on_entry) {
+                std.debug.print("Type that filed to parse was: {any}\n", .{T});
+                std.debug.panic("Expected stack size: {}, Actual Stack Size: {}\n\n", .{ stack_size_on_entry, lua.getTop() });
+            }
+        }
+
         switch (@typeInfo(T)) {
             .Int => {
                 switch (comptime lang) {
@@ -3250,7 +3258,6 @@ pub const Lua = struct {
             },
             .Optional => {
                 if (lua.isNil(index)) {
-                    lua.pop(1);
                     return null;
                 } else {
                     return try lua.toAnyInternal(@typeInfo(T).Optional.child, a, allow_alloc, index);
@@ -3277,19 +3284,17 @@ pub const Lua = struct {
             _ = try lua.pushAny(i);
             _ = lua.getTable(index);
             result[i - 1] = try lua.toAnyInternal(ChildType, a, true, -1);
+            lua.pop(1);
         }
 
         return result;
     }
 
     /// Converts value at given index to a zig struct if possible
-    fn toStruct(
-        lua: *Lua,
-        comptime T: type,
-        a: ?std.mem.Allocator,
-        comptime allow_alloc: bool,
-        raw_index: i32,
-    ) !T {
+    fn toStruct(lua: *Lua, comptime T: type, a: ?std.mem.Allocator, comptime allow_alloc: bool, raw_index: i32) !T {
+        const stack_size_on_entry = lua.getTop();
+        defer std.debug.assert(lua.getTop() == stack_size_on_entry);
+
         const index = lua.absIndex(raw_index);
 
         if (!lua.isTable(index)) {
@@ -3298,10 +3303,11 @@ pub const Lua = struct {
         std.debug.assert(lua.typeOf(index) == .table);
 
         var result: T = undefined;
+
         inline for (@typeInfo(T).Struct.fields) |field| {
             const field_name = comptime field.name ++ "";
             _ = lua.pushString(field_name);
-            std.debug.assert(lua.typeOf(index) == .table);
+
             const lua_field_type = lua.getTable(index);
             if (lua_field_type == .nil) {
                 if (field.default_value) |default_value| {
@@ -3310,8 +3316,11 @@ pub const Lua = struct {
                     return error.LuaTableMissingValue;
                 }
             } else {
+                const stack_size_before_call = lua.getTop();
                 @field(result, field.name) = try lua.toAnyInternal(field.type, a, allow_alloc, -1);
+                std.debug.assert(stack_size_before_call == lua.getTop());
             }
+            lua.pop(1); //pop the value off the stack
         }
 
         return result;
@@ -3326,23 +3335,23 @@ pub const Lua = struct {
         }
 
         const num_results = if (ReturnType == void) 0 else 1;
-        try lua.protectedCall(args.len, num_results, num_results);
+        try lua.protectedCall(args.len, num_results, 0);
     }
 
     ///automatically calls a lua function with the given arguments
-    pub inline fn autoCall(lua: *Lua, comptime ReturnType: type, func_name: [:0]const u8, args: anytype) !ReturnType {
-        defer lua.setTop(0);
-
+    pub fn autoCall(lua: *Lua, comptime ReturnType: type, func_name: [:0]const u8, args: anytype) !ReturnType {
         try lua.autoCallAndPush(ReturnType, func_name, args);
-        return lua.toAny(ReturnType, -1);
+        const result = try lua.toAny(ReturnType, -1);
+        lua.setTop(0);
+        return result;
     }
 
     ///automatically calls a lua function with the given arguments
-    pub inline fn autoCallAlloc(lua: *Lua, comptime ReturnType: type, func_name: [:0]const u8, args: anytype) !Parsed(ReturnType) {
-        defer lua.setTop(0);
-
+    pub fn autoCallAlloc(lua: *Lua, comptime ReturnType: type, func_name: [:0]const u8, args: anytype) !Parsed(ReturnType) {
         try lua.autoCallAndPush(ReturnType, func_name, args);
-        return lua.toAnyAlloc(ReturnType, -1);
+        const result = try lua.toAnyAlloc(ReturnType, -1);
+        lua.setTop(0);
+        return result;
     }
 
     //automatically generates a wrapper function
