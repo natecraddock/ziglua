@@ -3358,8 +3358,9 @@ pub const Lua = struct {
                 var parameters: std.meta.ArgsTuple(@TypeOf(function)) = undefined;
 
                 inline for (info.Fn.params, 0..) |param, i| {
+                    const param_info = @typeInfo(param.type.?);
                     //only use the overhead of creating the arena allocator if needed
-                    if (comptime @typeInfo(param.type.?) == .Pointer) {
+                    if (comptime param_info == .Pointer and param_info.Pointer.size != .One) {
                         const parsed = lua.toAnyAlloc(param.type.?, (i + 1)) catch |err| {
                             lua.raiseErrorStr(@errorName(err), .{});
                         };
