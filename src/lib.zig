@@ -3358,12 +3358,22 @@ pub const Lua = struct {
                 var parameters: std.meta.ArgsTuple(@TypeOf(function)) = undefined;
 
                 inline for (info.Fn.params, 0..) |param, i| {
-                    const parsed = lua.toAnyAlloc(param.type.?, (i + 1)) catch |err| {
-                        lua.raiseErrorStr(@errorName(err), .{});
-                    };
-                    defer parsed.deinit();
+                    //only use the overhead of creating the arena allocator if needed
+                    if (comptime @typeInfo(param.type.?) == .Pointer) {
+                        const parsed = lua.toAnyAlloc(param.type.?, (i + 1)) catch |err| {
+                            lua.raiseErrorStr(@errorName(err), .{});
+                        };
 
-                    parameters[i] = parsed.value;
+                        defer parsed.deinit();
+
+                        parameters[i] = parsed;
+                    } else {
+                        const parsed = lua.toAny(param.type.?, (i + 1)) catch |err| {
+                            lua.raiseErrorStr(@errorName(err), .{});
+                        };
+
+                        parameters[i] = parsed;
+                    }
                 }
 
                 if (@typeInfo(info.Fn.return_type.?) == .ErrorUnion) {
