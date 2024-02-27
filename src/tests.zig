@@ -2636,9 +2636,18 @@ test "autoCall" {
         \\end
     ;
 
-    try lua.doString(program);
-    const sum = try lua.autoCall(usize, "add", .{ 1, 2 });
-    try std.testing.expect(3 == sum);
+    for (0..100) |_| {
+        try lua.doString(program);
+        const sum = try lua.autoCall(usize, "add", .{ 1, 2 });
+        try std.testing.expect(3 == sum);
+    }
+
+    for (0..100) |_| {
+        try lua.doString(program);
+        const sum = try lua.autoCallAlloc(usize, "add", .{ 1, 2 });
+        defer sum.deinit();
+        try std.testing.expect(3 == sum.value);
+    }
 }
 
 test "get set" {

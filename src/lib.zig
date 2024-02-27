@@ -3326,7 +3326,7 @@ pub const Lua = struct {
         }
 
         const num_results = if (ReturnType == void) 0 else 1;
-        try lua.protectedCall(args.len, num_results, 0);
+        try lua.protectedCall(args.len, num_results, num_results);
     }
 
     ///automatically calls a lua function with the given arguments
