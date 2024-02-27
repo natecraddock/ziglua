@@ -571,6 +571,21 @@ pub const CWarnFn = switch (lang) {
 /// The type of the writer function used by `Lua.dump()`
 pub const CWriterFn = *const fn (state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int;
 
+/// For bundling a parsed value with an arena allocator
+/// Copied from std.json.Parsed
+pub fn Parsed(comptime T: type) type {
+    return struct {
+        arena: *std.heap.ArenaAllocator,
+        value: T,
+
+        pub fn deinit(self: @This()) void {
+            const allocator = self.arena.child_allocator;
+            self.arena.deinit();
+            allocator.destroy(self.arena);
+        }
+    };
+}
+
 /// A Zig wrapper around the Lua C API
 /// Represents a Lua state or thread and contains the entire state of the Lua interpreter
 pub const Lua = struct {
@@ -1658,8 +1673,7 @@ pub const Lua = struct {
         }
     }
 
-    /// Similar to `Lua.setTable()` but does a raw asskdjfal;sdkfjals;dkfj;dk:q
-    /// gnment (without metamethods)
+    /// Similar to `Lua.setTable()` but does a raw assignment (without metamethods)
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawset
     pub fn rawSetTable(lua: *Lua, index: i32) void {
         c.lua_rawset(lua.state, index);
@@ -3145,7 +3159,33 @@ pub const Lua = struct {
 
     /// Converts the specified index of the lua stack to the specified
     /// type if possible and returns it
-    pub fn toAny(lua: *Lua, comptime T: type, index: i32) !T {
+    /// Allocates memory if necessary
+    pub fn toAnyAlloc(lua: *Lua, comptime T: type, index: i32) !Parsed(T) {
+        var parsed = Parsed(T){
+            .arena = try lua.allocator().create(std.heap.ArenaAllocator),
+            .value = undefined,
+        };
+        errdefer lua.allocator().destroy(parsed.arena);
+        parsed.arena.* = std.heap.ArenaAllocator.init(lua.allocator());
+        errdefer parsed.arena.deinit();
+
+        parsed.value = try lua.toAnyInternal(T, parsed.arena.allocator(), true, index);
+
+        return parsed;
+    }
+
+    /// Converts the specified index of the lua stack to the specified
+    /// type if possible and returns it
+    /// Does not allocate any memory, if memory allocation is needed (such as for parsing slices)
+    /// use toAnyAlloc
+    pub inline fn toAny(lua: *Lua, comptime T: type, index: i32) !T {
+        return lua.toAnyInternal(T, null, false, index);
+    }
+
+    /// Converts the specified index of the lua stack to the specified
+    /// type if possible and returns it
+    /// optional allocator
+    fn toAnyInternal(lua: *Lua, comptime T: type, a: ?std.mem.Allocator, comptime allow_alloc: bool, index: i32) !T {
         switch (@typeInfo(T)) {
             .Int => {
                 switch (comptime lang) {
@@ -3183,7 +3223,10 @@ pub const Lua = struct {
                     }
                 } else switch (info.size) {
                     .Slice, .Many => {
-                        return try lua.toSlice(info.child, index);
+                        if (!allow_alloc) {
+                            @compileError("toAny cannot allocate memory, try using toAnyAlloc");
+                        }
+                        return try lua.toSlice(info.child, a.?, index);
                     },
                     else => {
                         return try lua.toUserdata(info.child, index);
@@ -3194,7 +3237,7 @@ pub const Lua = struct {
                 return lua.toBoolean(index);
             },
             .Enum => |info| {
-                const string = try lua.toAny([]const u8, index);
+                const string = try lua.toAnyInternal([]const u8, a, allow_alloc, index);
                 inline for (info.fields) |enum_member| {
                     if (std.mem.eql(u8, string, enum_member.name)) {
                         return @field(T, enum_member.name);
@@ -3203,14 +3246,14 @@ pub const Lua = struct {
                 return error.InvalidEnumTagName;
             },
             .Struct => {
-                return try lua.toStruct(T, index);
+                return try lua.toStruct(T, a, allow_alloc, index);
             },
             .Optional => {
                 if (lua.isNil(index)) {
                     lua.pop(1);
                     return null;
                 } else {
-                    return try lua.toAny(@typeInfo(T).Optional.child, index);
+                    return try lua.toAnyInternal(@typeInfo(T).Optional.child, a, allow_alloc, index);
                 }
             },
             else => {
@@ -3220,7 +3263,7 @@ pub const Lua = struct {
     }
 
     /// Converts a lua array to a zig slice, memory is owned by the caller
-    fn toSlice(lua: *Lua, comptime ChildType: type, raw_index: i32) ![]ChildType {
+    fn toSlice(lua: *Lua, comptime ChildType: type, a: std.mem.Allocator, raw_index: i32) ![]ChildType {
         const index = lua.absIndex(raw_index);
 
         if (!lua.isTable(index)) {
@@ -3228,19 +3271,25 @@ pub const Lua = struct {
         }
 
         const size = lua.rawLen(index);
-        var result = try lua.allocator().alloc(ChildType, size);
+        var result = try a.alloc(ChildType, size);
 
         for (1..size + 1) |i| {
             _ = try lua.pushAny(i);
             _ = lua.getTable(index);
-            result[i - 1] = try lua.toAny(ChildType, -1);
+            result[i - 1] = try lua.toAnyInternal(ChildType, a, true, -1);
         }
 
         return result;
     }
 
     /// Converts value at given index to a zig struct if possible
-    fn toStruct(lua: *Lua, comptime T: type, raw_index: i32) !T {
+    fn toStruct(
+        lua: *Lua,
+        comptime T: type,
+        a: ?std.mem.Allocator,
+        comptime allow_alloc: bool,
+        raw_index: i32,
+    ) !T {
         const index = lua.absIndex(raw_index);
 
         if (!lua.isTable(index)) {
@@ -3261,15 +3310,15 @@ pub const Lua = struct {
                     return error.LuaTableMissingValue;
                 }
             } else {
-                @field(result, field.name) = try lua.toAny(field.type, -1);
+                @field(result, field.name) = try lua.toAnyInternal(field.type, a, allow_alloc, -1);
             }
         }
 
         return result;
     }
 
-    ///automatically calls a lua function with the given arguments
-    pub fn autoCall(lua: *Lua, comptime ReturnType: type, func_name: [:0]const u8, args: anytype) !ReturnType {
+    /// Calls a function and pushes its return value to the top of the stack
+    fn autoCallAndPush(lua: *Lua, comptime ReturnType: type, func_name: [:0]const u8, args: anytype) !void {
         if (try lua.getGlobal(func_name) != LuaType.function) return error.InvalidFunctionName;
 
         inline for (args) |arg| {
@@ -3278,9 +3327,22 @@ pub const Lua = struct {
 
         const num_results = if (ReturnType == void) 0 else 1;
         try lua.protectedCall(args.len, num_results, 0);
+    }
+
+    ///automatically calls a lua function with the given arguments
+    pub inline fn autoCall(lua: *Lua, comptime ReturnType: type, func_name: [:0]const u8, args: anytype) !ReturnType {
         defer lua.setTop(0);
 
+        try lua.autoCallAndPush(ReturnType, func_name, args);
         return lua.toAny(ReturnType, -1);
+    }
+
+    ///automatically calls a lua function with the given arguments
+    pub inline fn autoCallAlloc(lua: *Lua, comptime ReturnType: type, func_name: [:0]const u8, args: anytype) !Parsed(ReturnType) {
+        defer lua.setTop(0);
+
+        try lua.autoCallAndPush(ReturnType, func_name, args);
+        return lua.toAnyAlloc(ReturnType, -1);
     }
 
     //automatically generates a wrapper function
@@ -3296,9 +3358,12 @@ pub const Lua = struct {
                 var parameters: std.meta.ArgsTuple(@TypeOf(function)) = undefined;
 
                 inline for (info.Fn.params, 0..) |param, i| {
-                    parameters[i] = lua.toAny(param.type.?, (i + 1)) catch |err| {
+                    const parsed = lua.toAnyAlloc(param.type.?, (i + 1)) catch |err| {
                         lua.raiseErrorStr(@errorName(err), .{});
                     };
+                    defer parsed.deinit();
+
+                    parameters[i] = parsed.value;
                 }
 
                 if (@typeInfo(info.Fn.return_type.?) == .ErrorUnion) {
@@ -3330,6 +3395,13 @@ pub const Lua = struct {
     pub fn get(lua: *Lua, comptime ReturnType: type, name: [:0]const u8) !ReturnType {
         _ = try lua.getGlobal(name);
         return try lua.toAny(ReturnType, -1);
+    }
+
+    /// get any lua global
+    /// can allocate memory
+    pub fn getAlloc(lua: *Lua, comptime ReturnType: type, name: [:0]const u8) !Parsed(ReturnType) {
+        _ = try lua.getGlobal(name);
+        return try lua.toAnyAlloc(ReturnType, -1);
     }
 
     ///set any lua global

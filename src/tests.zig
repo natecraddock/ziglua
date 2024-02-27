@@ -2510,11 +2510,11 @@ test "toAny slice" {
     ;
     try lua.doString(program);
     _ = try lua.getGlobal("list");
-    const sliced = try lua.toAny([]u32, -1);
-    defer lua.allocator().free(sliced);
+    const sliced = try lua.toAnyAlloc([]u32, -1);
+    defer sliced.deinit();
 
     try testing.expect(
-        std.mem.eql(u32, &[_]u32{ 1, 2, 3, 4, 5 }, sliced),
+        std.mem.eql(u32, &[_]u32{ 1, 2, 3, 4, 5 }, sliced.value),
     );
 }
 
@@ -2667,6 +2667,6 @@ test "array of strings" {
 
     try lua.doString(program);
 
-    const strings = try lua.autoCall([]const []const u8, "strings", .{});
-    lua.allocator().free(strings);
+    const strings = try lua.autoCallAlloc([]const []const u8, "strings", .{});
+    defer strings.deinit();
 }
