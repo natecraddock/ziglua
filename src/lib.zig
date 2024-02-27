@@ -3190,7 +3190,8 @@ pub const Lua = struct {
         defer {
             if (lua.getTop() != stack_size_on_entry) {
                 std.debug.print("Type that filed to parse was: {any}\n", .{T});
-                std.debug.panic("Expected stack size: {}, Actual Stack Size: {}\n\n", .{ stack_size_on_entry, lua.getTop() });
+                std.debug.print("Expected stack size: {}, Actual Stack Size: {}\n\n", .{ stack_size_on_entry, lua.getTop() });
+                @panic("internal parsing error");
             }
         }
 
