@@ -3367,7 +3367,7 @@ pub const Lua = struct {
 
                         defer parsed.deinit();
 
-                        parameters[i] = parsed;
+                        parameters[i] = parsed.value;
                     } else {
                         const parsed = lua.toAny(param.type.?, (i + 1)) catch |err| {
                             lua.raiseErrorStr(@errorName(err), .{});
