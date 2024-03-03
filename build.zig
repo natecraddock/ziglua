@@ -175,7 +175,10 @@ fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Optim
     };
 
     lib.addCSourceFiles(.{
-        .dependency = upstream,
+        .root = .{ .dependency = .{
+            .dependency = upstream,
+            .sub_path = "",
+        } },
         .files = lua_source_files,
         .flags = &flags,
     });
@@ -222,7 +225,10 @@ fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Opti
     };
 
     lib.addCSourceFiles(.{
-        .dependency = upstream,
+        .root = .{ .dependency = .{
+            .dependency = upstream,
+            .sub_path = "",
+        } },
         .files = &luau_source_files,
         .flags = &flags,
     });
@@ -314,7 +320,10 @@ fn buildLuaJIT(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Op
     buildvm.step.dependOn(&genversion_run.step);
 
     buildvm.addCSourceFiles(.{
-        .dependency = upstream,
+        .root = .{ .dependency = .{
+            .dependency = upstream,
+            .sub_path = "",
+        } },
         .files = &.{ "src/host/buildvm_asm.c", "src/host/buildvm_fold.c", "src/host/buildvm_lib.c", "src/host/buildvm_peobj.c", "src/host/buildvm.c" },
     });
 
@@ -403,7 +412,10 @@ fn buildLuaJIT(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Op
     lib.addIncludePath(folddef_header.dirname());
 
     lib.addCSourceFiles(.{
-        .dependency = upstream,
+        .root = .{ .dependency = .{
+            .dependency = upstream,
+            .sub_path = "",
+        } },
         .files = &luajit_vm,
     });
 
