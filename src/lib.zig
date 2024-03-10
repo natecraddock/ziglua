@@ -3207,7 +3207,6 @@ pub const Lua = struct {
             },
             .Optional => {
                 if (lua.isNil(index)) {
-                    lua.pop(1);
                     return null;
                 } else {
                     return try lua.toAny(@typeInfo(T).Optional.child, index);
@@ -3233,6 +3232,7 @@ pub const Lua = struct {
         for (1..size + 1) |i| {
             _ = try lua.pushAny(i);
             _ = lua.getTable(index);
+            defer lua.pop(1);
             result[i - 1] = try lua.toAny(ChildType, -1);
         }
 
@@ -3246,7 +3246,6 @@ pub const Lua = struct {
         if (!lua.isTable(index)) {
             return error.ValueNotATable;
         }
-        std.debug.assert(lua.typeOf(index) == .table);
 
         var result: T = undefined;
         inline for (@typeInfo(T).Struct.fields) |field| {
@@ -3254,6 +3253,7 @@ pub const Lua = struct {
             _ = lua.pushString(field_name);
             std.debug.assert(lua.typeOf(index) == .table);
             const lua_field_type = lua.getTable(index);
+            defer lua.pop(1);
             if (lua_field_type == .nil) {
                 if (field.default_value) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;

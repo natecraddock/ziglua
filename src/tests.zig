@@ -2488,7 +2488,7 @@ test "toAny struct recursive" {
     try lua.doString(
         \\value = {
         \\  ["foo"] = 10,
-        \\  ["bar"] = true,
+        \\  ["bar"] = false,
         \\  ["bizz"] = "hi",
         \\  ["meep"] = {
         \\    ["a"] = nil
@@ -2498,7 +2498,7 @@ test "toAny struct recursive" {
 
     _ = try lua.getGlobal("value");
     const my_struct = try lua.toAny(MyType, -1);
-    _ = my_struct;
+    try testing.expectEqualDeep(MyType{}, my_struct);
 }
 
 test "toAny slice" {
