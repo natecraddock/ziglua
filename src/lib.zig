@@ -3072,7 +3072,7 @@ pub const Lua = struct {
 
     /// Pushes any valid zig value onto the stack,
     /// Works with ints, floats, booleans, structs,
-    /// optionals, and strings
+    /// tagged unions, optionals, and strings
     pub fn pushAny(lua: *Lua, value: anytype) !void {
         switch (@typeInfo(@TypeOf(value))) {
             .Int, .ComptimeInt => {
@@ -3131,6 +3131,19 @@ pub const Lua = struct {
                     try lua.pushAny(@field(value, field.name));
                     lua.setTable(-3);
                 }
+            },
+            .Union => |info| {
+                if (info.tag_type == null) @compileError("Parameter type is not a tagged union");
+                lua.createTable(0, 0);
+                errdefer lua.pop(1);
+                try lua.pushAnyString(@tagName(value));
+
+                inline for (info.fields) |field| {
+                    if (std.mem.eql(u8, field.name, @tagName(value))) {
+                        try lua.pushAny(@field(value, field.name));
+                    }
+                }
+                lua.setTable(-3);
             },
             .Fn => {
                 lua.autoPushFunction(value);
@@ -3204,6 +3217,25 @@ pub const Lua = struct {
             },
             .Struct => {
                 return try lua.toStruct(T, index);
+            },
+            .Union => |u| {
+                if (u.tag_type == null) @compileError("Parameter type is not a tagged union");
+                if (!lua.isTable(index)) return error.ValueNotATable;
+
+                lua.pushValue(index);
+                defer lua.pop(1);
+                lua.pushNil();
+                if (lua.next(-2)) {
+                    defer lua.pop(2);
+                    const key = try lua.toAny([]const u8, -2);
+                    inline for (u.fields) |field| {
+                        if (std.mem.eql(u8, key, field.name)) {
+                            return @unionInit(T, field.name, try lua.toAny(field.type, -1));
+                        }
+                    }
+                    return error.InvalidTagName;
+                }
+                return error.TableIsEmpty;
             },
             .Optional => {
                 if (lua.isNil(index)) {
