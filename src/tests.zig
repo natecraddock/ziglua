@@ -2453,6 +2453,13 @@ test "toAny" {
     _ = lua.pushString("hello");
     const my_enum = try lua.toAny(MyEnumType, -1);
     try testing.expect(my_enum == MyEnumType.hello);
+
+    //void
+    try lua.doString("value = {}\nvalue_err = {a = 5}");
+    _ = try lua.getGlobal("value");
+    try testing.expectEqual(void{}, try lua.toAny(void, -1));
+    _ = try lua.getGlobal("value_err");
+    try testing.expectError(error.VoidTableIsNotEmpty, lua.toAny(void, -1));
 }
 
 test "toAny struct" {
@@ -2593,6 +2600,10 @@ test "pushAny" {
     try lua.pushAny(MyEnumType.goodbye);
     const my_enum = try lua.toAny(MyEnumType, -1);
     try testing.expect(my_enum == MyEnumType.goodbye);
+
+    //void
+    try lua.pushAny(void{});
+    try testing.expectEqual(void{}, try lua.toAny(void, -1));
 }
 
 test "pushAny struct" {
