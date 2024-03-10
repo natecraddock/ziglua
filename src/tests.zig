@@ -2501,6 +2501,42 @@ test "toAny struct recursive" {
     try testing.expectEqualDeep(MyType{}, my_struct);
 }
 
+test "toAny tagged union" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const MyType = union(enum) {
+        a: i32,
+        b: bool,
+        c: []const u8,
+        d: struct { t0: f64, t1: f64 },
+    };
+
+    try lua.doString(
+        \\value0 = {
+        \\  ["c"] = "Hello, world!",
+        \\}
+        \\value1 = {
+        \\  ["d"] = {t0 = 5.0, t1 = -3.0},
+        \\}
+        \\value2 = {
+        \\  ["a"] = 1000,
+        \\}
+    );
+
+    _ = try lua.getGlobal("value0");
+    const my_struct0 = try lua.toAny(MyType, -1);
+    try testing.expectEqualDeep(MyType{ .c = "Hello, world!" }, my_struct0);
+
+    _ = try lua.getGlobal("value1");
+    const my_struct1 = try lua.toAny(MyType, -1);
+    try testing.expectEqualDeep(MyType{ .d = .{ .t0 = 5.0, .t1 = -3.0 } }, my_struct1);
+
+    _ = try lua.getGlobal("value2");
+    const my_struct2 = try lua.toAny(MyType, -1);
+    try testing.expectEqualDeep(MyType{ .a = 1000 }, my_struct2);
+}
+
 test "toAny slice" {
     var lua = try Lua.init(&testing.allocator);
     defer lua.deinit();
@@ -2573,6 +2609,28 @@ test "pushAny struct" {
     try testing.expect(std.mem.eql(u8, value.bizz, (MyType{}).bizz));
     try testing.expect(value.foo == (MyType{}).foo);
     try testing.expect(value.bar == (MyType{}).bar);
+}
+
+test "pushAny tagged union" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const MyType = union(enum) {
+        a: i32,
+        b: bool,
+        c: []const u8,
+        d: struct { t0: f64, t1: f64 },
+    };
+
+    const t0 = MyType{ .d = .{ .t0 = 5.0, .t1 = -3.0 } };
+    try lua.pushAny(t0);
+    const value0 = try lua.toAny(MyType, -1);
+    try testing.expectEqualDeep(t0, value0);
+
+    const t1 = MyType{ .c = "Hello, world!" };
+    try lua.pushAny(t1);
+    const value1 = try lua.toAny(MyType, -1);
+    try testing.expectEqualDeep(t1, value1);
 }
 
 test "pushAny slice/array" {
