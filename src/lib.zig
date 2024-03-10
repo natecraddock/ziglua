@@ -3148,7 +3148,9 @@ pub const Lua = struct {
             .Fn => {
                 lua.autoPushFunction(value);
             },
-            .Void => {},
+            .Void => {
+                lua.createTable(0, 0);
+            },
             else => {
                 @compileLog(value);
                 @compileError("Invalid type given");
@@ -3220,7 +3222,7 @@ pub const Lua = struct {
             },
             .Union => |u| {
                 if (u.tag_type == null) @compileError("Parameter type is not a tagged union");
-                if (!lua.isTable(index)) return error.ValueNotATable;
+                if (!lua.isTable(index)) return error.ValueIsNotATable;
 
                 lua.pushValue(index);
                 defer lua.pop(1);
@@ -3243,6 +3245,17 @@ pub const Lua = struct {
                 } else {
                     return try lua.toAny(@typeInfo(T).Optional.child, index);
                 }
+            },
+            .Void => {
+                if (!lua.isTable(index)) return error.ValueIsNotATable;
+                lua.pushValue(index);
+                defer lua.pop(1);
+                lua.pushNil();
+                if (lua.next(-2)) {
+                    lua.pop(2);
+                    return error.VoidTableIsNotEmpty;
+                }
+                return void{};
             },
             else => {
                 @compileError("Invalid parameter type");
