@@ -3096,7 +3096,7 @@ pub const Lua = struct {
                     .C, .Many, .Slice => {
                         lua.createTable(0, 0);
                         for (value, 0..) |index_value, i| {
-                            try lua.pushAny(i);
+                            try lua.pushAny(i + 1);
                             try lua.pushAny(index_value);
                             lua.setTable(-3);
                         }
@@ -3106,7 +3106,7 @@ pub const Lua = struct {
             .Array => {
                 lua.createTable(0, 0);
                 for (value, 0..) |index_value, i| {
-                    try lua.pushAny(i);
+                    try lua.pushAny(i + 1);
                     try lua.pushAny(index_value);
                     lua.setTable(-3);
                 }
