@@ -3111,6 +3111,9 @@ pub const Lua = struct {
                     lua.setTable(-3);
                 }
             },
+            .Vector => |info| {
+                try lua.pushAny(@as([info.len]info.child, value));
+            },
             .Bool => {
                 lua.pushBoolean(value);
             },
@@ -3185,6 +3188,19 @@ pub const Lua = struct {
                         return @as(T, @floatCast(result));
                     },
                 }
+            },
+            .Array, .Vector => {
+                const child = std.meta.Child(T);
+                const arr_len = switch (@typeInfo(T)) {
+                    inline else => |i| i.len,
+                };
+                var result: T = undefined;
+                for (0..arr_len) |i| {
+                    _ = lua.getIndex(index, @intCast(i + 1));
+                    defer lua.pop(1);
+                    result[i] = try lua.toAny(child, -1);
+                }
+                return result;
             },
             .Pointer => |info| {
                 if (comptime isTypeString(info)) {

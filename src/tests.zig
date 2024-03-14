@@ -2561,6 +2561,34 @@ test "toAny slice" {
     );
 }
 
+test "toAny array" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const arr: [5]?u32 = .{ 1, 2, null, 4, 5 };
+    const program =
+        \\array= {1, 2, nil, 4, 5}
+    ;
+    try lua.doString(program);
+    _ = try lua.getGlobal("array");
+    const array = try lua.toAny([5]?u32, -1);
+    try testing.expectEqual(arr, array);
+}
+
+test "toAny vector" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const vec = @Vector(4, bool){ true, false, false, true };
+    const program =
+        \\vector= {true, false, false, true}
+    ;
+    try lua.doString(program);
+    _ = try lua.getGlobal("vector");
+    const vector = try lua.toAny(@Vector(4, bool), -1);
+    try testing.expectEqual(vec, vector);
+}
+
 test "pushAny" {
     var lua = try Lua.init(&testing.allocator);
     defer lua.deinit();
@@ -2644,14 +2672,24 @@ test "pushAny tagged union" {
     try testing.expectEqualDeep(t1, value1);
 }
 
-test "pushAny slice/array" {
+test "pushAny toAny slice/array/vector" {
     var lua = try Lua.init(&testing.allocator);
     defer lua.deinit();
 
     var my_array = [_]u32{ 1, 2, 3, 4, 5 };
     const my_slice: []u32 = my_array[0..];
+    const my_vector: @Vector(5, u32) = .{ 1, 2, 3, 4, 5 };
     try lua.pushAny(my_slice);
     try lua.pushAny(my_array);
+    try lua.pushAny(my_vector);
+    const vector = try lua.toAny(@TypeOf(my_vector), -1);
+    const array = try lua.toAny(@TypeOf(my_array), -2);
+    const slice = try lua.toAny(@TypeOf(my_slice), -3);
+    defer lua.allocator().free(slice);
+
+    try testing.expectEqual(my_array, array);
+    try testing.expectEqualDeep(my_slice, slice);
+    try testing.expectEqual(my_vector, vector);
 }
 
 fn foo(a: i32, b: i32) i32 {
