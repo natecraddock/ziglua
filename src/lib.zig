@@ -3195,8 +3195,17 @@ pub const Lua = struct {
                     inline else => |i| i.len,
                 };
                 var result: T = undefined;
+                lua.pushValue(index);
+                defer lua.pop(1);
+
                 for (0..arr_len) |i| {
-                    _ = lua.getIndex(index, @intCast(i + 1));
+                    if (lua.getMetaField(-1, "__index")) |_| {
+                        lua.pushValue(-2);
+                        lua.pushInteger(@intCast(i + 1));
+                        lua.call(2, 1);
+                    } else |_| {
+                        _ = lua.rawGetIndex(-1, @intCast(i + 1));
+                    }
                     defer lua.pop(1);
                     result[i] = try lua.toAny(child, -1);
                 }
