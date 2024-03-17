@@ -2684,11 +2684,11 @@ test "pushAny toAny slice/array/vector" {
     try lua.pushAny(my_vector);
     const vector = try lua.toAny(@TypeOf(my_vector), -1);
     const array = try lua.toAny(@TypeOf(my_array), -2);
-    const slice = try lua.toAny(@TypeOf(my_slice), -3);
-    defer lua.allocator().free(slice);
+    const slice = try lua.toAnyAlloc(@TypeOf(my_slice), -3);
+    defer slice.deinit();
 
     try testing.expectEqual(my_array, array);
-    try testing.expectEqualDeep(my_slice, slice);
+    try testing.expectEqualDeep(my_slice, slice.value);
     try testing.expectEqual(my_vector, vector);
 }
 
