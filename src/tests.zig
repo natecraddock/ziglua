@@ -2510,11 +2510,11 @@ test "toAny slice" {
     ;
     try lua.doString(program);
     _ = try lua.getGlobal("list");
-    const sliced = try lua.toAny([]u32, -1);
-    defer lua.allocator().free(sliced);
+    const sliced = try lua.toAnyAlloc([]u32, -1);
+    defer sliced.deinit();
 
     try testing.expect(
-        std.mem.eql(u32, &[_]u32{ 1, 2, 3, 4, 5 }, sliced),
+        std.mem.eql(u32, &[_]u32{ 1, 2, 3, 4, 5 }, sliced.value),
     );
 }
 
@@ -2637,8 +2637,58 @@ test "autoCall" {
     ;
 
     try lua.doString(program);
-    const sum = try lua.autoCall(usize, "add", .{ 1, 2 });
-    try std.testing.expect(3 == sum);
+
+    for (0..100) |_| {
+        const sum = try lua.autoCall(usize, "add", .{ 1, 2 });
+        try std.testing.expect(3 == sum);
+    }
+
+    for (0..100) |_| {
+        const sum = try lua.autoCallAlloc(usize, "add", .{ 1, 2 });
+        defer sum.deinit();
+        try std.testing.expect(3 == sum.value);
+    }
+}
+
+test "autoCall stress test" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const program =
+        \\function add(a, b)
+        \\   return a + b
+        \\end
+        \\
+        \\
+        \\function KeyBindings()
+        \\
+        \\   local bindings = {
+        \\      {['name'] = 'player_right', ['key'] = 'a'},
+        \\      {['name'] = 'player_left',  ['key'] = 'd'},
+        \\      {['name'] = 'player_up',    ['key'] = 'w'},
+        \\      {['name'] = 'player_down',  ['key'] = 's'},
+        \\      {['name'] = 'zoom_in',      ['key'] = '='},
+        \\      {['name'] = 'zoom_out',     ['key'] = '-'},
+        \\      {['name'] = 'debug_mode',   ['key'] = '/'},
+        \\   }
+        \\
+        \\   return bindings
+        \\end
+    ;
+
+    try lua.doString(program);
+
+    const ConfigType = struct {
+        name: []const u8,
+        key: []const u8,
+        shift: bool = false,
+        control: bool = false,
+    };
+
+    for (0..100) |_| {
+        const sum = try lua.autoCallAlloc([]ConfigType, "KeyBindings", .{});
+        defer sum.deinit();
+    }
 }
 
 test "get set" {
@@ -2667,6 +2717,8 @@ test "array of strings" {
 
     try lua.doString(program);
 
-    const strings = try lua.autoCall([]const []const u8, "strings", .{});
-    lua.allocator().free(strings);
+    for (0..100) |_| {
+        const strings = try lua.autoCallAlloc([]const []const u8, "strings", .{});
+        defer strings.deinit();
+    }
 }
