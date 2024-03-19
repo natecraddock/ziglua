@@ -330,7 +330,7 @@ test "type of and getting values" {
     try expect(lua.isFunction(-1));
     try expectEqual(ziglua.wrap(add), try lua.toCFunction(-1));
 
-    _ = lua.pushBytes("hello world");
+    _ = lua.pushString("hello world");
     try expectEqual(.string, lua.typeOf(-1));
     try expect(lua.isString(-1));
 
@@ -373,7 +373,7 @@ test "unsigned" {
     lua.pushUnsigned(123456);
     try expectEqual(123456, try lua.toUnsigned(-1));
 
-    _ = lua.pushBytes("hello");
+    _ = lua.pushString("hello");
     try expectError(error.Fail, lua.toUnsigned(-1));
 }
 
@@ -1365,7 +1365,7 @@ test "aux check functions" {
     lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
-    _ = lua.pushBytes("hello world");
+    _ = lua.pushString("hello world");
     lua.protectedCall(3, 0, 0) catch {
         try expectStringContains("number expected", try lua.toBytes(-1));
         lua.pop(-1);
@@ -1374,7 +1374,7 @@ test "aux check functions" {
     lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
-    _ = lua.pushBytes("hello world");
+    _ = lua.pushString("hello world");
     lua.pushNumber(4);
     lua.protectedCall(4, 0, 0) catch {
         try expectStringContains("string expected", try lua.toBytes(-1));
@@ -1384,7 +1384,7 @@ test "aux check functions" {
     lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
-    _ = lua.pushBytes("hello world");
+    _ = lua.pushString("hello world");
     lua.pushNumber(4);
     _ = lua.pushStringZ("hello world");
     lua.protectedCall(5, 0, 0) catch {
@@ -1396,7 +1396,7 @@ test "aux check functions" {
         lua.pushFunction(function);
         lua.pushNil();
         lua.pushInteger(3);
-        _ = lua.pushBytes("hello world");
+        _ = lua.pushString("hello world");
         lua.pushNumber(4);
         _ = lua.pushStringZ("hello world");
         lua.pushBoolean(true);
@@ -1410,7 +1410,7 @@ test "aux check functions" {
     // test pushFail here (currently acts the same as pushNil)
     if (ziglua.lang == .lua54) lua.pushFail() else lua.pushNil();
     lua.pushInteger(3);
-    _ = lua.pushBytes("hello world");
+    _ = lua.pushString("hello world");
     lua.pushNumber(4);
     _ = lua.pushStringZ("hello world");
     lua.pushBoolean(true);
@@ -1439,7 +1439,7 @@ test "aux opt functions" {
 
     lua.pushFunction(function);
     lua.pushInteger(10);
-    _ = lua.pushBytes("zig");
+    _ = lua.pushString("zig");
     lua.pushNumber(1.23);
     _ = lua.pushStringZ("lang");
     try lua.protectedCall(4, 0, 0);
@@ -1565,7 +1565,7 @@ test "ref" {
     try expectError(error.Fail, lua.ref(ziglua.registry_index));
     try expectEqual(0, lua.getTop());
 
-    _ = lua.pushBytes("Hello there");
+    _ = lua.pushString("Hello there");
     const ref = try lua.ref(ziglua.registry_index);
 
     _ = lua.rawGetIndex(ziglua.registry_index, ref);
@@ -1586,7 +1586,7 @@ test "ref luau" {
 
     // In luau lua.ref does not pop the item from the stack
     // and the data is stored in the registry_index by default
-    lua.pushBytes("Hello there");
+    lua.pushString("Hello there");
     const ref = try lua.ref(2);
 
     _ = lua.rawGetIndex(ziglua.registry_index, ref);
@@ -1718,11 +1718,11 @@ test "userdata" {
         fn inner(l: *Lua) i32 {
             const ptr = l.checkUserdata(Type, 1, "Type");
             if (ptr.a != 1234) {
-                _ = l.pushBytes("error!");
+                _ = l.pushString("error!");
                 l.raiseError();
             }
             if (ptr.b != 3.14) {
-                _ = l.pushBytes("error!");
+                _ = l.pushString("error!");
                 l.raiseError();
             }
             return 1;
@@ -1751,15 +1751,15 @@ test "userdata" {
     const testUdata = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
             const ptr = l.testUserdata(Type, 1, "Type") catch {
-                _ = l.pushBytes("error!");
+                _ = l.pushString("error!");
                 l.raiseError();
             };
             if (ptr.a != 1234) {
-                _ = l.pushBytes("error!");
+                _ = l.pushString("error!");
                 l.raiseError();
             }
             if (ptr.b != 3.14) {
-                _ = l.pushBytes("error!");
+                _ = l.pushString("error!");
                 l.raiseError();
             }
             return 0;

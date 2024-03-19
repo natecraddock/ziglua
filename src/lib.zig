@@ -1533,7 +1533,7 @@ pub const Lua = struct {
 
     /// Pushes the bytes onto the stack. Returns a slice pointing to Lua's internal copy of the string
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushlstring
-    pub fn pushBytes(lua: *Lua, bytes: []const u8) BytesResult {
+    pub fn pushString(lua: *Lua, bytes: []const u8) BytesResult {
         switch (lang) {
             .lua51, .luajit, .luau => {
                 c.lua_pushlstring(lua.state, bytes.ptr, bytes.len);
