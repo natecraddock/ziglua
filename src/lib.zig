@@ -435,13 +435,6 @@ pub const Libs53 = packed struct {
     debug: bool = false,
 };
 
-/// Bitflag for the Lua standard libraries
-pub const Libs = switch (lang) {
-    .lua51, .luajit => Libs51,
-    .lua52 => Libs52,
-    .lua53, .lua54, .luau => Libs53,
-};
-
 /// The type of the opaque structure that points to a thread and the state of a Lua interpreter
 pub const LuaState = c.lua_State;
 
@@ -2956,30 +2949,6 @@ pub const Lua = struct {
 
     // Standard library loading functions
 
-    /// Opens the specified standard library functions
-    /// Behaves like openLibs, but allows specifying which libraries
-    /// to expose to the global table rather than all of them
-    /// See https://www.lua.org/manual/5.4/manual.html#luaL_openlibs
-    pub fn open(lua: *Lua, libs: Libs) void {
-        if (libs.base) lua.requireF("_G", c.luaopen_base, true);
-        if (libs.string) lua.requireF(c.LUA_STRLIBNAME, c.luaopen_string, true);
-        if (libs.table) lua.requireF(c.LUA_TABLIBNAME, c.luaopen_table, true);
-        if (libs.math) lua.requireF(c.LUA_MATHLIBNAME, c.luaopen_math, true);
-        if (libs.os) lua.requireF(c.LUA_OSLIBNAME, c.luaopen_os, true);
-        if (libs.debug) lua.requireF(c.LUA_DBLIBNAME, c.luaopen_debug, true);
-
-        if (lang != .luau) {
-            if (libs.io) lua.requireF(c.LUA_IOLIBNAME, c.luaopen_io, true);
-            if (libs.package) lua.requireF(c.LUA_LOADLIBNAME, c.luaopen_package, true);
-        }
-
-        if (lang != .lua51 and lang != .luajit and libs.coroutine) lua.requireF(c.LUA_COLIBNAME, c.luaopen_coroutine, true);
-
-        if ((lang == .lua53 or lang == .lua54) and libs.utf8) lua.requireF(c.LUA_UTF8LIBNAME, c.luaopen_utf8, true);
-
-        if (lang == .lua52 and libs.bit) lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit32, true);
-    }
-
     /// Open all standard libraries
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_openlibs
     pub fn openLibs(lua: *Lua) void {
@@ -2988,57 +2957,57 @@ pub const Lua = struct {
 
     /// Open the basic standard library
     pub fn openBase(lua: *Lua) void {
-        _ = c.luaopen_base(lua.state);
+        lua.requireF("_G", c.luaopen_base, true);
     }
 
     /// Open the coroutine standard library
     pub fn openCoroutine(lua: *Lua) void {
-        _ = c.luaopen_coroutine(lua.state);
+        lua.requireF(c.LUA_COLIBNAME, c.luaopen_coroutine, true);
     }
 
     /// Open the package standard library
     pub fn openPackage(lua: *Lua) void {
-        _ = c.luaopen_package(lua.state);
+        lua.requireF(c.LUA_LOADLIBNAME, c.luaopen_package, true);
     }
 
     /// Open the string standard library
     pub fn openString(lua: *Lua) void {
-        _ = c.luaopen_string(lua.state);
+        lua.requireF(c.LUA_STRLIBNAME, c.luaopen_string, true);
     }
 
     /// Open the UTF-8 standard library
     pub fn openUtf8(lua: *Lua) void {
-        _ = c.luaopen_utf8(lua.state);
+        lua.requireF(c.LUA_UTF8LIBNAME, c.luaopen_utf8, true);
     }
 
     /// Open the table standard library
     pub fn openTable(lua: *Lua) void {
-        _ = c.luaopen_table(lua.state);
+        lua.requireF(c.LUA_TABLIBNAME, c.luaopen_table, true);
     }
 
     /// Open the math standard library
     pub fn openMath(lua: *Lua) void {
-        _ = c.luaopen_math(lua.state);
+        lua.requireF(c.LUA_MATHLIBNAME, c.luaopen_math, true);
     }
 
     /// Open the io standard library
     pub fn openIO(lua: *Lua) void {
-        _ = c.luaopen_io(lua.state);
+        lua.requireF(c.LUA_IOLIBNAME, c.luaopen_io, true);
     }
 
     /// Open the os standard library
     pub fn openOS(lua: *Lua) void {
-        _ = c.luaopen_os(lua.state);
+        lua.requireF(c.LUA_OSLIBNAME, c.luaopen_os, true);
     }
 
     /// Open the debug standard library
     pub fn openDebug(lua: *Lua) void {
-        _ = c.luaopen_debug(lua.state);
+        lua.requireF(c.LUA_DBLIBNAME, c.luaopen_debug, true);
     }
 
     /// Open the bit32 standard library
     pub fn openBit32(lua: *Lua) void {
-        _ = c.luaopen_bit32(lua.state);
+        lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit32, true);
     }
 
     /// Returns if given typeinfo is a string type
@@ -3373,6 +3342,7 @@ pub const Lua = struct {
         }
 
         var result: T = undefined;
+
         inline for (@typeInfo(T).Struct.fields) |field| {
             const field_name = comptime field.name ++ "";
             _ = lua.pushString(field_name);
