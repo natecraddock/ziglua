@@ -1554,16 +1554,14 @@ pub const Lua = struct {
         c.lua_pushnumber(lua.state, n);
     }
 
-    const StringResult = switch (lang) {
-        .lua51, .luajit, .luau => void,
-        else => [:0]const u8,
-    };
-
     /// Pushes a zero-terminated string onto the stack
     /// Lua makes a copy of the string so `str` may be freed immediately after return
     /// Returns a pointer to the internal Lua string
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushstring
-    pub fn pushString(lua: *Lua, str: [:0]const u8) StringResult {
+    pub fn pushStringZ(lua: *Lua, str: [:0]const u8) switch (lang) {
+        .lua51, .luajit, .luau => void,
+        else => [:0]const u8,
+    } {
         switch (lang) {
             .lua51, .luajit, .luau => {
                 c.lua_pushstring(lua.state, str.ptr);
@@ -2853,7 +2851,7 @@ pub const Lua = struct {
         switch (lang) {
             .lua51, .luajit, .luau => {
                 lua.pushFunction(open_fn);
-                _ = lua.pushString(mod_name);
+                _ = lua.pushStringZ(mod_name);
                 lua.call(1, 0);
             },
             else => c.luaL_requiref(lua.state, mod_name.ptr, open_fn, @intFromBool(global)),
@@ -3034,7 +3032,7 @@ pub const Lua = struct {
                 if (casted.* != 0) {
                     @compileError("Sentinel of slice must be a null terminator");
                 }
-                _ = lua.pushString(value);
+                _ = lua.pushStringZ(value);
             },
             .C, .Many, .Slice => {
                 std.debug.assert(info.child == u8);
@@ -3043,11 +3041,11 @@ pub const Lua = struct {
                     if (casted.* != 0) {
                         @compileError("Sentinel of slice must be a null terminator");
                     }
-                    _ = lua.pushString(value);
+                    _ = lua.pushStringZ(value);
                 } else {
                     const null_terminated = try lua.allocator().dupeZ(u8, value);
                     defer lua.allocator().free(null_terminated);
-                    _ = lua.pushString(null_terminated);
+                    _ = lua.pushStringZ(null_terminated);
                 }
             },
         }
@@ -3101,7 +3099,7 @@ pub const Lua = struct {
                 lua.pushBoolean(value);
             },
             .Enum => {
-                _ = lua.pushString(@tagName(value));
+                _ = lua.pushStringZ(@tagName(value));
             },
             .Optional, .Null => {
                 if (value == null) {
@@ -3345,7 +3343,7 @@ pub const Lua = struct {
 
         inline for (@typeInfo(T).Struct.fields) |field| {
             const field_name = comptime field.name ++ "";
-            _ = lua.pushString(field_name);
+            _ = lua.pushStringZ(field_name);
 
             const lua_field_type = lua.getTable(index);
             defer lua.pop(1);
