@@ -3055,7 +3055,7 @@ pub const Lua = struct {
 
     /// Pushes any valid zig value onto the stack,
     /// Works with ints, floats, booleans, structs,
-    /// optionals, and strings
+    /// tagged unions, optionals, and strings
     pub fn pushAny(lua: *Lua, value: anytype) !void {
         switch (@typeInfo(@TypeOf(value))) {
             .Int, .ComptimeInt => {
@@ -3079,7 +3079,7 @@ pub const Lua = struct {
                     .C, .Many, .Slice => {
                         lua.createTable(0, 0);
                         for (value, 0..) |index_value, i| {
-                            try lua.pushAny(i);
+                            try lua.pushAny(i + 1);
                             try lua.pushAny(index_value);
                             lua.setTable(-3);
                         }
@@ -3089,10 +3089,13 @@ pub const Lua = struct {
             .Array => {
                 lua.createTable(0, 0);
                 for (value, 0..) |index_value, i| {
-                    try lua.pushAny(i);
+                    try lua.pushAny(i + 1);
                     try lua.pushAny(index_value);
                     lua.setTable(-3);
                 }
+            },
+            .Vector => |info| {
+                try lua.pushAny(@as([info.len]info.child, value));
             },
             .Bool => {
                 lua.pushBoolean(value);
@@ -3115,10 +3118,25 @@ pub const Lua = struct {
                     lua.setTable(-3);
                 }
             },
+            .Union => |info| {
+                if (info.tag_type == null) @compileError("Parameter type is not a tagged union");
+                lua.createTable(0, 0);
+                errdefer lua.pop(1);
+                try lua.pushAnyString(@tagName(value));
+
+                inline for (info.fields) |field| {
+                    if (std.mem.eql(u8, field.name, @tagName(value))) {
+                        try lua.pushAny(@field(value, field.name));
+                    }
+                }
+                lua.setTable(-3);
+            },
             .Fn => {
                 lua.autoPushFunction(value);
             },
-            .Void => {},
+            .Void => {
+                lua.createTable(0, 0);
+            },
             else => {
                 @compileLog(value);
                 @compileError("Invalid type given");
@@ -3189,6 +3207,28 @@ pub const Lua = struct {
                     },
                 }
             },
+            .Array, .Vector => {
+                const child = std.meta.Child(T);
+                const arr_len = switch (@typeInfo(T)) {
+                    inline else => |i| i.len,
+                };
+                var result: T = undefined;
+                lua.pushValue(index);
+                defer lua.pop(1);
+
+                for (0..arr_len) |i| {
+                    if (lua.getMetaField(-1, "__index")) |_| {
+                        lua.pushValue(-2);
+                        lua.pushInteger(@intCast(i + 1));
+                        lua.call(2, 1);
+                    } else |_| {
+                        _ = lua.rawGetIndex(-1, @intCast(i + 1));
+                    }
+                    defer lua.pop(1);
+                    result[i] = try lua.toAny(child, -1);
+                }
+                return result;
+            },
             .Pointer => |info| {
                 if (comptime isTypeString(info)) {
                     const string: [*:0]const u8 = try lua.toString(index);
@@ -3226,12 +3266,42 @@ pub const Lua = struct {
             .Struct => {
                 return try lua.toStruct(T, a, allow_alloc, index);
             },
+            .Union => |u| {
+                if (u.tag_type == null) @compileError("Parameter type is not a tagged union");
+                if (!lua.isTable(index)) return error.ValueIsNotATable;
+
+                lua.pushValue(index);
+                defer lua.pop(1);
+                lua.pushNil();
+                if (lua.next(-2)) {
+                    defer lua.pop(2);
+                    const key = try lua.toAny([]const u8, -2);
+                    inline for (u.fields) |field| {
+                        if (std.mem.eql(u8, key, field.name)) {
+                            return @unionInit(T, field.name, try lua.toAny(field.type, -1));
+                        }
+                    }
+                    return error.InvalidTagName;
+                }
+                return error.TableIsEmpty;
+            },
             .Optional => {
                 if (lua.isNil(index)) {
                     return null;
                 } else {
                     return try lua.toAnyInternal(@typeInfo(T).Optional.child, a, allow_alloc, index);
                 }
+            },
+            .Void => {
+                if (!lua.isTable(index)) return error.ValueIsNotATable;
+                lua.pushValue(index);
+                defer lua.pop(1);
+                lua.pushNil();
+                if (lua.next(-2)) {
+                    lua.pop(2);
+                    return error.VoidTableIsNotEmpty;
+                }
+                return void{};
             },
             else => {
                 @compileError("Invalid parameter type");
@@ -3253,8 +3323,8 @@ pub const Lua = struct {
         for (1..size + 1) |i| {
             _ = try lua.pushAny(i);
             _ = lua.getTable(index);
+            defer lua.pop(1);
             result[i - 1] = try lua.toAnyInternal(ChildType, a, true, -1);
-            lua.pop(1);
         }
 
         return result;
@@ -3270,7 +3340,6 @@ pub const Lua = struct {
         if (!lua.isTable(index)) {
             return error.ValueNotATable;
         }
-        std.debug.assert(lua.typeOf(index) == .table);
 
         var result: T = undefined;
 
@@ -3279,11 +3348,11 @@ pub const Lua = struct {
             _ = lua.pushString(field_name);
 
             const lua_field_type = lua.getTable(index);
+            defer lua.pop(1);
             if (lua_field_type == .nil) {
                 if (field.default_value) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
                 } else {
-                    lua.pop(1);
                     return error.LuaTableMissingValue;
                 }
             } else {
@@ -3291,7 +3360,6 @@ pub const Lua = struct {
                 @field(result, field.name) = try lua.toAnyInternal(field.type, a, allow_alloc, -1);
                 std.debug.assert(stack_size_before_call == lua.getTop());
             }
-            lua.pop(1); //pop the value off the stack
         }
 
         return result;

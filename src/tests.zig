@@ -2437,6 +2437,13 @@ test "toAny" {
     _ = lua.pushString("hello");
     const my_enum = try lua.toAny(MyEnumType, -1);
     try testing.expect(my_enum == MyEnumType.hello);
+
+    //void
+    try lua.doString("value = {}\nvalue_err = {a = 5}");
+    _ = try lua.getGlobal("value");
+    try testing.expectEqual(void{}, try lua.toAny(void, -1));
+    _ = try lua.getGlobal("value_err");
+    try testing.expectError(error.VoidTableIsNotEmpty, lua.toAny(void, -1));
 }
 
 test "toAny struct" {
@@ -2472,7 +2479,7 @@ test "toAny struct recursive" {
     try lua.doString(
         \\value = {
         \\  ["foo"] = 10,
-        \\  ["bar"] = true,
+        \\  ["bar"] = false,
         \\  ["bizz"] = "hi",
         \\  ["meep"] = {
         \\    ["a"] = nil
@@ -2482,7 +2489,43 @@ test "toAny struct recursive" {
 
     _ = try lua.getGlobal("value");
     const my_struct = try lua.toAny(MyType, -1);
-    _ = my_struct;
+    try testing.expectEqualDeep(MyType{}, my_struct);
+}
+
+test "toAny tagged union" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const MyType = union(enum) {
+        a: i32,
+        b: bool,
+        c: []const u8,
+        d: struct { t0: f64, t1: f64 },
+    };
+
+    try lua.doString(
+        \\value0 = {
+        \\  ["c"] = "Hello, world!",
+        \\}
+        \\value1 = {
+        \\  ["d"] = {t0 = 5.0, t1 = -3.0},
+        \\}
+        \\value2 = {
+        \\  ["a"] = 1000,
+        \\}
+    );
+
+    _ = try lua.getGlobal("value0");
+    const my_struct0 = try lua.toAny(MyType, -1);
+    try testing.expectEqualDeep(MyType{ .c = "Hello, world!" }, my_struct0);
+
+    _ = try lua.getGlobal("value1");
+    const my_struct1 = try lua.toAny(MyType, -1);
+    try testing.expectEqualDeep(MyType{ .d = .{ .t0 = 5.0, .t1 = -3.0 } }, my_struct1);
+
+    _ = try lua.getGlobal("value2");
+    const my_struct2 = try lua.toAny(MyType, -1);
+    try testing.expectEqualDeep(MyType{ .a = 1000 }, my_struct2);
 }
 
 test "toAny slice" {
@@ -2500,6 +2543,34 @@ test "toAny slice" {
     try testing.expect(
         std.mem.eql(u32, &[_]u32{ 1, 2, 3, 4, 5 }, sliced.value),
     );
+}
+
+test "toAny array" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const arr: [5]?u32 = .{ 1, 2, null, 4, 5 };
+    const program =
+        \\array= {1, 2, nil, 4, 5}
+    ;
+    try lua.doString(program);
+    _ = try lua.getGlobal("array");
+    const array = try lua.toAny([5]?u32, -1);
+    try testing.expectEqual(arr, array);
+}
+
+test "toAny vector" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const vec = @Vector(4, bool){ true, false, false, true };
+    const program =
+        \\vector= {true, false, false, true}
+    ;
+    try lua.doString(program);
+    _ = try lua.getGlobal("vector");
+    const vector = try lua.toAny(@Vector(4, bool), -1);
+    try testing.expectEqual(vec, vector);
 }
 
 test "pushAny" {
@@ -2541,6 +2612,10 @@ test "pushAny" {
     try lua.pushAny(MyEnumType.goodbye);
     const my_enum = try lua.toAny(MyEnumType, -1);
     try testing.expect(my_enum == MyEnumType.goodbye);
+
+    //void
+    try lua.pushAny(void{});
+    try testing.expectEqual(void{}, try lua.toAny(void, -1));
 }
 
 test "pushAny struct" {
@@ -2559,14 +2634,46 @@ test "pushAny struct" {
     try testing.expect(value.bar == (MyType{}).bar);
 }
 
-test "pushAny slice/array" {
+test "pushAny tagged union" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const MyType = union(enum) {
+        a: i32,
+        b: bool,
+        c: []const u8,
+        d: struct { t0: f64, t1: f64 },
+    };
+
+    const t0 = MyType{ .d = .{ .t0 = 5.0, .t1 = -3.0 } };
+    try lua.pushAny(t0);
+    const value0 = try lua.toAny(MyType, -1);
+    try testing.expectEqualDeep(t0, value0);
+
+    const t1 = MyType{ .c = "Hello, world!" };
+    try lua.pushAny(t1);
+    const value1 = try lua.toAny(MyType, -1);
+    try testing.expectEqualDeep(t1, value1);
+}
+
+test "pushAny toAny slice/array/vector" {
     var lua = try Lua.init(&testing.allocator);
     defer lua.deinit();
 
     var my_array = [_]u32{ 1, 2, 3, 4, 5 };
     const my_slice: []u32 = my_array[0..];
+    const my_vector: @Vector(5, u32) = .{ 1, 2, 3, 4, 5 };
     try lua.pushAny(my_slice);
     try lua.pushAny(my_array);
+    try lua.pushAny(my_vector);
+    const vector = try lua.toAny(@TypeOf(my_vector), -1);
+    const array = try lua.toAny(@TypeOf(my_array), -2);
+    const slice = try lua.toAnyAlloc(@TypeOf(my_slice), -3);
+    defer slice.deinit();
+
+    try testing.expectEqual(my_array, array);
+    try testing.expectEqualDeep(my_slice, slice.value);
+    try testing.expectEqual(my_vector, vector);
 }
 
 fn foo(a: i32, b: i32) i32 {
