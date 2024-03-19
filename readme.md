@@ -14,11 +14,11 @@ Like the Lua C API, the Ziglua API "emphasizes flexibility and simplicity... com
 
 ## Documentation
 Docs are a work in progress and are automatically generated for each push to main. Most functions and public declarations are documented.
-* [Ziglua for Lua 5.1 Docs](https://natecraddock.github.io/ziglua/lua51/)
-* [Ziglua for Lua 5.2 Docs](https://natecraddock.github.io/ziglua/lua52/)
-* [Ziglua for Lua 5.3 Docs](https://natecraddock.github.io/ziglua/lua53/)
-* [Ziglua for Lua 5.4 Docs](https://natecraddock.github.io/ziglua/lua54/)
-* [Ziglua for Luau Docs](https://natecraddock.github.io/ziglua/luau/)
+* [Ziglua for Lua 5.1 Docs](https://natecraddock.github.io/ziglua/lua51/#ziglua.lib.Lua)
+* [Ziglua for Lua 5.2 Docs](https://natecraddock.github.io/ziglua/lua52/#ziglua.lib.Lua)
+* [Ziglua for Lua 5.3 Docs](https://natecraddock.github.io/ziglua/lua53/#ziglua.lib.Lua)
+* [Ziglua for Lua 5.4 Docs](https://natecraddock.github.io/ziglua/lua54/#ziglua.lib.Lua)
+* [Ziglua for Luau Docs](https://natecraddock.github.io/ziglua/luau/#ziglua.lib.Lua)
 
 See [docs.md](https://github.com/natecraddock/ziglua/blob/main/docs.md) for more general information on Ziglua and how it differs from the C API.
 
