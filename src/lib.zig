@@ -2957,57 +2957,57 @@ pub const Lua = struct {
 
     /// Open the basic standard library
     pub fn openBase(lua: *Lua) void {
-        _ = c.luaopen_base(lua.state);
+        lua.requireF("_G", c.luaopen_base, true);
     }
 
     /// Open the coroutine standard library
     pub fn openCoroutine(lua: *Lua) void {
-        _ = c.luaopen_coroutine(lua.state);
+        lua.requireF(c.LUA_COLIBNAME, c.luaopen_coroutine, true);
     }
 
     /// Open the package standard library
     pub fn openPackage(lua: *Lua) void {
-        _ = c.luaopen_package(lua.state);
+        lua.requireF(c.LUA_LOADLIBNAME, c.luaopen_package, true);
     }
 
     /// Open the string standard library
     pub fn openString(lua: *Lua) void {
-        _ = c.luaopen_string(lua.state);
+        lua.requireF(c.LUA_STRLIBNAME, c.luaopen_string, true);
     }
 
     /// Open the UTF-8 standard library
     pub fn openUtf8(lua: *Lua) void {
-        _ = c.luaopen_utf8(lua.state);
+        lua.requireF(c.LUA_UTF8LIBNAME, c.luaopen_utf8, true);
     }
 
     /// Open the table standard library
     pub fn openTable(lua: *Lua) void {
-        _ = c.luaopen_table(lua.state);
+        lua.requireF(c.LUA_TABLIBNAME, c.luaopen_table, true);
     }
 
     /// Open the math standard library
     pub fn openMath(lua: *Lua) void {
-        _ = c.luaopen_math(lua.state);
+        lua.requireF(c.LUA_MATHLIBNAME, c.luaopen_math, true);
     }
 
     /// Open the io standard library
     pub fn openIO(lua: *Lua) void {
-        _ = c.luaopen_io(lua.state);
+        lua.requireF(c.LUA_IOLIBNAME, c.luaopen_io, true);
     }
 
     /// Open the os standard library
     pub fn openOS(lua: *Lua) void {
-        _ = c.luaopen_os(lua.state);
+        lua.requireF(c.LUA_OSLIBNAME, c.luaopen_os, true);
     }
 
     /// Open the debug standard library
     pub fn openDebug(lua: *Lua) void {
-        _ = c.luaopen_debug(lua.state);
+        lua.requireF(c.LUA_DBLIBNAME, c.luaopen_debug, true);
     }
 
     /// Open the bit32 standard library
     pub fn openBit32(lua: *Lua) void {
-        _ = c.luaopen_bit32(lua.state);
+        lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit32, true);
     }
 
     /// Returns if given typeinfo is a string type
