@@ -154,22 +154,6 @@ test "standard library loading" {
         lua.openLibs();
     }
 
-    // open a subset of standard libraries with Zig wrapper
-    {
-        var lua = try Lua.init(&testing.allocator);
-        defer lua.deinit();
-
-        switch (ziglua.lang) {
-            .lua51 => lua.open(.{ .base = true, .package = true, .string = true, .table = true, .math = true, .io = true, .os = true, .debug = true }),
-            .lua52 => lua.open(.{ .base = true, .coroutine = true, .package = true, .string = true, .table = true, .math = true, .io = true, .os = true, .debug = true, .bit = true }),
-            .lua53, .lua54 => lua.open(.{ .base = true, .coroutine = true, .package = true, .string = true, .utf8 = true, .table = true, .math = true, .io = true, .os = true, .debug = true }),
-            .luau => lua.open(.{ .base = true, .coroutine = true, .string = true, .utf8 = true, .table = true, .math = true, .io = true, .os = true, .debug = true }),
-            .luajit => {
-                // TODO: why do tests crash?
-            },
-        }
-    }
-
     // open all standard libraries with individual functions
     // these functions are only useful if you want to load the standard
     // packages into a non-standard table
@@ -631,7 +615,8 @@ test "global table" {
     defer lua.deinit();
 
     // open some libs so we can inspect them
-    lua.open(.{ .math = true, .base = true });
+    lua.openBase();
+    lua.openMath();
     lua.pushGlobalTable();
 
     // find the print function
@@ -1143,7 +1128,7 @@ test "closing vars" {
     var lua = try Lua.init(&testing.allocator);
     defer lua.deinit();
 
-    lua.open(.{ .base = true });
+    lua.openBase();
 
     // do setup in Lua for ease
     try lua.doString(
