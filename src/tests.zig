@@ -168,8 +168,7 @@ test "standard library loading" {
         lua.openOS();
         lua.openDebug();
 
-        // TODO: why do these fail in lua51? Debugger shows it is on line with LUA_ENVIRONINDEX
-        if (ziglua.lang != .luau and ziglua.lang != .lua51 and ziglua.lang != .luajit) {
+        if (ziglua.lang != .luau) {
             lua.openPackage();
             lua.openIO();
         }
