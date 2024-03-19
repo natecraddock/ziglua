@@ -435,13 +435,6 @@ pub const Libs53 = packed struct {
     debug: bool = false,
 };
 
-/// Bitflag for the Lua standard libraries
-pub const Libs = switch (lang) {
-    .lua51, .luajit => Libs51,
-    .lua52 => Libs52,
-    .lua53, .lua54, .luau => Libs53,
-};
-
 /// The type of the opaque structure that points to a thread and the state of a Lua interpreter
 pub const LuaState = c.lua_State;
 
@@ -2955,30 +2948,6 @@ pub const Lua = struct {
     }
 
     // Standard library loading functions
-
-    /// Opens the specified standard library functions
-    /// Behaves like openLibs, but allows specifying which libraries
-    /// to expose to the global table rather than all of them
-    /// See https://www.lua.org/manual/5.4/manual.html#luaL_openlibs
-    pub fn open(lua: *Lua, libs: Libs) void {
-        if (libs.base) lua.requireF("_G", c.luaopen_base, true);
-        if (libs.string) lua.requireF(c.LUA_STRLIBNAME, c.luaopen_string, true);
-        if (libs.table) lua.requireF(c.LUA_TABLIBNAME, c.luaopen_table, true);
-        if (libs.math) lua.requireF(c.LUA_MATHLIBNAME, c.luaopen_math, true);
-        if (libs.os) lua.requireF(c.LUA_OSLIBNAME, c.luaopen_os, true);
-        if (libs.debug) lua.requireF(c.LUA_DBLIBNAME, c.luaopen_debug, true);
-
-        if (lang != .luau) {
-            if (libs.io) lua.requireF(c.LUA_IOLIBNAME, c.luaopen_io, true);
-            if (libs.package) lua.requireF(c.LUA_LOADLIBNAME, c.luaopen_package, true);
-        }
-
-        if (lang != .lua51 and lang != .luajit and libs.coroutine) lua.requireF(c.LUA_COLIBNAME, c.luaopen_coroutine, true);
-
-        if ((lang == .lua53 or lang == .lua54) and libs.utf8) lua.requireF(c.LUA_UTF8LIBNAME, c.luaopen_utf8, true);
-
-        if (lang == .lua52 and libs.bit) lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit32, true);
-    }
 
     /// Open all standard libraries
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_openlibs

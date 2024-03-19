@@ -50,7 +50,7 @@ pub fn main() anyerror!void {
     lua.setGlobal("add");
 
     // We need to open the base library so the global print() is available
-    lua.open(.{ .base = true });
+    lua.openBase();
 
     // Our "program" is an inline string
     lua.doString(
