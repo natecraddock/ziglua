@@ -2413,15 +2413,6 @@ pub const Lua = struct {
         return c.luaL_checkinteger(lua.state, arg);
     }
 
-    /// Checks whether the function argument `arg` is a slice of bytes and returns the slice
-    /// See https://www.lua.org/manual/5.4/manual.html#luaL_checklstring
-    pub fn checkBytes(lua: *Lua, arg: i32) [:0]const u8 {
-        var length: usize = 0;
-        const str = c.luaL_checklstring(lua.state, arg, &length);
-        // luaL_checklstring never returns null (throws lua error)
-        return str[0..length :0];
-    }
-
     /// Checks whether the function argument `arg` is a number and returns the number
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checknumber
     pub fn checkNumber(lua: *Lua, arg: i32) Number {
@@ -2436,9 +2427,9 @@ pub const Lua = struct {
     pub fn checkOption(lua: *Lua, comptime T: type, arg: i32, default: ?T) T {
         const name = blk: {
             if (default) |defaultName| {
-                break :blk lua.optBytes(arg, @tagName(defaultName));
+                break :blk lua.optString(arg, @tagName(defaultName));
             } else {
-                break :blk lua.checkBytes(arg);
+                break :blk lua.checkString(arg);
             }
         };
 
@@ -2460,8 +2451,11 @@ pub const Lua = struct {
 
     /// Checks whether the function argument `arg` is a string and returns the string
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkstring
-    pub fn checkString(lua: *Lua, arg: i32) [*:0]const u8 {
-        return c.luaL_checklstring(lua.state, arg, null);
+    pub fn checkString(lua: *Lua, arg: i32) [:0]const u8 {
+        var length: usize = 0;
+        const str = c.luaL_checklstring(lua.state, arg, &length);
+        // luaL_checklstring never returns null (throws lua error)
+        return str[0..length :0];
     }
 
     /// Checks whether the function argument `arg` has type `t`
@@ -2756,17 +2750,6 @@ pub const Lua = struct {
         return c.luaL_optinteger(lua.state, arg, default);
     }
 
-    /// If the function argument `arg` is a slice of bytes, returns the slice
-    /// If the argument is absent or nil returns `default`
-    /// See https://www.lua.org/manual/5.4/manual.html#luaL_optlstring
-    pub fn optBytes(lua: *Lua, arg: i32, default: [:0]const u8) [:0]const u8 {
-        var length: usize = 0;
-        // will never return null because default cannot be null
-        const ret: [*]const u8 = c.luaL_optlstring(lua.state, arg, default.ptr, &length);
-        if (ret == default.ptr) return default;
-        return ret[0..length :0];
-    }
-
     /// If the function argument `arg` is a number, returns the number
     /// If the argument is absent or nil returns `default`
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_optnumber
@@ -2777,9 +2760,12 @@ pub const Lua = struct {
     /// If the function argument `arg` is a string, returns the string
     /// If the argment is absent or nil returns `default`
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_optstring
-    pub fn optString(lua: *Lua, arg: i32, default: [:0]const u8) [*:0]const u8 {
-        // translate-c error
-        return c.luaL_optlstring(lua.state, arg, default.ptr, null);
+    pub fn optString(lua: *Lua, arg: i32, default: [:0]const u8) [:0]const u8 {
+        var length: usize = 0;
+        // will never return null because default cannot be null
+        const ret: [*]const u8 = c.luaL_optlstring(lua.state, arg, default.ptr, &length);
+        if (ret == default.ptr) return default;
+        return ret[0..length :0];
     }
 
     /// If the function argument is a number, returns this number as an unsigned
