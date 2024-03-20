@@ -2876,8 +2876,9 @@ pub const Lua = struct {
     }
 
     /// Converts any Lua value at the given index into a string in a reasonable format
+    /// Uses the __tostring metamethod if available
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_tolstring
-    pub fn toBytesFmt(lua: *Lua, index: i32) [:0]const u8 {
+    pub fn toStringEx(lua: *Lua, index: i32) [:0]const u8 {
         var length: usize = undefined;
         const ptr = c.luaL_tolstring(lua.state, index, &length);
         return ptr[0..length :0];
