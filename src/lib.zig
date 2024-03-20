@@ -1526,19 +1526,17 @@ pub const Lua = struct {
         c.lua_pushlightuserdata(lua.state, ptr);
     }
 
-    const BytesResult = switch (lang) {
+    /// Pushes the string onto the stack. Returns a slice pointing to Lua's internal copy of the string
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_pushlstring
+    pub fn pushString(lua: *Lua, str: []const u8) switch (lang) {
         .lua51, .luajit, .luau => void,
         else => []const u8,
-    };
-
-    /// Pushes the bytes onto the stack. Returns a slice pointing to Lua's internal copy of the string
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_pushlstring
-    pub fn pushString(lua: *Lua, bytes: []const u8) BytesResult {
+    } {
         switch (lang) {
             .lua51, .luajit, .luau => {
-                c.lua_pushlstring(lua.state, bytes.ptr, bytes.len);
+                c.lua_pushlstring(lua.state, str.ptr, str.len);
             },
-            else => return c.lua_pushlstring(lua.state, bytes.ptr, bytes.len)[0..bytes.len],
+            else => return c.lua_pushlstring(lua.state, str.ptr, str.len)[0..str.len],
         }
     }
 
@@ -1929,16 +1927,6 @@ pub const Lua = struct {
         else => toInteger52,
     };
 
-    /// Returns a slice of bytes at the given index
-    /// If the value is not a string or number, returns an error
-    /// If the value was a number the actual value in the stack will be changed to a string
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_tolstring
-    pub fn toBytes(lua: *Lua, index: i32) ![:0]const u8 {
-        var length: usize = undefined;
-        if (c.lua_tolstring(lua.state, index, &length)) |ptr| return ptr[0..length :0];
-        return error.Fail;
-    }
-
     fn toNumber51(lua: *Lua, index: i32) Number {
         return c.lua_tonumber(lua.state, index);
     }
@@ -1970,9 +1958,9 @@ pub const Lua = struct {
     /// Returns an error if the conversion failed
     /// If the value was a number the actual value in the stack will be changed to a string
     /// See https://www.lua.org/manual/5.4/manual.html#lua_tostring
-    pub fn toString(lua: *Lua, index: i32) ![*:0]const u8 {
+    pub fn toString(lua: *Lua, index: i32) ![:0]const u8 {
         var length: usize = undefined;
-        if (c.lua_tolstring(lua.state, index, &length)) |str| return str;
+        if (c.lua_tolstring(lua.state, index, &length)) |ptr| return ptr[0..length :0];
         return error.Fail;
     }
 
