@@ -553,14 +553,14 @@ test "string buffers" {
     buffer.init(lua);
 
     buffer.addChar('z');
-    buffer.addString("igl");
+    buffer.addStringZ("igl");
 
     var str = buffer.prep();
     str[0] = 'u';
     str[1] = 'a';
     buffer.addSize(2);
 
-    buffer.addBytes(" api ");
+    buffer.addString(" api ");
     lua.pushNumber(5.1);
     buffer.addValue();
     buffer.pushResult();

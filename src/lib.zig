@@ -3492,7 +3492,7 @@ pub const Buffer = struct {
 
     /// Adds the string to the buffer
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_addlstring
-    pub fn addBytes(buf: *Buffer, str: []const u8) void {
+    pub fn addString(buf: *Buffer, str: []const u8) void {
         c.luaL_addlstring(&buf.b, str.ptr, str.len);
     }
 
@@ -3511,7 +3511,7 @@ pub const Buffer = struct {
 
     /// Adds the zero-terminated string pointed to by `str` to the buffer
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_addstring
-    pub fn addString(buf: *Buffer, str: [:0]const u8) void {
+    pub fn addStringZ(buf: *Buffer, str: [:0]const u8) void {
         switch (lang) {
             .luau => c.luaL_addlstring(&buf.b, str.ptr, str.len),
             else => c.luaL_addstring(&buf.b, str.ptr),
