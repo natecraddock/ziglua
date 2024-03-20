@@ -1497,12 +1497,14 @@ pub const Lua = struct {
 
     /// Push a formatted string onto the stack and return a pointer to the string
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushfstring
-    pub fn pushFString(lua: *Lua, fmt: [:0]const u8, args: anytype) [*:0]const u8 {
-        return @call(
+    pub fn pushFString(lua: *Lua, fmt: [:0]const u8, args: anytype) [:0]const u8 {
+        const ptr = @call(
             .auto,
             if (lang == .luau) c.lua_pushfstringL else c.lua_pushfstring,
             .{ lua.state, fmt.ptr } ++ args,
         );
+        const l = lua.rawLen(-1);
+        return ptr[0..l :0];
     }
 
     /// Pushes the global environment onto the stack
@@ -2375,8 +2377,8 @@ pub const Lua = struct {
 
     /// Raises an error reporting a problem with argument `arg` of the C function that called it
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_argerror
-    pub fn argError(lua: *Lua, arg: i32, extra_msg: [*:0]const u8) noreturn {
-        _ = c.luaL_argerror(lua.state, arg, extra_msg);
+    pub fn argError(lua: *Lua, arg: i32, extra_msg: [:0]const u8) noreturn {
+        _ = c.luaL_argerror(lua.state, arg, extra_msg.ptr);
         unreachable;
     }
 
@@ -2445,8 +2447,8 @@ pub const Lua = struct {
     /// Grows the stack size to top + `size` elements, raising an error if the stack cannot grow to that size
     /// `msg` is an additional text to go into the error message
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkstack
-    pub fn checkStackErr(lua: *Lua, size: i32, msg: ?[*:0]const u8) void {
-        c.luaL_checkstack(lua.state, size, msg);
+    pub fn checkStackErr(lua: *Lua, size: i32, msg: ?[:0]const u8) void {
+        c.luaL_checkstack(lua.state, size, if (msg) |m| m.ptr else null);
     }
 
     /// Checks whether the function argument `arg` is a string and returns the string
