@@ -1332,11 +1332,10 @@ test "aux check functions" {
         fn inner(l: *Lua) i32 {
             l.checkAny(1);
             _ = l.checkInteger(2);
-            _ = l.checkBytes(3);
-            _ = l.checkNumber(4);
-            _ = l.checkString(5);
-            l.checkType(6, .boolean);
-            _ = if (ziglua.lang == .lua52) l.checkUnsigned(7);
+            _ = l.checkNumber(3);
+            _ = l.checkString(4);
+            l.checkType(5, .boolean);
+            _ = if (ziglua.lang == .lua52) l.checkUnsigned(6);
             return 0;
         }
     }.inner);
@@ -1365,18 +1364,8 @@ test "aux check functions" {
     lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
-    _ = lua.pushString("hello world");
-    lua.protectedCall(3, 0, 0) catch {
-        try expectStringContains("number expected", try lua.toString(-1));
-        lua.pop(-1);
-    };
-
-    lua.pushFunction(function);
-    lua.pushNil();
-    lua.pushInteger(3);
-    _ = lua.pushString("hello world");
     lua.pushNumber(4);
-    lua.protectedCall(4, 0, 0) catch {
+    lua.protectedCall(3, 0, 0) catch {
         try expectStringContains("string expected", try lua.toString(-1));
         lua.pop(-1);
     };
@@ -1384,10 +1373,9 @@ test "aux check functions" {
     lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
-    _ = lua.pushString("hello world");
     lua.pushNumber(4);
-    _ = lua.pushStringZ("hello world");
-    lua.protectedCall(5, 0, 0) catch {
+    _ = lua.pushString("hello world");
+    lua.protectedCall(4, 0, 0) catch {
         try expectStringContains("boolean expected", try lua.toString(-1));
         lua.pop(-1);
     };
@@ -1396,12 +1384,11 @@ test "aux check functions" {
         lua.pushFunction(function);
         lua.pushNil();
         lua.pushInteger(3);
-        _ = lua.pushString("hello world");
         lua.pushNumber(4);
-        _ = lua.pushStringZ("hello world");
+        _ = lua.pushString("hello world");
         lua.pushBoolean(true);
-        lua.protectedCall(6, 0, 0) catch {
-            try expectEqualStrings("bad argument #7 to '?' (number expected, got no value)", try lua.toString(-1));
+        lua.protectedCall(5, 0, 0) catch {
+            try expectEqualStrings("bad argument #6 to '?' (number expected, got no value)", try lua.toString(-1));
             lua.pop(-1);
         };
     }
@@ -1410,14 +1397,13 @@ test "aux check functions" {
     // test pushFail here (currently acts the same as pushNil)
     if (ziglua.lang == .lua54) lua.pushFail() else lua.pushNil();
     lua.pushInteger(3);
-    _ = lua.pushString("hello world");
     lua.pushNumber(4);
-    _ = lua.pushStringZ("hello world");
+    _ = lua.pushString("hello world");
     lua.pushBoolean(true);
     if (ziglua.lang == .lua52) {
         lua.pushUnsigned(1);
-        try lua.protectedCall(7, 0, 0);
-    } else try lua.protectedCall(6, 0, 0);
+        try lua.protectedCall(6, 0, 0);
+    } else try lua.protectedCall(5, 0, 0);
 }
 
 test "aux opt functions" {
@@ -1427,9 +1413,9 @@ test "aux opt functions" {
     const function = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
             expectEqual(10, l.optInteger(1, 10)) catch unreachable;
-            expectEqualStrings("zig", l.optBytes(2, "zig")) catch unreachable;
+            expectEqualStrings("zig", l.optString(2, "zig")) catch unreachable;
             expectEqual(1.23, l.optNumber(3, 1.23)) catch unreachable;
-            expectEqualStrings("lang", std.mem.span(l.optString(4, "lang"))) catch unreachable;
+            expectEqualStrings("lang", l.optString(4, "lang")) catch unreachable;
             return 0;
         }
     }.inner);
@@ -2333,7 +2319,7 @@ test "namecall" {
 
         pub fn vectorNamecall(l: *Lua) i32 {
             const atom_idx, _ = l.namecallAtom() catch {
-                l.raiseErrorStr("%s is not a valid vector method", .{l.checkString(1)});
+                l.raiseErrorStr("%s is not a valid vector method", .{l.checkString(1).ptr});
             };
             switch (atom_idx) {
                 dot_idx => {
