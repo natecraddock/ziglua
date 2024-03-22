@@ -940,7 +940,7 @@ test "dump and load" {
     const writer = struct {
         fn inner(l: *Lua, buf: []const u8, data: *anyopaque) bool {
             _ = l;
-            var arr = ziglua.opaqueCast(std.ArrayList(u8), data);
+            var arr: *std.ArrayList(u8) = @ptrCast(@alignCast(data));
             arr.appendSlice(buf) catch return false;
             return true;
         }
@@ -964,7 +964,7 @@ test "dump and load" {
     const reader = struct {
         fn inner(l: *Lua, data: *anyopaque) ?[]const u8 {
             _ = l;
-            const arr = ziglua.opaqueCast(std.ArrayList(u8), data);
+            const arr: *std.ArrayList(u8) = @ptrCast(@alignCast(data));
             return arr.items;
         }
     }.inner;

@@ -592,7 +592,7 @@ pub const Lua = struct {
         // just like malloc() returns a pointer "which is suitably aligned for any built-in type",
         // the memory allocated by this function should also be aligned for any type that Lua may
         // desire to allocate. use the largest alignment for the target
-        const allocator_ptr = opaqueCast(Allocator, data.?);
+        const allocator_ptr: *Allocator = @ptrCast(@alignCast(data.?));
 
         if (@as(?[*]align(alignment) u8, @ptrCast(@alignCast(ptr)))) |prev_ptr| {
             const prev_slice = prev_ptr[0..osize];
@@ -1266,7 +1266,7 @@ pub const Lua = struct {
         // safe to .? because this function throws a Lua error on out of memory
         // so the returned pointer should never be null
         const ptr = c.lua_newuserdata(lua.state, @sizeOf(T)).?;
-        return opaqueCast(T, ptr);
+        return @ptrCast(@alignCast(ptr));
     }
 
     /// This function allocates a new userdata of the given type with user_values associated Lua values.
@@ -1276,7 +1276,7 @@ pub const Lua = struct {
         // safe to .? because this function throws a Lua error on out of memory
         // so the returned pointer should never be null
         const ptr = c.lua_newuserdatauv(lua.state, @sizeOf(T), user_values).?;
-        return opaqueCast(T, ptr);
+        return @ptrCast(@alignCast(ptr));
     }
 
     pub const newUserdata = switch (lang) {
@@ -1313,7 +1313,7 @@ pub const Lua = struct {
         // safe to .? because this function throws a Lua error on out of memory
         // so the returned pointer should never be null
         const ptr = c.lua_newuserdatatagged(lua.state, @sizeOf(T), tag).?;
-        return opaqueCast(T, ptr);
+        return @ptrCast(@alignCast(ptr));
     }
 
     /// Returns the tag of a userdata at the given index
@@ -1334,7 +1334,7 @@ pub const Lua = struct {
         // safe to .? because this function throws a Lua error on out of memory
         // so the returned pointer should never be null
         const ptr = c.lua_newuserdatadtor(lua.state, @sizeOf(T), @ptrCast(dtor_fn)).?;
-        return opaqueCast(T, ptr);
+        return @ptrCast(@alignCast(ptr));
     }
 
     /// Pops a key from the stack, and pushes a key-value pair from the table at the given index
@@ -1987,7 +1987,7 @@ pub const Lua = struct {
     /// Returns an error if the value is not a userdata.
     /// See https://www.lua.org/manual/5.4/manual.html#lua_touserdata
     pub fn toUserdata(lua: *Lua, comptime T: type, index: i32) !*T {
-        if (c.lua_touserdata(lua.state, index)) |ptr| return opaqueCast(T, ptr);
+        if (c.lua_touserdata(lua.state, index)) |ptr| return @ptrCast(@alignCast(ptr));
         return error.Fail;
     }
 
@@ -2007,7 +2007,7 @@ pub const Lua = struct {
     }
 
     pub fn toUserdataTagged(lua: *Lua, comptime T: type, index: i32, tag: i32) !*T {
-        if (c.lua_touserdatatagged(lua.state, index, tag)) |ptr| return opaqueCast(T, ptr);
+        if (c.lua_touserdatatagged(lua.state, index, tag)) |ptr| return @ptrCast(@alignCast(ptr));
         return error.Fail;
     }
 
@@ -2467,7 +2467,7 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkudata
     pub fn checkUserdata(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) *T {
         // the returned pointer will not be null
-        return opaqueCast(T, c.luaL_checkudata(lua.state, arg, name.ptr).?);
+        return @ptrCast(@alignCast(c.luaL_checkudata(lua.state, arg, name.ptr).?));
     }
 
     /// Checks whether the function argument `arg` is a userdata of the type `name`
@@ -2858,7 +2858,7 @@ pub const Lua = struct {
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_testudata
     pub fn testUserdata(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) !*T {
         if (c.luaL_testudata(lua.state, arg, name.ptr)) |ptr| {
-            return opaqueCast(T, ptr);
+            return @ptrCast(@alignCast(ptr));
         } else return error.Fail;
     }
 
@@ -3584,12 +3584,6 @@ pub const Buffer = struct {
 };
 
 // Helper functions to make the ziglua API easier to use
-
-/// Casts the opaque pointer to a pointer of the given type with the proper alignment
-/// Useful for casting pointers from the Lua API like userdata or other data
-pub inline fn opaqueCast(comptime T: type, ptr: *anyopaque) *T {
-    return @ptrCast(@alignCast(ptr));
-}
 
 pub const ZigFn = fn (lua: *Lua) i32;
 pub const ZigHookFn = fn (lua: *Lua, event: Event, info: *DebugInfo) void;
