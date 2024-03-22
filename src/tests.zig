@@ -320,7 +320,7 @@ test "type of and getting values" {
     try expect(lua.isThread(-1));
     try expectEqual(lua.state, (try lua.toThread(-1)).state);
 
-    _ = lua.pushStringZ("all your codebase are belong to us");
+    try expectEqualStrings("all your codebase are belong to us", lua.pushStringZ("all your codebase are belong to us"));
     try expectEqual(.string, lua.typeOf(-1));
     try expect(lua.isString(-1));
 
@@ -330,7 +330,7 @@ test "type of and getting values" {
     try expect(lua.isFunction(-1));
     try expectEqual(ziglua.wrap(add), try lua.toCFunction(-1));
 
-    _ = lua.pushString("hello world");
+    try expectEqualStrings("hello world", lua.pushString("hello world"));
     try expectEqual(.string, lua.typeOf(-1));
     try expect(lua.isString(-1));
 
@@ -1572,7 +1572,7 @@ test "ref luau" {
 
     // In luau lua.ref does not pop the item from the stack
     // and the data is stored in the registry_index by default
-    lua.pushString("Hello there");
+    _ = lua.pushString("Hello there");
     const ref = try lua.ref(2);
 
     _ = lua.rawGetIndex(ziglua.registry_index, ref);
@@ -1846,7 +1846,7 @@ test "objectLen" {
     var lua = try Lua.init(&testing.allocator);
     defer lua.deinit();
 
-    lua.pushStringZ("lua");
+    _ = lua.pushStringZ("lua");
     try testing.expectEqual(3, lua.objectLen(-1));
 }
 
@@ -2346,7 +2346,7 @@ test "namecall" {
     lua.pushVector(0, 0, 0);
 
     try lua.newMetatable("vector");
-    lua.pushStringZ("__namecall");
+    _ = lua.pushStringZ("__namecall");
     lua.pushFunctionNamed(ziglua.wrap(funcs.vectorNamecall), "vector_namecall");
     lua.setTable(-3);
 

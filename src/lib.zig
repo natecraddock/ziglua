@@ -1530,15 +1530,13 @@ pub const Lua = struct {
 
     /// Pushes the string onto the stack. Returns a slice pointing to Lua's internal copy of the string
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushlstring
-    pub fn pushString(lua: *Lua, str: []const u8) switch (lang) {
-        .lua51, .luajit, .luau => void,
-        else => []const u8,
-    } {
+    pub fn pushString(lua: *Lua, str: []const u8) [:0]const u8 {
         switch (lang) {
             .lua51, .luajit, .luau => {
                 c.lua_pushlstring(lua.state, str.ptr, str.len);
+                return lua.toString(-1) catch unreachable;
             },
-            else => return c.lua_pushlstring(lua.state, str.ptr, str.len)[0..str.len],
+            else => return c.lua_pushlstring(lua.state, str.ptr, str.len)[0..str.len :0],
         }
     }
 
@@ -1558,13 +1556,11 @@ pub const Lua = struct {
     /// Lua makes a copy of the string so `str` may be freed immediately after return
     /// Returns a pointer to the internal Lua string
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushstring
-    pub fn pushStringZ(lua: *Lua, str: [:0]const u8) switch (lang) {
-        .lua51, .luajit, .luau => void,
-        else => [:0]const u8,
-    } {
+    pub fn pushStringZ(lua: *Lua, str: [:0]const u8) [:0]const u8 {
         switch (lang) {
             .lua51, .luajit, .luau => {
                 c.lua_pushstring(lua.state, str.ptr);
+                return lua.toString(-1) catch unreachable;
             },
             else => return c.lua_pushstring(lua.state, str.ptr)[0..str.len :0],
         }
