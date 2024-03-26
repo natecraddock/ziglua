@@ -22,7 +22,8 @@ pub fn build(b: *Build) void {
     const lang = b.option(Language, "lang", "Lua language version to build") orelse .lua54;
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
-    const upstream = b.dependency(@tagName(lang), .{});
+
+    const upstream = b.lazyDependency(@tagName(lang), .{}) orelse return;
 
     if (lang == .luau and shared) {
         std.debug.panic("Luau does not support compiling or loading shared modules", .{});
