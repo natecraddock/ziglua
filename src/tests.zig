@@ -1407,10 +1407,10 @@ test "aux opt functions" {
 
     const function = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
-            expectEqual(10, l.optInteger(1, 10)) catch unreachable;
-            expectEqualStrings("zig", l.optString(2, "zig")) catch unreachable;
-            expectEqual(1.23, l.optNumber(3, 1.23)) catch unreachable;
-            expectEqualStrings("lang", l.optString(4, "lang")) catch unreachable;
+            expectEqual(10, l.optInteger(1) orelse 10) catch unreachable;
+            expectEqualStrings("zig", l.optString(2) orelse "zig") catch unreachable;
+            expectEqual(1.23, l.optNumber(3) orelse 1.23) catch unreachable;
+            expectEqualStrings("lang", l.optString(4) orelse "lang") catch unreachable;
             return 0;
         }
     }.inner);

@@ -2424,7 +2424,7 @@ pub const Lua = opaque {
     pub fn checkOption(lua: *Lua, comptime T: type, arg: i32, default: ?T) T {
         const name = blk: {
             if (default) |defaultName| {
-                break :blk lua.optString(arg, @tagName(defaultName));
+                break :blk lua.optString(arg) orelse @tagName(defaultName);
             } else {
                 break :blk lua.checkString(arg);
             }
@@ -2734,43 +2734,44 @@ pub const Lua = opaque {
     // luaL_opt (a macro) really isn't that useful, so not going to implement for now
 
     /// If the function argument `arg` is a number, returns this number cast to an i32.
-    /// If the argument is absent or nil returns `default`
+    /// If the argument is absent or nil returns null
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_optint
     /// TODO: just like checkInt, is this ever useful?
-    pub fn optInt(lua: *Lua, arg: i32, default: i32) i32 {
-        return c.luaL_optint(@ptrCast(lua), arg, default);
+    pub fn optInt(lua: *Lua, arg: i32) ?i32 {
+        if (lua.isNoneOrNil(arg)) return null;
+        return lua.checkInt(arg);
     }
 
     /// If the function argument `arg` is an integer, returns the integer
-    /// If the argument is absent or nil returns `default`
+    /// If the argument is absent or nil returns null
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_optinteger
-    pub fn optInteger(lua: *Lua, arg: i32, default: Integer) Integer {
-        return c.luaL_optinteger(@ptrCast(lua), arg, default);
+    pub fn optInteger(lua: *Lua, arg: i32) ?Integer {
+        if (lua.isNoneOrNil(arg)) return null;
+        return lua.checkInteger(arg);
     }
 
     /// If the function argument `arg` is a number, returns the number
-    /// If the argument is absent or nil returns `default`
+    /// If the argument is absent or nil returns null
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_optnumber
-    pub fn optNumber(lua: *Lua, arg: i32, default: Number) Number {
-        return c.luaL_optnumber(@ptrCast(lua), arg, default);
+    pub fn optNumber(lua: *Lua, arg: i32) ?Number {
+        if (lua.isNoneOrNil(arg)) return null;
+        return lua.checkNumber(arg);
     }
 
     /// If the function argument `arg` is a string, returns the string
-    /// If the argment is absent or nil returns `default`
+    /// If the argment is absent or nil returns null
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_optstring
-    pub fn optString(lua: *Lua, arg: i32, default: [:0]const u8) [:0]const u8 {
-        var length: usize = 0;
-        // will never return null because default cannot be null
-        const ret: [*]const u8 = c.luaL_optlstring(@ptrCast(lua), arg, default.ptr, &length);
-        if (ret == default.ptr) return default;
-        return ret[0..length :0];
+    pub fn optString(lua: *Lua, arg: i32) ?[:0]const u8 {
+        if (lua.isNoneOrNil(arg)) return null;
+        return lua.checkString(arg);
     }
 
     /// If the function argument is a number, returns this number as an unsigned
-    /// If the argument is absent or nil returns default, otherwise raises an error
+    /// If the argument is absent or nil returns null, otherwise raises an error
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_optunsigned
-    pub fn optUnsigned(lua: *Lua, arg: i32, default: Unsigned) Unsigned {
-        return c.luaL_optunsigned(@ptrCast(lua), arg, default);
+    pub fn optUnsigned(lua: *Lua, arg: i32) ?Unsigned {
+        if (lua.isNoneOrNil(arg)) return null;
+        return lua.checkUnsigned(arg);
     }
 
     /// Pushes the fail value onto the stack
