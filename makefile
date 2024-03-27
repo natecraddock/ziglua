@@ -12,8 +12,4 @@ test:
 	zig build -Dlang=luau install-example-luau-bytecode
 
 docs:
-	zig build docs -Dlang=lua51
-	zig build docs -Dlang=lua52
-	zig build docs -Dlang=lua53
-	zig build docs -Dlang=lua54
-	zig build docs -Dlang=luau
+	zig build docs

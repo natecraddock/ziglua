@@ -121,14 +121,7 @@ pub fn build(b: *Build) void {
     const install_docs = b.addInstallDirectory(.{
         .source_dir = docs.getEmittedDocs(),
         .install_dir = .prefix,
-        .install_subdir = switch (lang) {
-            .lua51 => "docs/lua51",
-            .lua52 => "docs/lua52",
-            .lua53 => "docs/lua53",
-            .lua54 => "docs/lua54",
-            .luajit => "docs/luajit",
-            .luau => "docs/luau",
-        },
+        .install_subdir = "docs",
     });
 
     const docs_step = b.step("docs", "Build and install the documentation");
