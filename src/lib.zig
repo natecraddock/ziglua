@@ -1911,7 +1911,9 @@ pub const Lua = opaque {
     pub fn toInteger(lua: *Lua, index: i32) !Integer {
         switch (lang) {
             .lua51 => {
-                return c.lua_tointeger(@ptrCast(lua), index);
+                const result = c.lua_tointeger(@ptrCast(lua), index);
+                if (result == 0 and !lua.isNumber(index)) return error.Fail;
+                return result;
             },
             else => {
                 var success: c_int = undefined;
@@ -1929,7 +1931,9 @@ pub const Lua = opaque {
     pub fn toNumber(lua: *Lua, index: i32) !Number {
         switch (lang) {
             .lua51 => {
-                return c.lua_tonumber(@ptrCast(lua), index);
+                const result = c.lua_tonumber(@ptrCast(lua), index);
+                if (result == 0 and !lua.isNumber(index)) return error.Fail;
+                return result;
             },
             else => {
                 var success: c_int = undefined;

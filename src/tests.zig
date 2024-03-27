@@ -153,6 +153,25 @@ test "standard library loading" {
     }
 }
 
+test "number conversion success and failure" {
+    const lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    _ = lua.pushString("1234.5678");
+    try expectEqual(1234.5678, try lua.toNumber(-1));
+
+    _ = lua.pushString("1234");
+    try expectEqual(1234, try lua.toInteger(-1));
+
+    lua.pushNil();
+    try expectError(error.Fail, lua.toNumber(-1));
+    try expectError(error.Fail, lua.toInteger(-1));
+
+    _ = lua.pushString("fail");
+    try expectError(error.Fail, lua.toNumber(-1));
+    try expectError(error.Fail, lua.toInteger(-1));
+}
+
 test "arithmetic (lua_arith)" {
     if (!langIn(.{ .lua52, .lua53, .lua54 })) return;
 
