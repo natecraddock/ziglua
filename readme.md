@@ -10,8 +10,6 @@ Ziglua can be used in two ways, either
 
 In both cases, Ziglua will compile Lua from source and link against your Zig code making it easy to create software that integrates with Lua without requiring any system Lua libraries.
 
-Like the Lua C API, the Ziglua API "emphasizes flexibility and simplicity... common tasks may involve several API calls. This may be boring, but it gives us full control over all the details" (_Programming In Lua 4th Edition_). However, Ziglua takes advantage of Zig's features to make it easier and safer to interact with the Lua API.
-
 ## Documentation
 Docs are a work in progress and are automatically generated for each push to main. Most functions and public declarations are documented:
 * [Ziglua Docs](https://natecraddock.github.io/ziglua/#ziglua.lib.Lua)
@@ -30,8 +28,9 @@ In a nutshell, Ziglua is a simple wrapper around the C API you would get by usin
 * Type-checked enums for parameters and return values
 * Compiler-enforced checking of optional pointers
 * Better types in many cases (e.g. `bool` instead of `int`)
+* Comptime convenience functions to make binding creation easier
 
-While there are some helper functions added to complement the C API, Ziglua aims to remain low-level. This allows full access to the Lua API through a layer of Zig's improvements over C.
+Nearly every function in the C API is exposed in Ziglua. Additional convenience functions like `toAny` and `pushAny` use comptime reflection to make the API easier to use.
 
 ## Integrating Ziglua in your project
 
