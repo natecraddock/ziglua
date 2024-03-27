@@ -1904,45 +1904,41 @@ pub const Lua = opaque {
         c.lua_toclose(@ptrCast(lua), index);
     }
 
-    fn toInteger51(lua: *Lua, index: i32) Integer {
-        return c.lua_tointeger(@ptrCast(lua), index);
-    }
-
-    fn toInteger52(lua: *Lua, index: i32) !Integer {
-        var success: c_int = undefined;
-        const result = c.lua_tointegerx(@ptrCast(lua), index, &success);
-        if (success == 0) return error.Fail;
-        return result;
-    }
-
     /// Converts the Lua value at the given `index` to a signed integer
     /// The Lua value must be an integer, or a number, or a string convertible to an integer otherwise toIntegerX returns 0
     /// Returns an error if the conversion failed
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_tointeger
-    pub const toInteger = switch (lang) {
-        .lua51, .luajit => toInteger51,
-        else => toInteger52,
-    };
-
-    fn toNumber51(lua: *Lua, index: i32) Number {
-        return c.lua_tonumber(@ptrCast(lua), index);
-    }
-
-    fn toNumber52(lua: *Lua, index: i32) !Number {
-        var success: c_int = undefined;
-        const result = c.lua_tonumberx(@ptrCast(lua), index, &success);
-        if (success == 0) return error.Fail;
-        return result;
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_tointeger'
+    pub fn toInteger(lua: *Lua, index: i32) !Integer {
+        switch (lang) {
+            .lua51 => {
+                return c.lua_tointeger(@ptrCast(lua), index);
+            },
+            else => {
+                var success: c_int = undefined;
+                const result = c.lua_tointegerx(@ptrCast(lua), index, &success);
+                if (success == 0) return error.Fail;
+                return result;
+            },
+        }
     }
 
     /// Converts the Lua value at the given `index` to a float
     /// The Lua value must be a number or a string convertible to a number otherwise toNumberX returns 0
     /// Returns an error if the conversion failed
     /// See https://www.lua.org/manual/5.4/manual.html#lua_tonumber
-    pub const toNumber = switch (lang) {
-        .lua51, .luajit => toNumber51,
-        else => toNumber52,
-    };
+    pub fn toNumber(lua: *Lua, index: i32) !Number {
+        switch (lang) {
+            .lua51 => {
+                return c.lua_tonumber(@ptrCast(lua), index);
+            },
+            else => {
+                var success: c_int = undefined;
+                const result = c.lua_tonumberx(@ptrCast(lua), index, &success);
+                if (success == 0) return error.Fail;
+                return result;
+            },
+        }
+    }
 
     /// Converts the value at the given `index` to an opaque pointer
     /// See https://www.lua.org/manual/5.4/manual.html#lua_topointer
@@ -3155,28 +3151,12 @@ pub const Lua = opaque {
 
         switch (@typeInfo(T)) {
             .Int => {
-                switch (comptime lang) {
-                    .lua51, .luajit => {
-                        const result = lua.toInteger(index);
-                        return @as(T, @intCast(result));
-                    },
-                    else => {
-                        const result = try lua.toInteger(index);
-                        return @as(T, @intCast(result));
-                    },
-                }
+                const result = try lua.toInteger(index);
+                return @as(T, @intCast(result));
             },
             .Float => {
-                switch (comptime lang) {
-                    .lua51, .luajit => {
-                        const result = lua.toNumber(index);
-                        return @as(T, @floatCast(result));
-                    },
-                    else => {
-                        const result = try lua.toNumber(index);
-                        return @as(T, @floatCast(result));
-                    },
-                }
+                const result = try lua.toNumber(index);
+                return @as(T, @floatCast(result));
             },
             .Array, .Vector => {
                 const child = std.meta.Child(T);
