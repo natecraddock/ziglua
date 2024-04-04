@@ -23,8 +23,6 @@ pub fn build(b: *Build) void {
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
 
-    const upstream = b.lazyDependency(@tagName(lang), .{}) orelse return;
-
     if (lang == .luau and shared) {
         std.debug.panic("Luau does not support compiling or loading shared modules", .{});
     }
@@ -45,26 +43,30 @@ pub fn build(b: *Build) void {
         ziglua.addCMacro("LUA_VECTOR_SIZE", b.fmt("{}", .{vector_size}));
     }
 
-    const lib = switch (lang) {
-        .luajit => buildLuaJIT(b, target, optimize, upstream, shared),
-        .luau => buildLuau(b, target, optimize, upstream, luau_use_4_vector),
-        else => buildLua(b, target, optimize, upstream, lang, shared),
-    };
+    luadep: {
+        const upstream = b.lazyDependency(@tagName(lang), .{}) orelse break :luadep;
 
-    // Expose the Lua artifact
-    b.installArtifact(lib);
+        const lib = switch (lang) {
+            .luajit => buildLuaJIT(b, target, optimize, upstream, shared),
+            .luau => buildLuau(b, target, optimize, upstream, luau_use_4_vector),
+            else => buildLua(b, target, optimize, upstream, lang, shared),
+        };
 
-    switch (lang) {
-        .luau => {
-            ziglua.addIncludePath(upstream.path("Common/include"));
-            ziglua.addIncludePath(upstream.path("Compiler/include"));
-            ziglua.addIncludePath(upstream.path("Ast/include"));
-            ziglua.addIncludePath(upstream.path("VM/include"));
-        },
-        else => ziglua.addIncludePath(upstream.path("src")),
+        // Expose the Lua artifact
+        b.installArtifact(lib);
+
+        switch (lang) {
+            .luau => {
+                ziglua.addIncludePath(upstream.path("Common/include"));
+                ziglua.addIncludePath(upstream.path("Compiler/include"));
+                ziglua.addIncludePath(upstream.path("Ast/include"));
+                ziglua.addIncludePath(upstream.path("VM/include"));
+            },
+            else => ziglua.addIncludePath(upstream.path("src")),
+        }
+
+        ziglua.linkLibrary(lib);
     }
-
-    ziglua.linkLibrary(lib);
 
     // Tests
     const tests = b.addTest(.{
