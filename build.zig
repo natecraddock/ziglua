@@ -185,21 +185,12 @@ fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Optim
 
     lib.linkLibC();
 
-    installHeader(lib, upstream.path("src/lua.h"), "lua.h");
-    installHeader(lib, upstream.path("src/lualib.h"), "lualib.h");
-    installHeader(lib, upstream.path("src/lauxlib.h"), "lauxlib.h");
-    installHeader(lib, upstream.path("src/luaconf.h"), "luaconf.h");
+    lib.installHeader(upstream.path("src/lua.h"), "lua.h");
+    lib.installHeader(upstream.path("src/lualib.h"), "lualib.h");
+    lib.installHeader(upstream.path("src/lauxlib.h"), "lauxlib.h");
+    lib.installHeader(upstream.path("src/luaconf.h"), "luaconf.h");
 
     return lib;
-}
-
-// The Build.Step.Compile.installHeader function isn't updated to work with LazyPath
-// TODO: report as an issue to Zig (and possibly fix?)
-fn installHeader(cs: *Build.Step.Compile, src_path: Build.LazyPath, dest_rel_path: []const u8) void {
-    const b = cs.step.owner;
-    const install_file = b.addInstallFileWithDir(src_path, .header, dest_rel_path);
-    b.getInstallStep().dependOn(&install_file.step);
-    cs.installed_headers.append(&install_file.step) catch @panic("OOM");
 }
 
 /// Luau has diverged enough from Lua (C++, project structure, ...) that it is easier to separate the build logic
@@ -236,9 +227,9 @@ fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Opti
     lib.linkLibCpp();
 
     // It may not be as likely that other software links against Luau, but might as well expose these anyway
-    installHeader(lib, upstream.path("VM/include/lua.h"), "lua.h");
-    installHeader(lib, upstream.path("VM/include/lualib.h"), "lualib.h");
-    installHeader(lib, upstream.path("VM/include/luaconf.h"), "luaconf.h");
+    lib.installHeader(upstream.path("VM/include/lua.h"), "lua.h");
+    lib.installHeader(upstream.path("VM/include/lualib.h"), "lualib.h");
+    lib.installHeader(upstream.path("VM/include/luaconf.h"), "luaconf.h");
 
     return lib;
 }
@@ -421,11 +412,11 @@ fn buildLuaJIT(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Op
 
     lib.root_module.sanitize_c = false;
 
-    installHeader(lib, upstream.path("src/lua.h"), "lua.h");
-    installHeader(lib, upstream.path("src/lualib.h"), "lualib.h");
-    installHeader(lib, upstream.path("src/lauxlib.h"), "lauxlib.h");
-    installHeader(lib, upstream.path("src/luaconf.h"), "luaconf.h");
-    installHeader(lib, luajit_h, "luajit.h");
+    lib.installHeader(upstream.path("src/lua.h"), "lua.h");
+    lib.installHeader(upstream.path("src/lualib.h"), "lualib.h");
+    lib.installHeader(upstream.path("src/lauxlib.h"), "lauxlib.h");
+    lib.installHeader(upstream.path("src/luaconf.h"), "luaconf.h");
+    lib.installHeader(luajit_h, "luajit.h");
 
     return lib;
 }
