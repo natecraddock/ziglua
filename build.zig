@@ -29,7 +29,7 @@ pub fn build(b: *Build) void {
 
     // Zig module
     const ziglua = b.addModule("ziglua", .{
-        .root_source_file = .{ .path = "src/lib.zig" },
+        .root_source_file = b.path("src/lib.zig"),
     });
 
     // Expose build configuration to the ziglua module
@@ -70,7 +70,7 @@ pub fn build(b: *Build) void {
 
     // Tests
     const tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/tests.zig" },
+        .root_source_file = b.path("src/tests.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -93,7 +93,7 @@ pub fn build(b: *Build) void {
     for (examples) |example| {
         const exe = b.addExecutable(.{
             .name = example[0],
-            .root_source_file = .{ .path = example[1] },
+            .root_source_file = b.path(example[1]),
             .target = target,
             .optimize = optimize,
         });
@@ -113,7 +113,7 @@ pub fn build(b: *Build) void {
 
     const docs = b.addStaticLibrary(.{
         .name = "ziglua",
-        .root_source_file = .{ .path = "src/lib.zig" },
+        .root_source_file = b.path("src/lib.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -223,7 +223,7 @@ fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Opti
         .files = &luau_source_files,
         .flags = &flags,
     });
-    lib.addCSourceFile(.{ .file = .{ .path = "src/luau.cpp" }, .flags = &flags });
+    lib.addCSourceFile(.{ .file = b.path("src/luau.cpp"), .flags = &flags });
     lib.linkLibCpp();
 
     // It may not be as likely that other software links against Luau, but might as well expose these anyway
