@@ -2105,7 +2105,7 @@ pub const Lua = opaque {
         switch (lang) {
             .lua51, .luajit, .luau => return c.lua_yield(@ptrCast(lua), num_results),
             else => {
-                _ = c.lua_yield(@ptrCast(lua), num_results);
+                _ = c.lua_yieldk(@ptrCast(lua), num_results, 0, null);
                 unreachable;
             },
         }
