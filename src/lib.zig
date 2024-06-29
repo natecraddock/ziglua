@@ -2497,6 +2497,8 @@ pub const Lua = opaque {
         return vec;
     }
 
+    fn checkVersion51(_: *Lua) void {}
+
     fn checkVersion52(lua: *Lua) void {
         return c.luaL_checkversion_(@ptrCast(lua), c.LUA_VERSION_NUM);
     }
@@ -2510,7 +2512,8 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkversion
     pub const checkVersion = switch (lang) {
         .lua53, .lua54 => checkVersion53,
-        else => checkVersion52,
+        .lua52 => checkVersion52,
+        else => checkVersion51,
     };
 
     /// Loads and runs the given file
@@ -2633,7 +2636,7 @@ pub const Lua = opaque {
         if (c.luau_load(@ptrCast(lua), chunkname.ptr, bytecode.ptr, bytecode.len, 0) != 0) return error.Fail;
     }
 
-    fn loadFile51(lua: *Lua, file_name: [:0]const u8) !void {
+    fn loadFile51(lua: *Lua, file_name: [:0]const u8, _: Mode) !void {
         const ret = c.luaL_loadfile(@ptrCast(lua), file_name.ptr);
         switch (ret) {
             StatusCode.ok => return,
