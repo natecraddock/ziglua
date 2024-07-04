@@ -46,7 +46,7 @@ pub fn build(b: *Build) void {
     luadep: {
         const lua_tag = @tagName(lang);
         const upstream = b.lazyDependency(lua_tag, .{}) orelse {
-            std.debug.print("ziglua warning: could not find a dependency for {s}! Add one to your build.zig.zon.\n", .{lua_tag});
+            std.debug.print("ziglua warning: could not find a dependency for {s}! Do you need to run 'zig build --fetch'?.\n", .{lua_tag});
             break :luadep;
         };
 
