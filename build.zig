@@ -43,30 +43,28 @@ pub fn build(b: *Build) void {
         ziglua.addCMacro("LUA_VECTOR_SIZE", b.fmt("{}", .{vector_size}));
     }
 
-    luadep: {
-        const upstream = b.lazyDependency(@tagName(lang), .{}) orelse break :luadep;
+    const upstream = b.dependency(@tagName(lang), .{});
 
-        const lib = switch (lang) {
-            .luajit => buildLuaJIT(b, target, optimize, upstream, shared),
-            .luau => buildLuau(b, target, optimize, upstream, luau_use_4_vector),
-            else => buildLua(b, target, optimize, upstream, lang, shared),
-        };
+    const lib = switch (lang) {
+        .luajit => buildLuaJIT(b, target, optimize, upstream, shared),
+        .luau => buildLuau(b, target, optimize, upstream, luau_use_4_vector),
+        else => buildLua(b, target, optimize, upstream, lang, shared),
+    };
 
-        // Expose the Lua artifact
-        b.installArtifact(lib);
+    // Expose the Lua artifact
+    b.installArtifact(lib);
 
-        switch (lang) {
-            .luau => {
-                ziglua.addIncludePath(upstream.path("Common/include"));
-                ziglua.addIncludePath(upstream.path("Compiler/include"));
-                ziglua.addIncludePath(upstream.path("Ast/include"));
-                ziglua.addIncludePath(upstream.path("VM/include"));
-            },
-            else => ziglua.addIncludePath(upstream.path("src")),
-        }
-
-        ziglua.linkLibrary(lib);
+    switch (lang) {
+        .luau => {
+            ziglua.addIncludePath(upstream.path("Common/include"));
+            ziglua.addIncludePath(upstream.path("Compiler/include"));
+            ziglua.addIncludePath(upstream.path("Ast/include"));
+            ziglua.addIncludePath(upstream.path("VM/include"));
+        },
+        else => ziglua.addIncludePath(upstream.path("src")),
     }
+
+    ziglua.linkLibrary(lib);
 
     // Tests
     const tests = b.addTest(.{
