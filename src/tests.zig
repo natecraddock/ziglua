@@ -2794,3 +2794,25 @@ test "array of strings" {
         defer strings.deinit();
     }
 }
+
+test "loadFile binary mode" {
+    if (langIn(.{ .lua51, .luajit, .luau })) return;
+
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    // Should fail to load a lua file as a binary file
+    try expectError(error.Syntax, lua.loadFile("src/test.lua", .binary));
+}
+
+test "doFile" {
+    if (ziglua.lang == .luau) return;
+
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    // should set the variable GLOBAL to "testing"
+    try lua.doFile("src/test.lua");
+
+    try expectEqualStrings("testing", try lua.get([]const u8, "GLOBAL"));
+}

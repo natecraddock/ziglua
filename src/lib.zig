@@ -2517,7 +2517,10 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_dofile
     pub fn doFile(lua: *Lua, file_name: [:0]const u8) !void {
         // translate-c failure
-        try lua.loadFile(file_name, .binary_text);
+        switch (lang) {
+            .luajit, .lua51 => try lua.loadFile(file_name),
+            else => try lua.loadFile(file_name, .binary_text),
+        }
         try lua.protectedCall(0, mult_return, 0);
     }
 
