@@ -36,7 +36,9 @@ Nearly every function in the C API is exposed in Ziglua. Additional convenience 
 
 Find the archive url of the Ziglua version you want to integrate with your project. For example, the url for the commit **41a110981cf016465f72208c3f1732fd4c92a694** is https://github.com/natecraddock/ziglua/archive/41a110981cf016465f72208c3f1732fd4c92a694.tar.gz.
 
-Then run `zig fetch --save <url>`. This will add the dependency to your `build.zig.zon` file.
+Then run `zig fetch --save git+https://github.com/natecraddock/ziglua` to add the most recent commit of ziglua to your `build.zig.zon` file.
+
+Add a `#<tag>` to the url to use a specific tagged release like `zig fetch --save git+https://github.com/natecraddock/ziglua#0.3.0`
 
 Then in your `build.zig` file you can use the dependency.
 
