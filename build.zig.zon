@@ -1,10 +1,9 @@
 .{
     .name = "ziglua",
     .version = "0.1.0",
-    .paths = .{""},
+    .paths = .{ "build.zig", "build.zig.zon", "src", "license" },
 
     .dependencies = .{
-
         // We do not use the lua.org version of Lua 5.1.5 because there is a known security issue
         // (CVE-2014-5461) that will not be backported. This is the most resonable solution at
         // the moment. Maybe there will be a way to apply a patch with the build system in the
