@@ -109,14 +109,12 @@ pub fn build(b: *Build) void {
         run_step.dependOn(&run_cmd.step);
     }
 
-    const docs = b.addStaticLibrary(.{
+    const docs = b.addObject(.{
         .name = "ziglua",
         .root_source_file = b.path("src/lib.zig"),
         .target = target,
         .optimize = optimize,
     });
-    docs.root_module.addOptions("config", config);
-    docs.root_module.addImport("ziglua", ziglua);
 
     const install_docs = b.addInstallDirectory(.{
         .source_dir = docs.getEmittedDocs(),
