@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
+    <title>Zig Lua</title>
+    <style>
+        body { margin: 0; background-color: black }
+    </style>
+  </head>
+  <body>
+    <script type='text/javascript'>
+      var Module = {
+        preRun: [],
+        postRun: [],
+        print: (function() {
+            return function(text) {
+                text = Array.prototype.slice.call(arguments).join(' ');
+                console.log(text);
+            };
+        })(),
+        printErr: function(text) {
+            text = Array.prototype.slice.call(arguments).join(' ');
+            console.error(text);
+        },
+        setStatus: function(text) { },
+        monitorRunDependencies: function(left) { },
+      };
+      window.onerror = function() {
+        console.log("onerror: " + event.message);
+      };
+    </script>
+    {{{ SCRIPT }}}
+  </body>
+</html>

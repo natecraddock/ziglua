@@ -21,6 +21,7 @@ pub fn build(b: *Build) void {
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const target_is_emscripten = target.result.os.tag == .emscripten;
 
     const lang = b.option(Language, "lang", "Lua language version to build") orelse .lua54;
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
@@ -48,10 +49,14 @@ pub fn build(b: *Build) void {
 
     const upstream = b.dependency(@tagName(lang), .{});
 
-    const lib = switch (lang) {
+    const lib = if (!target_is_emscripten) switch (lang) {
         .luajit => buildLuaJIT(b, target, optimize, upstream, shared),
-        .luau => if (target.result.isWasm()) buildLuauEmscripten(b, target, optimize, upstream, luau_use_4_vector, emsdk) else buildLuau(b, target, optimize, upstream, luau_use_4_vector),
+        .luau => buildLuau(b, target, optimize, upstream, luau_use_4_vector),
         else => buildLua(b, target, optimize, upstream, lang, shared),
+    } else switch (lang) {
+        .luajit => @panic("LuaJIT is not supported on Emscripten"),
+        .luau => buildLuauEmscripten(b, target, optimize, upstream, luau_use_4_vector, emsdk),
+        else => buildLuaEmscripten(b, target, optimize, upstream, lang, emsdk),
     };
 
     // Expose the Lua artifact
@@ -92,7 +97,7 @@ pub fn build(b: *Build) void {
     const examples = if (lang == .luau) &common_examples ++ luau_examples else &common_examples;
 
     for (examples) |example| {
-        if (!target.result.isWasm()) {
+        if (!target_is_emscripten) {
             const exe = b.addExecutable(.{
                 .name = example[0],
                 .root_source_file = b.path(example[1]),
@@ -118,6 +123,8 @@ pub fn build(b: *Build) void {
                 .target = target,
                 .optimize = optimize,
             });
+            example_lib.linkLibC();
+            example_lib.addIncludePath(b.path("src"));
             example_lib.root_module.addImport("ziglua", ziglua);
 
             // create a special emcc linker run step
@@ -128,7 +135,7 @@ pub fn build(b: *Build) void {
                 .emsdk = emsdk,
                 .use_emmalloc = true,
                 .use_filesystem = true,
-                .shell_file_path = b.path("src/shell.html"),
+                .shell_file_path = b.path("src/emscripten/shell.html"),
                 .extra_args = &.{
                     "-sUSE_OFFSET_CONVERTER=1",
                     // this flag must either be present for both the compile and link steps, or be absent from both
@@ -225,49 +232,80 @@ fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Optim
     return lib;
 }
 
-fn buildLuauEmscripten(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, luau_use_4_vector: bool, emsdk: *Build.Dependency) *Step.Compile {
-    const lib = b.addStaticLibrary(.{
-        .name = "luau",
+fn buildLuaEmscripten(
+    b: *Build,
+    target: Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    upstream: *Build.Dependency,
+    lang: Language,
+    emsdk: *Build.Dependency,
+) *Step.Compile {
+    const lib_opts = .{
+        .name = "lua",
         .target = target,
         .optimize = optimize,
-        .version = std.SemanticVersion{ .major = 0, .minor = 607, .patch = 0 },
-        .link_libc = true,
-    });
+        .version = switch (lang) {
+            .lua51 => std.SemanticVersion{ .major = 5, .minor = 1, .patch = 5 },
+            .lua52 => std.SemanticVersion{ .major = 5, .minor = 2, .patch = 4 },
+            .lua53 => std.SemanticVersion{ .major = 5, .minor = 3, .patch = 6 },
+            .lua54 => std.SemanticVersion{ .major = 5, .minor = 4, .patch = 6 },
+            else => unreachable,
+        },
+    };
+    const lib = b.addStaticLibrary(lib_opts);
 
-    const extra_flags = &.{
-        "-DLUA_USE_LONGJMP=1",
-        "-DLUA_API=extern\"C\"",
-        "-DLUACODE_API=extern\"C\"",
-        "-DLUACODEGEN_API=extern\"C\"",
+    lib.addIncludePath(upstream.path("src"));
+
+    const flags = [_][]const u8{
+        // Standard version used in Lua Makefile
+        "-std=gnu99",
+
+        // Define target-specific macro
+        switch (target.result.os.tag) {
+            .linux => "-DLUA_USE_LINUX",
+            .macos => "-DLUA_USE_MACOSX",
+            .windows => "-DLUA_USE_WINDOWS",
+            else => "-DLUA_USE_POSIX",
+        },
+
+        // Enable api check
+        if (optimize == .Debug) "-DLUA_USE_APICHECK" else "",
+
+        "-I",
+        upstream.path("src").getPath(b),
+
         // this flag must either be present for both the compile and link steps, or be absent from both
         "-fwasm-exceptions",
-        if (luau_use_4_vector) "-DLUA_VECTOR_SIZE=4" else "-DLUA_VECTOR_SIZE=3",
-        "-I",
-        upstream.path("Common/include").getPath(b),
-        "-I",
-        upstream.path("Compiler/include").getPath(b),
-        "-I",
-        upstream.path("Ast/include").getPath(b),
-        "-I",
-        upstream.path("VM/include").getPath(b),
     };
-    for (luau_source_files) |file| {
-        const compile_luau = emCompileStep(
+
+    const lua_source_files = switch (lang) {
+        .lua51 => &lua_base_source_files,
+        .lua52 => &lua_52_source_files,
+        .lua53 => &lua_53_source_files,
+        .lua54 => &lua_54_source_files,
+        else => unreachable,
+    };
+
+    for (lua_source_files) |file| {
+        const compile_lua = emCompileStep(
             b,
             upstream.path(file),
             optimize,
             emsdk,
-            extra_flags,
+            &flags,
         );
-        lib.addObjectFile(compile_luau);
+        lib.addObjectFile(compile_lua);
     }
-    lib.addObjectFile(emCompileStep(
-        b,
-        b.path("src/luau.cpp"),
-        optimize,
-        emsdk,
-        extra_flags,
-    ));
+
+    lib.linkLibC();
+
+    // unsure why this is necessary, but even with linkLibC() lauxlib.h will fail to find stdio.h
+    lib.installHeader(b.path("src/emscripten/stdio.h"), "stdio.h");
+
+    lib.installHeader(upstream.path("src/lua.h"), "lua.h");
+    lib.installHeader(upstream.path("src/lualib.h"), "lualib.h");
+    lib.installHeader(upstream.path("src/lauxlib.h"), "lauxlib.h");
+    lib.installHeader(upstream.path("src/luaconf.h"), "luaconf.h");
 
     return lib;
 }
@@ -309,6 +347,60 @@ fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Opti
     lib.installHeader(upstream.path("VM/include/lua.h"), "lua.h");
     lib.installHeader(upstream.path("VM/include/lualib.h"), "lualib.h");
     lib.installHeader(upstream.path("VM/include/luaconf.h"), "luaconf.h");
+
+    return lib;
+}
+
+fn buildLuauEmscripten(
+    b: *Build,
+    target: Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    upstream: *Build.Dependency,
+    luau_use_4_vector: bool,
+    emsdk: *Build.Dependency,
+) *Step.Compile {
+    const lib = b.addStaticLibrary(.{
+        .name = "luau",
+        .target = target,
+        .optimize = optimize,
+        .version = std.SemanticVersion{ .major = 0, .minor = 607, .patch = 0 },
+        .link_libc = true,
+    });
+
+    const flags = .{
+        "-DLUA_USE_LONGJMP=1",
+        "-DLUA_API=extern\"C\"",
+        "-DLUACODE_API=extern\"C\"",
+        "-DLUACODEGEN_API=extern\"C\"",
+        // this flag must either be present for both the compile and link steps, or be absent from both
+        "-fwasm-exceptions",
+        if (luau_use_4_vector) "-DLUA_VECTOR_SIZE=4" else "-DLUA_VECTOR_SIZE=3",
+        "-I",
+        upstream.path("Common/include").getPath(b),
+        "-I",
+        upstream.path("Compiler/include").getPath(b),
+        "-I",
+        upstream.path("Ast/include").getPath(b),
+        "-I",
+        upstream.path("VM/include").getPath(b),
+    };
+    for (luau_source_files) |file| {
+        const compile_luau = emCompileStep(
+            b,
+            upstream.path(file),
+            optimize,
+            emsdk,
+            &flags,
+        );
+        lib.addObjectFile(compile_luau);
+    }
+    lib.addObjectFile(emCompileStep(
+        b,
+        b.path("src/luau.cpp"),
+        optimize,
+        emsdk,
+        &flags,
+    ));
 
     return lib;
 }
@@ -689,8 +781,6 @@ pub const EmLinkOptions = struct {
     emsdk: *Build.Dependency,
     release_use_closure: bool = true,
     release_use_lto: bool = true,
-    use_webgpu: bool = false,
-    use_webgl2: bool = false,
     use_emmalloc: bool = false,
     use_filesystem: bool = true,
     shell_file_path: ?Build.LazyPath,
@@ -743,12 +833,6 @@ pub fn emLinkStep(b: *Build, options: EmLinkOptions) !*Build.Step.InstallDir {
         if (options.release_use_closure) {
             emcc.addArgs(&.{ "--closure", "1" });
         }
-    }
-    if (options.use_webgpu) {
-        emcc.addArg("-sUSE_WEBGPU=1");
-    }
-    if (options.use_webgl2) {
-        emcc.addArg("-sUSE_WEBGL2=1");
     }
     if (!options.use_filesystem) {
         emcc.addArg("-sNO_FILESYSTEM=1");
