@@ -17,9 +17,7 @@ fn adder(lua: *Lua) i32 {
 }
 
 pub fn main() anyerror!void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+    const allocator = std.heap.c_allocator;
 
     // Initialize The Lua vm and get a reference to the main thread
     //
