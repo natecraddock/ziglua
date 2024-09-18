@@ -137,8 +137,6 @@ pub fn build(b: *Build) void {
                 .shell_file_path = b.path("src/emscripten/shell.html"),
                 .extra_args = &.{
                     "-sUSE_OFFSET_CONVERTER=1",
-                    // this flag must either be present for both the compile and link steps, or be absent from both
-                    "-fwasm-exceptions",
                 },
             });
             // ...and a special run step to run the build result via emrun
@@ -272,9 +270,6 @@ fn buildLuaEmscripten(
 
         "-I",
         upstream.path("src").getPath(b),
-
-        // this flag must either be present for both the compile and link steps, or be absent from both
-        "-fwasm-exceptions",
     };
 
     const lua_source_files = switch (lang) {
@@ -371,8 +366,6 @@ fn buildLuauEmscripten(
         "-DLUA_API=extern\"C\"",
         "-DLUACODE_API=extern\"C\"",
         "-DLUACODEGEN_API=extern\"C\"",
-        // this flag must either be present for both the compile and link steps, or be absent from both
-        "-fwasm-exceptions",
         if (luau_use_4_vector) "-DLUA_VECTOR_SIZE=4" else "-DLUA_VECTOR_SIZE=3",
         "-I",
         upstream.path("Common/include").getPath(b),
