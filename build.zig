@@ -124,7 +124,6 @@ pub fn build(b: *Build) void {
                 .optimize = optimize,
             });
             example_lib.linkLibC();
-            example_lib.addIncludePath(b.path("src"));
             example_lib.root_module.addImport("ziglua", ziglua);
 
             // create a special emcc linker run step
