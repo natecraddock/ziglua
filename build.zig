@@ -123,6 +123,9 @@ pub fn build(b: *Build) void {
                 .target = target,
                 .optimize = optimize,
             });
+            if (try emSdkSetupStep(b, emsdk)) |emsdk_setup| {
+                example_lib.step.dependOn(&emsdk_setup.step);
+            }
             example_lib.linkLibC();
             example_lib.root_module.addImport("ziglua", ziglua);
 
@@ -250,6 +253,9 @@ fn buildLuaEmscripten(
         },
     };
     const lib = b.addStaticLibrary(lib_opts);
+    if (try emSdkSetupStep(b, emsdk)) |emsdk_setup| {
+        lib.step.dependOn(&emsdk_setup.step);
+    }
 
     lib.addIncludePath(upstream.path("src"));
 
@@ -360,6 +366,9 @@ fn buildLuauEmscripten(
         .version = std.SemanticVersion{ .major = 0, .minor = 607, .patch = 0 },
         .link_libc = true,
     });
+    if (try emSdkSetupStep(b, emsdk)) |emsdk_setup| {
+        lib.step.dependOn(&emsdk_setup.step);
+    }
 
     const flags = .{
         "-DLUA_USE_LONGJMP=1",
