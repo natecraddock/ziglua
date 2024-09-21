@@ -27,6 +27,25 @@ pub const Doc = struct {
         );
     }
 
+    pub fn addEnum(self: *@This(), name: []const u8, comptime T: type) !void {
+        const is_undefined = self.defined.get(name) == null;
+        if (is_undefined) {
+            try self.defined.put(name, std.ArrayList(u8).init(self.allocator));
+            const result = self.defined.getPtr(name).?;
+
+            //name
+            try result.appendSlice("---@alias ");
+            try result.appendSlice(name);
+            try result.appendSlice("\n");
+
+            inline for (@typeInfo(T).Enum.fields) |field| {
+                try result.appendSlice("---|\' \"");
+                try result.appendSlice(field.name);
+                try result.appendSlice("\" \'\n");
+            }
+        }
+    }
+
     pub fn addClass(self: *@This(), name: []const u8, comptime T: type) !void {
         const is_undefined = self.defined.get(name) == null;
         if (is_undefined) {
@@ -71,14 +90,46 @@ pub const Doc = struct {
                 try self.addClass(name, T);
                 try result.appendSlice(name);
             },
+            .Pointer => |info| {
+                if (info.child == u8 and info.size == .Slice) {
+                    try result.appendSlice("string");
+                } else switch (info.size) {
+                    .One => {
+                        try result.appendSlice("lightuserdata");
+                    },
+                    .C, .Many, .Slice => {
+                        try self.addType(result, info.child);
+                        try result.appendSlice("[]");
+                    },
+                }
+            },
+            .Array => |info| {
+                try self.addType(result, info.child);
+                try result.appendSlice("[]");
+            },
+
+            .Vector => |info| {
+                try self.addType(result, info.child);
+                try result.appendSlice("[]");
+            },
+            .Optional => |info| {
+                try self.addType(result, info.child);
+                try result.appendSlice("|nil");
+            },
+            .Enum => {
+                //const name = @typeName(T);
+                const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
+                try self.addEnum(name, T);
+                try result.appendSlice(name);
+            },
             .Int => {
-                try result.appendSlice("Integer");
+                try result.appendSlice("integer");
             },
             .Float => {
-                try result.appendSlice("Number");
+                try result.appendSlice("number");
             },
             .Bool => {
-                try result.appendSlice("Boolean");
+                try result.appendSlice("boolean");
             },
             else => @compileError("Type not supported"),
         }
@@ -96,8 +147,10 @@ test "docgen" {
     var docs = Doc.init(std.testing.allocator);
     defer docs.deinit();
 
-    const SubType = struct { foo: i32, bar: bool };
-    const TestType = struct { a: i32, b: f32, c: bool, d: SubType };
+    const MyEnum = enum { asdf, fdsa, qwer, rewq };
+    const SubType = struct { foo: i32, bar: bool, bip: MyEnum, bap: ?[]MyEnum };
+    const Bippity = struct { A: ?i32, B: *bool, C: []const u8, D: ?*SubType };
+    const TestType = struct { a: i32, b: f32, c: bool, d: SubType, e: [10]Bippity };
     try docs.addClass("TestType", TestType);
     try docs.printDefined();
 }
