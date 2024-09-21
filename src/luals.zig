@@ -155,6 +155,18 @@ pub const Definitions = struct {
             std.debug.print("{s}\n", .{val.items});
         }
     }
+
+    pub fn toString(self: *@This(), alloc: std.mem.Allocator) ![]const u8 {
+        var result = std.ArrayList(u8).init(alloc);
+
+        try result.appendSlice(self.getFileHeader());
+        var iter = self.defined.valueIterator();
+        while (iter.next()) |val| {
+            try result.appendSlice(val.items);
+            try result.appendSlice("\n");
+        }
+        return result.items;
+    }
 };
 
 test "docgen" {
@@ -166,5 +178,5 @@ test "docgen" {
     const Bippity = struct { A: ?i32, B: *bool, C: []const u8, D: ?*SubType };
     const TestType = struct { a: i32, b: f32, c: bool, d: SubType, e: [10]Bippity };
     try docs.addClass("TestType", TestType);
-    try docs.printDefined();
+    //try docs.printDefined();
 }
