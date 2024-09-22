@@ -3,15 +3,7 @@ const std = @import("std");
 pub const def = @import("define.zig");
 pub const define = def.define;
 
-const c = @cImport({
-    @cInclude("luaconf.h");
-    @cInclude("lua.h");
-    @cInclude("lualib.h");
-
-    if (lang != .luau) @cInclude("lauxlib.h");
-    if (lang == .luau) @cInclude("luacode.h");
-    if (lang == .luajit) @cInclude("luajit.h");
-});
+const c = @import("c");
 
 const config = @import("config");
 

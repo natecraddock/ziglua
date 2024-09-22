@@ -51,8 +51,9 @@ pub fn build(b: *Build) void {
         else => buildLua(b, target, optimize, upstream, lang, shared),
     };
 
-    // Expose the Lua artifact
-    b.installArtifact(lib);
+    // Expose the Lua artifact, and get an install step that header translation can refer to
+    const install_lib = b.addInstallArtifact(lib, .{});
+    b.getInstallStep().dependOn(&install_lib.step);
 
     switch (lang) {
         .luau => {
@@ -65,6 +66,21 @@ pub fn build(b: *Build) void {
     }
 
     ziglua.linkLibrary(lib);
+
+    // lib must expose all headers included by these root headers
+    const c_header_path = switch (lang) {
+        .luajit => b.path("include/luajit_all.h"),
+        .luau => b.path("include/luau_all.h"),
+        else => b.path("include/lua_all.h"),
+    };
+    const c_headers = b.addTranslateC(.{
+        .root_source_file = c_header_path,
+        .target = target,
+        .optimize = optimize,
+    });
+    c_headers.addIncludeDir(b.getInstallPath(install_lib.h_dir.?, ""));
+    c_headers.step.dependOn(&install_lib.step);
+    ziglua.addImport("c", c_headers.createModule());
 
     // Tests
     const tests = b.addTest(.{
@@ -235,10 +251,10 @@ fn buildLuau(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Opti
     lib.addCSourceFile(.{ .file = b.path("src/luau.cpp"), .flags = &flags });
     lib.linkLibCpp();
 
-    // It may not be as likely that other software links against Luau, but might as well expose these anyway
     lib.installHeader(upstream.path("VM/include/lua.h"), "lua.h");
     lib.installHeader(upstream.path("VM/include/lualib.h"), "lualib.h");
     lib.installHeader(upstream.path("VM/include/luaconf.h"), "luaconf.h");
+    lib.installHeader(upstream.path("Compiler/include/luacode.h"), "luacode.h");
 
     return lib;
 }
