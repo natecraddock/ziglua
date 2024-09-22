@@ -2555,6 +2555,15 @@ pub const Lua = opaque {
         unreachable;
     }
 
+    /// Raises an error from inside a Luau interrupt
+    /// See https://github.com/luau-lang/luau/blob/ce8495a69e7a4e774a5402f99e1fc282a92ced91/CLI/Repl.cpp#L59
+    pub fn raiseInterruptErrorStr(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
+        if (lang != .luau) return;
+        c.lua_rawcheckstack(@ptrCast(lua), 1);
+        lua.raiseErrorStr(fmt, args);
+        unreachable;
+    }
+
     /// This function produces the return values for process-related functions in the standard library
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_execresult
     pub fn execResult(lua: *Lua, stat: i32) i32 {
