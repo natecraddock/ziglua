@@ -2895,6 +2895,7 @@ test "interrupt" {
         pub fn inner(l: *Lua, _: i32) void {
             times_called += 1;
             l.setInterruptCallbackFn(null);
+            l.raiseInterruptErrorStr("interrupted", .{});
         }
     };
 
@@ -2906,9 +2907,10 @@ test "interrupt" {
     );
     lua.setInterruptCallbackFn(ziglua.wrap(interrupt_handler.inner));
 
-    try lua.doString(
+    const expected_err = lua.doString(
         \\c = add(1, 2)
     );
+    try testing.expectError(ziglua.Error.Runtime, expected_err);
     try testing.expectEqual(1, interrupt_handler.times_called);
 
     // Handler should have removed itself
