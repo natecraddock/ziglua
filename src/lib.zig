@@ -88,6 +88,9 @@ pub const CompareOperator = enum(u2) {
 /// Type for C userdata destructors
 pub const CUserdataDtorFn = *const fn (userdata: *anyopaque) callconv(.C) void;
 
+/// Type for C interrupt callback
+pub const CInterruptCallbackFn = *const fn (state: ?*LuaState, gc: c_int) callconv(.C) void;
+
 /// Type for C useratom callback
 pub const CUserAtomCallbackFn = *const fn (str: [*c]const u8, len: usize) callconv(.C) i16;
 
@@ -2340,6 +2343,12 @@ pub const Lua = opaque {
         return error.Fail;
     }
 
+    pub fn setInterruptCallbackFn(lua: *Lua, cb: ?CInterruptCallbackFn) void {
+        if (c.lua_callbacks(@ptrCast(lua))) |cb_struct| {
+            cb_struct.*.interrupt = cb;
+        }
+    }
+
     pub fn setUserAtomCallbackFn(lua: *Lua, cb: CUserAtomCallbackFn) void {
         if (c.lua_callbacks(@ptrCast(lua))) |cb_struct| {
             cb_struct.*.useratom = cb;
@@ -3581,6 +3590,7 @@ pub const ZigHookFn = fn (lua: *Lua, event: Event, info: *DebugInfo) void;
 pub const ZigContFn = fn (lua: *Lua, status: Status, ctx: Context) i32;
 pub const ZigReaderFn = fn (lua: *Lua, data: *anyopaque) ?[]const u8;
 pub const ZigUserdataDtorFn = fn (data: *anyopaque) void;
+pub const ZigInterruptCallbackFn = fn (lua: *Lua, gc: i32) void;
 pub const ZigUserAtomCallbackFn = fn (str: []const u8) i16;
 pub const ZigWarnFn = fn (data: ?*anyopaque, msg: []const u8, to_cont: bool) void;
 pub const ZigWriterFn = fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool;
@@ -3593,6 +3603,7 @@ fn TypeOfWrap(comptime T: type) type {
         ZigContFn => CContFn,
         ZigReaderFn => CReaderFn,
         ZigUserdataDtorFn => CUserdataDtorFn,
+        ZigInterruptCallbackFn => CInterruptCallbackFn,
         ZigUserAtomCallbackFn => CUserAtomCallbackFn,
         ZigWarnFn => CWarnFn,
         ZigWriterFn => CWriterFn,
@@ -3611,6 +3622,7 @@ pub fn wrap(comptime value: anytype) TypeOfWrap(@TypeOf(value)) {
         ZigContFn => wrapZigContFn(value),
         ZigReaderFn => wrapZigReaderFn(value),
         ZigUserdataDtorFn => wrapZigUserdataDtorFn(value),
+        ZigInterruptCallbackFn => wrapZigInterruptCallbackFn(value),
         ZigUserAtomCallbackFn => wrapZigUserAtomCallbackFn(value),
         ZigWarnFn => wrapZigWarnFn(value),
         ZigWriterFn => wrapZigWriterFn(value),
@@ -3675,6 +3687,15 @@ fn wrapZigUserdataDtorFn(comptime f: ZigUserdataDtorFn) CUserdataDtorFn {
     return struct {
         fn inner(userdata: *anyopaque) callconv(.C) void {
             return @call(.always_inline, f, .{userdata});
+        }
+    }.inner;
+}
+
+/// Wrap a ZigFn in a CFn for passing to the API
+fn wrapZigInterruptCallbackFn(comptime f: ZigInterruptCallbackFn) CInterruptCallbackFn {
+    return struct {
+        fn inner(lua: ?*LuaState, gc: c_int) callconv(.C) void {
+            @call(.always_inline, f, .{ @as(*Lua, @ptrCast(lua.?)), gc });
         }
     }.inner;
 }
