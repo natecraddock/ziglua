@@ -1,19 +1,57 @@
 const std = @import("std");
 
 pub const Definitions = struct {
-    allocator: std.mem.Allocator,
-    defined: std.StringHashMap(std.ArrayList(u8)),
+    build: *std.Build,
+    database: std.StringHashMap(std.ArrayList(u8)),
+    step: std.Build.Step,
+    output_path: std.Build.LazyPath,
 
-    pub fn init(alloc: std.mem.Allocator) @This() {
-        return .{ .defined = std.StringHashMap(std.ArrayList(u8)).init(alloc), .allocator = alloc };
+    /// for the custom build step
+    fn makeFn(step: *std.Build.Step, prog_node: std.Progress.Node) anyerror!void {
+        _ = prog_node; // autofix
+        const self: *Definitions = @fieldParentPtr("step", step);
+
+        //const text = try self.toString();
+
+        var text = std.ArrayList(u8).init(self.build.allocator);
+        defer text.deinit();
+
+        try text.appendSlice(self.getFileHeader());
+        var iter = self.database.valueIterator();
+        while (iter.next()) |val| {
+            try text.appendSlice(val.items);
+            try text.appendSlice("\n");
+        }
+
+        var file = try std.fs.createFileAbsolute(self.output_path.getPath(self.build), .{});
+        defer file.close();
+
+        try file.seekTo(0);
+        try file.writeAll(text.items);
+        try file.setEndPos(try file.getPos());
+    }
+
+    pub fn init(b: *std.Build, output_path: std.Build.LazyPath) @This() {
+        return Definitions{
+            .step = std.Build.Step.init(.{
+                .id = .custom,
+                .name = "generate definitions.lua",
+                .owner = b,
+                .makeFn = &makeFn,
+            }),
+            .build = b,
+            .database = std.StringHashMap(std.ArrayList(u8)).init(b.allocator),
+            .output_path = output_path,
+        };
     }
 
     pub fn deinit(self: *@This()) void {
-        var iter = self.defined.valueIterator();
+        std.debug.print("deinit called\n", .{});
+        var iter = self.database.valueIterator();
         while (iter.next()) |val| {
             val.deinit();
         }
-        self.defined.deinit();
+        self.database.deinit();
     }
 
     pub fn getFileHeader(_: *@This()) []const u8 {
@@ -28,10 +66,10 @@ pub const Definitions = struct {
     }
 
     pub fn addEnum(self: *@This(), name: []const u8, comptime T: type) !void {
-        const is_undefined = self.defined.get(name) == null;
-        if (is_undefined) {
-            try self.defined.put(name, std.ArrayList(u8).init(self.allocator));
-            const result = self.defined.getPtr(name).?;
+        const is_undatabase = self.database.get(name) == null;
+        if (is_undatabase) {
+            try self.database.put(name, std.ArrayList(u8).init(self.build.allocator));
+            const result = self.database.getPtr(name).?;
 
             //name
             try result.appendSlice("---@alias ");
@@ -47,10 +85,10 @@ pub const Definitions = struct {
     }
 
     pub fn addClass(self: *@This(), name: []const u8, comptime T: type) !void {
-        const is_undefined = self.defined.get(name) == null;
-        if (is_undefined) {
-            try self.defined.put(name, std.ArrayList(u8).init(self.allocator));
-            const result = self.defined.getPtr(name).?;
+        const is_undatabase = self.database.get(name) == null;
+        if (is_undatabase) {
+            try self.database.put(name, std.ArrayList(u8).init(self.build.allocator));
+            const result = self.database.getPtr(name).?;
             try self.addClassName(result, name);
             try self.addClassFields(result, @typeInfo(T).Struct.fields);
         }
@@ -141,7 +179,7 @@ pub const Definitions = struct {
         try file.seekTo(0);
         try file.writeAll(self.getFileHeader());
 
-        var iter = self.defined.valueIterator();
+        var iter = self.database.valueIterator();
         while (iter.next()) |val| {
             try file.writeAll(val.items);
             try file.writeAll("\n");
@@ -149,18 +187,18 @@ pub const Definitions = struct {
         try file.setEndPos(try file.getPos());
     }
 
-    pub fn printDefined(self: *@This()) !void {
-        var iter = self.defined.valueIterator();
+    pub fn printdatabase(self: *@This()) !void {
+        var iter = self.database.valueIterator();
         while (iter.next()) |val| {
             std.debug.print("{s}\n", .{val.items});
         }
     }
 
-    pub fn toString(self: *@This(), alloc: std.mem.Allocator) ![]const u8 {
-        var result = std.ArrayList(u8).init(alloc);
+    pub fn toString(self: *@This()) ![]const u8 {
+        var result = std.ArrayList(u8).init(self.build.allocator);
 
         try result.appendSlice(self.getFileHeader());
-        var iter = self.defined.valueIterator();
+        var iter = self.database.valueIterator();
         while (iter.next()) |val| {
             try result.appendSlice(val.items);
             try result.appendSlice("\n");
@@ -169,14 +207,14 @@ pub const Definitions = struct {
     }
 };
 
-test "docgen" {
-    var docs = Definitions.init(std.testing.allocator);
-    defer docs.deinit();
-
-    const MyEnum = enum { asdf, fdsa, qwer, rewq };
-    const SubType = struct { foo: i32, bar: bool, bip: MyEnum, bap: ?[]MyEnum };
-    const Bippity = struct { A: ?i32, B: *bool, C: []const u8, D: ?*SubType };
-    const TestType = struct { a: i32, b: f32, c: bool, d: SubType, e: [10]Bippity };
-    try docs.addClass("TestType", TestType);
-    //try docs.printDefined();
-}
+//,test "docgen" {
+//,    var docs = Definitions.init(std.testing.allocator);
+//,    defer docs.deinit();
+//,
+//,    const MyEnum = enum { asdf, fdsa, qwer, rewq };
+//,    const SubType = struct { foo: i32, bar: bool, bip: MyEnum, bap: ?[]MyEnum };
+//,    const Bippity = struct { A: ?i32, B: *bool, C: []const u8, D: ?*SubType };
+//,    const TestType = struct { a: i32, b: f32, c: bool, d: SubType, e: [10]Bippity };
+//,    try docs.addClass("TestType", TestType);
+//,    //try docs.printdatabase();
+//,}

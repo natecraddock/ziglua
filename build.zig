@@ -128,7 +128,7 @@ pub fn build(b: *Build) !void {
     docs_step.dependOn(&install_docs.step);
 
     // definitions
-    var def = Definitions.init(b.allocator);
+    var def = Definitions.init(b, b.path("zig-out/lib/definitions.lua"));
     defer def.deinit();
 
     const MyEnum = enum { asdf, fdsa, qwer, rewq };
@@ -137,35 +137,35 @@ pub fn build(b: *Build) !void {
     const TestType = struct { a: i32, b: f32, c: bool, d: SubType, e: [10]Bippity };
     try def.addClass("TestType", TestType);
 
-    var define = WriteDefineFile{
-        .step = Build.Step.init(.{
-            .id = .custom,
-            .name = "generate definitions.lua",
-            .owner = b,
-            .makeFn = &makeFn,
-        }),
-        .text = try def.toString(b.allocator),
-        .absolute_path = b.path("zig-out/lib/definitions.lua").getPath(b),
-    };
+    //var define = WriteDefineFile{
+    //    .step = Build.Step.init(.{
+    //        .id = .custom,
+    //        .name = "generate definitions.lua",
+    //        .owner = b,
+    //        .makeFn = &makeFn,
+    //    }),
+    //    .text = try def.toString(b.allocator),
+    //    .absolute_path = b.path("zig-out/lib/definitions.lua").getPath(b),
+    //};
 
-    const define_step = b.step("define", "generate definitions.lua file");
-    define_step.dependOn((&define.step));
+    const define_step = b.step("define", "Generate definitions.lua file");
+    define_step.dependOn((&def.step));
 }
-
-pub const WriteDefineFile = struct {
-    step: Build.Step,
-    text: []const u8,
-    absolute_path: []const u8,
-};
-
-fn makeFn(step: *Build.Step, prog_node: std.Progress.Node) anyerror!void {
-    _ = prog_node; // autofix
-    const parent: *WriteDefineFile = @fieldParentPtr("step", step);
-    var file = try std.fs.createFileAbsolute(parent.absolute_path, .{});
-    try file.seekTo(0);
-    try file.writeAll(parent.text);
-    try file.setEndPos(try file.getPos());
-}
+//
+//pub const WriteDefineFile = struct {
+//    step: Build.Step,
+//    text: []const u8,
+//    absolute_path: []const u8,
+//};
+//
+//fn makeFn(step: *Build.Step, prog_node: std.Progress.Node) anyerror!void {
+//    _ = prog_node; // autofix
+//    const parent: *WriteDefineFile = @fieldParentPtr("step", step);
+//    var file = try std.fs.createFileAbsolute(parent.absolute_path, .{});
+//    try file.seekTo(0);
+//    try file.writeAll(parent.text);
+//    try file.setEndPos(try file.getPos());
+//}
 
 fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lang: Language, shared: bool) *Step.Compile {
     const lib_opts = .{
