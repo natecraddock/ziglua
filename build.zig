@@ -128,7 +128,7 @@ pub fn build(b: *Build) !void {
     docs_step.dependOn(&install_docs.step);
 
     // definitions
-    var def = Definitions.init(b, b.path("zig-out/lib/definitions.lua"));
+    var def = Definitions.init(b, "zig-out/definitions.lua");
     defer def.deinit();
 
     const MyEnum = enum { asdf, fdsa, qwer, rewq };
@@ -150,6 +150,7 @@ pub fn build(b: *Build) !void {
 
     const define_step = b.step("define", "Generate definitions.lua file");
     define_step.dependOn((&def.step));
+    //define_step.dependOn((&));
 }
 //
 //pub const WriteDefineFile = struct {

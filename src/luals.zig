@@ -2,37 +2,30 @@ const std = @import("std");
 
 pub const Definitions = struct {
     build: *std.Build,
-    database: std.StringHashMap(std.ArrayList(u8)),
+    database: std.StringHashMap(void),
+    text: std.ArrayList(u8),
     step: std.Build.Step,
-    output_path: std.Build.LazyPath,
+    output_path: [128]u8 = .{0} ** 128,
 
     /// for the custom build step
     fn makeFn(step: *std.Build.Step, prog_node: std.Progress.Node) anyerror!void {
-        _ = prog_node; // autofix
+        //_ = prog_node; // autofix
+
+        const node = prog_node.start("Writing lua definitions file", 1);
+        defer node.end();
         const self: *Definitions = @fieldParentPtr("step", step);
 
-        //const text = try self.toString();
-
-        var text = std.ArrayList(u8).init(self.build.allocator);
-        defer text.deinit();
-
-        try text.appendSlice(self.getFileHeader());
-        var iter = self.database.valueIterator();
-        while (iter.next()) |val| {
-            try text.appendSlice(val.items);
-            try text.appendSlice("\n");
-        }
-
-        var file = try std.fs.createFileAbsolute(self.output_path.getPath(self.build), .{});
+        const path = self.build.path(std.mem.sliceTo(&self.output_path, 0)).getPath(self.build);
+        var file = try std.fs.createFileAbsolute(path, .{});
         defer file.close();
 
         try file.seekTo(0);
-        try file.writeAll(text.items);
+        try file.writeAll(self.text.items);
         try file.setEndPos(try file.getPos());
     }
 
-    pub fn init(b: *std.Build, output_path: std.Build.LazyPath) @This() {
-        return Definitions{
+    pub fn init(b: *std.Build, output_path: []const u8) @This() {
+        var result = Definitions{
             .step = std.Build.Step.init(.{
                 .id = .custom,
                 .name = "generate definitions.lua",
@@ -40,21 +33,22 @@ pub const Definitions = struct {
                 .makeFn = &makeFn,
             }),
             .build = b,
-            .database = std.StringHashMap(std.ArrayList(u8)).init(b.allocator),
-            .output_path = output_path,
+            .database = std.StringHashMap(void).init(b.allocator),
+            .text = std.ArrayList(u8).init(b.allocator),
         };
+        std.mem.copyForwards(u8, &result.output_path, output_path);
+        return result;
     }
 
     pub fn deinit(self: *@This()) void {
-        std.debug.print("deinit called\n", .{});
-        var iter = self.database.valueIterator();
-        while (iter.next()) |val| {
-            val.deinit();
-        }
-        self.database.deinit();
+        _ = self; // autofix
+        //_ = self;
+        //std.debug.print("deinit called\n", .{});
+        //self.text.deinit();
+        //self.database.deinit();
     }
 
-    pub fn getFileHeader(_: *@This()) []const u8 {
+    fn getFileHeader(_: *@This()) []const u8 {
         return 
         \\---@meta
         \\
@@ -66,115 +60,110 @@ pub const Definitions = struct {
     }
 
     pub fn addEnum(self: *@This(), name: []const u8, comptime T: type) !void {
-        const is_undatabase = self.database.get(name) == null;
-        if (is_undatabase) {
-            try self.database.put(name, std.ArrayList(u8).init(self.build.allocator));
-            const result = self.database.getPtr(name).?;
+        if (self.database.contains(name) == false) {
+            try self.database.put(name, {});
 
             //name
-            try result.appendSlice("---@alias ");
-            try result.appendSlice(name);
-            try result.appendSlice("\n");
+            try self.text.appendSlice("---@alias ");
+            try self.text.appendSlice(name);
+            try self.text.appendSlice("\n");
 
             inline for (@typeInfo(T).Enum.fields) |field| {
-                try result.appendSlice("---|\' \"");
-                try result.appendSlice(field.name);
-                try result.appendSlice("\" \'\n");
+                try self.text.appendSlice("---|\' \"");
+                try self.text.appendSlice(field.name);
+                try self.text.appendSlice("\" \'\n");
             }
         }
     }
 
     pub fn addClass(self: *@This(), name: []const u8, comptime T: type) !void {
-        const is_undatabase = self.database.get(name) == null;
-        if (is_undatabase) {
-            try self.database.put(name, std.ArrayList(u8).init(self.build.allocator));
-            const result = self.database.getPtr(name).?;
-            try self.addClassName(result, name);
-            try self.addClassFields(result, @typeInfo(T).Struct.fields);
+        if (self.database.contains(name) == false) {
+            try self.database.put(name, {});
+            try self.addClassName(name);
+            try self.addClassFields(@typeInfo(T).Struct.fields);
         }
     }
 
-    pub fn addClassName(_: *@This(), result: *std.ArrayList(u8), name: []const u8) !void {
-        try result.appendSlice("---@class ");
-        try result.appendSlice(name);
-        try result.appendSlice("\n");
+    fn addClassName(self: *@This(), name: []const u8) !void {
+        try self.text.appendSlice("---@class ");
+        try self.text.appendSlice(name);
+        try self.text.appendSlice("\n");
     }
 
-    pub fn addClassField(self: *@This(), result: *std.ArrayList(u8), comptime field: std.builtin.Type.StructField) !void {
-        try result.appendSlice("---@field ");
-        try result.appendSlice(field.name);
-        try result.appendSlice(" ");
-        try self.addType(result, field.type);
-        try result.appendSlice("\n");
+    fn addClassField(self: *@This(), comptime field: std.builtin.Type.StructField) !void {
+        try self.text.appendSlice("---@field ");
+        try self.text.appendSlice(field.name);
+        try self.text.appendSlice(" ");
+        try self.addType(field.type);
+        try self.text.appendSlice("\n");
     }
 
-    pub fn addClassFields(
+    fn addClassFields(
         self: *@This(),
-        result: *std.ArrayList(u8),
         comptime fields: []const std.builtin.Type.StructField,
     ) !void {
         if (fields.len > 0) {
-            try self.addClassField(result, fields[0]);
-            try self.addClassFields(result, fields[1..fields.len]);
+            try self.addClassField(fields[0]);
+            try self.addClassFields(fields[1..fields.len]);
         } else {
             return;
         }
     }
 
-    pub fn addType(self: *@This(), result: *std.ArrayList(u8), comptime T: type) !void {
+    fn addType(self: *@This(), comptime T: type) !void {
         switch (@typeInfo(T)) {
             .Struct => {
                 const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
                 try self.addClass(name, T);
-                try result.appendSlice(name);
+                try self.text.appendSlice(name);
             },
             .Pointer => |info| {
                 if (info.child == u8 and info.size == .Slice) {
-                    try result.appendSlice("string");
+                    try self.text.appendSlice("string");
                 } else switch (info.size) {
                     .One => {
-                        try result.appendSlice("lightuserdata");
+                        try self.text.appendSlice("lightuserdata");
                     },
                     .C, .Many, .Slice => {
-                        try self.addType(result, info.child);
-                        try result.appendSlice("[]");
+                        try self.addType(info.child);
+                        try self.text.appendSlice("[]");
                     },
                 }
             },
             .Array => |info| {
-                try self.addType(result, info.child);
-                try result.appendSlice("[]");
+                try self.addType(info.child);
+                try self.text.appendSlice("[]");
             },
 
             .Vector => |info| {
-                try self.addType(result, info.child);
-                try result.appendSlice("[]");
+                try self.addType(info.child);
+                try self.text.appendSlice("[]");
             },
             .Optional => |info| {
-                try self.addType(result, info.child);
-                try result.appendSlice("|nil");
+                try self.addType(info.child);
+                try self.text.appendSlice("|nil");
             },
             .Enum => {
                 //const name = @typeName(T);
                 const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
                 try self.addEnum(name, T);
-                try result.appendSlice(name);
+                try self.text.appendSlice(name);
             },
             .Int => {
-                try result.appendSlice("integer");
+                try self.text.appendSlice("integer");
             },
             .Float => {
-                try result.appendSlice("number");
+                try self.text.appendSlice("number");
             },
             .Bool => {
-                try result.appendSlice("boolean");
+                try self.text.appendSlice("boolean");
             },
             else => @compileError("Type not supported"),
         }
     }
 
     /// Warning: file contents will be lost
-    pub fn overwriteFile(self: *@This(), abs_path: []const u8) !void {
+    fn overwriteFile(self: *@This(), abs_path: []const u8) !void {
         var file = try std.fs.openFileAbsolute(abs_path, .{ .mode = .write_only });
         try file.seekTo(0);
         try file.writeAll(self.getFileHeader());
@@ -194,17 +183,17 @@ pub const Definitions = struct {
         }
     }
 
-    pub fn toString(self: *@This()) ![]const u8 {
-        var result = std.ArrayList(u8).init(self.build.allocator);
+    //fn toString(self: *@This()) ![]const u8 {
+    //    var self.text = std.ArrayList(u8).init(self.build.allocator);
 
-        try result.appendSlice(self.getFileHeader());
-        var iter = self.database.valueIterator();
-        while (iter.next()) |val| {
-            try result.appendSlice(val.items);
-            try result.appendSlice("\n");
-        }
-        return result.items;
-    }
+    //    try self.text.appendSlice(self.getFileHeader());
+    //    var iter = self.database.valueIterator();
+    //    while (iter.next()) |val| {
+    //        try self.text.appendSlice(val.items);
+    //        try self.text.appendSlice("\n");
+    //    }
+    //    return self.text.items;
+    //}
 };
 
 //,test "docgen" {
