@@ -1,10 +1,3 @@
-const asdf = @import("luals-docgen.zig");
-
-test "n" {
-    _ = &asdf;
-    std.testing.refAllDecls(@This());
-}
-
 const std = @import("std");
 const testing = std.testing;
 
