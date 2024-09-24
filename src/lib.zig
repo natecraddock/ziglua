@@ -2382,7 +2382,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_argexpected
     pub fn argExpected(lua: *Lua, cond: bool, arg: i32, type_name: [:0]const u8) void {
         // translate-c failed
-        if (cond) lua.typeError(arg, type_name);
+        if (!cond) lua.typeError(arg, type_name);
     }
 
     /// Calls a metamethod
