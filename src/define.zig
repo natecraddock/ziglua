@@ -174,24 +174,3 @@ fn addType(b: *std.Build, database: *Database, text: *String, comptime T: type) 
         },
     }
 }
-
-// Warning: file contents will be lost
-//fn overwriteFile(database: *Database, abs_path: []const u8) !void {
-//    var file = try std.fs.openFileAbsolute(abs_path, .{ .mode = .write_only });
-//    try file.seekTo(0);
-//    try file.writeAll(self.getFileHeader());
-//
-//    var iter = self.database.valueIterator();
-//    while (iter.next()) |val| {
-//        try file.writeAll(val.items);
-//        try file.writeAll("\n");
-//    }
-//    try file.setEndPos(try file.getPos());
-//}
-//
-//pub fn printdatabase(database: *Database) !void {
-//    var iter = self.database.valueIterator();
-//    while (iter.next()) |val| {
-//        std.debug.print("{s}\n", .{val.items});
-//    }
-//}
