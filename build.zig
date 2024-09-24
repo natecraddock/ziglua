@@ -12,7 +12,8 @@ pub const Language = enum {
     luau,
 };
 
-const Definitions = @import("src/luals.zig").Definitions;
+pub const Define = @import("src/define.zig").Define;
+pub const DefineEntry = @import("src/define.zig").DefineEntry;
 
 pub fn build(b: *Build) !void {
     // Remove the default install and uninstall steps
@@ -127,59 +128,21 @@ pub fn build(b: *Build) !void {
     const docs_step = b.step("docs", "Build and install the documentation");
     docs_step.dependOn(&install_docs.step);
 
-    // definitions
-    //var def = Definitions.init(b, "definitions.lua");
-    //defer def.deinit();
-
+    // definitions example
     const MyEnum = enum { asdf, fdsa, qwer, rewq };
     const SubType = struct { foo: i32, bar: bool, bip: MyEnum, bap: ?[]MyEnum };
     const Bippity = struct { A: ?i32, B: *bool, C: []const u8, D: ?*SubType };
     const TestType = struct { a: i32, b: f32, c: bool, d: SubType, e: [10]Bippity };
+    const Foo = struct { far: MyEnum, near: SubType };
 
-    const Define = @import("src/define.zig").Define;
-
-    const def = try Define(
-        &.{.{ .type = TestType, .name = "TestType" }},
-    ).init(b, b.path("definitions.lua"));
+    const to_define: []const DefineEntry = &.{
+        .{ .type = TestType, .name = "TestType" },
+        .{ .type = Foo, .name = "Foo" },
+    };
+    const def = try Define(to_define).init(b, b.path("definitions.lua"));
     const define_step = b.step("define", "Generate definitions.lua file");
-    define_step.dependOn(def.step);
-
-    //try def.addClass("TestType", TestType);
-
-    //b.addWriteFile(, )
-
-    //var define = WriteDefineFile{
-    //    .step = Build.Step.init(.{
-    //        .id = .custom,
-    //        .name = "generate definitions.lua",
-    //        .owner = b,
-    //        .makeFn = &makeFn,
-    //    }),
-    //    .text = try def.toString(b.allocator),
-    //    .absolute_path = b.path("zig-out/lib/definitions.lua").getPath(b),
-    //};
-
-    //    const define_step = b.step("define", "Generate definitions.lua file");
-    //    define_step.dependOn((&def.step));
-    //define_step.dependOn(b.installFile(, ))
-    //define_step.dependOn(&lib.step);
-    //define_step.dependOn((&));
+    define_step.dependOn(&def.step);
 }
-//
-//pub const WriteDefineFile = struct {
-//    step: Build.Step,
-//    text: []const u8,
-//    absolute_path: []const u8,
-//};
-//
-//fn makeFn(step: *Build.Step, prog_node: std.Progress.Node) anyerror!void {
-//    _ = prog_node; // autofix
-//    const parent: *WriteDefineFile = @fieldParentPtr("step", step);
-//    var file = try std.fs.createFileAbsolute(parent.absolute_path, .{});
-//    try file.seekTo(0);
-//    try file.writeAll(parent.text);
-//    try file.setEndPos(try file.getPos());
-//}
 
 fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lang: Language, shared: bool) *Step.Compile {
     const lib_opts = .{
