@@ -128,14 +128,23 @@ pub fn build(b: *Build) !void {
     docs_step.dependOn(&install_docs.step);
 
     // definitions
-    var def = Definitions.init(b, "zig-out/definitions.lua");
-    defer def.deinit();
+    //var def = Definitions.init(b, "definitions.lua");
+    //defer def.deinit();
 
     const MyEnum = enum { asdf, fdsa, qwer, rewq };
     const SubType = struct { foo: i32, bar: bool, bip: MyEnum, bap: ?[]MyEnum };
     const Bippity = struct { A: ?i32, B: *bool, C: []const u8, D: ?*SubType };
     const TestType = struct { a: i32, b: f32, c: bool, d: SubType, e: [10]Bippity };
-    try def.addClass("TestType", TestType);
+
+    const Define = @import("src/define.zig").Define;
+
+    var def = Define(
+        &.{.{ .type = TestType, .name = "TestType" }},
+    ).init(b, b.path("definitions.lua"));
+
+    //try def.addClass("TestType", TestType);
+
+    //b.addWriteFile(, )
 
     //var define = WriteDefineFile{
     //    .step = Build.Step.init(.{
@@ -150,6 +159,8 @@ pub fn build(b: *Build) !void {
 
     const define_step = b.step("define", "Generate definitions.lua file");
     define_step.dependOn((&def.step));
+    //define_step.dependOn(b.installFile(, ))
+    //define_step.dependOn(&lib.step);
     //define_step.dependOn((&));
 }
 //

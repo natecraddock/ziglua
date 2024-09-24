@@ -114,8 +114,8 @@ pub const Definitions = struct {
         switch (@typeInfo(T)) {
             .Struct => {
                 const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
-                try self.addClass(name, T);
                 try self.text.appendSlice(name);
+                try self.addClass(name, T);
             },
             .Pointer => |info| {
                 if (info.child == u8 and info.size == .Slice) {
