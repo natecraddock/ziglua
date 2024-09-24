@@ -1635,7 +1635,7 @@ test "args and errors" {
 
     const argExpected = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
-            l.argExpected(true, 1, "string");
+            l.argExpected(false, 1, "string");
             return 0;
         }
     }.inner);
