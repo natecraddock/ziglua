@@ -9,39 +9,43 @@ pub const DefineEntry = struct {
 };
 
 pub fn Define(comptime to_define: []const DefineEntry) type {
-    _ = to_define;
     return struct {
         path: std.Build.LazyPath,
-        step: std.Build.Step,
+        step: *std.Build.Step,
 
         pub fn makeFn(step: *std.Build.Step, prog_node: std.Progress.Node) anyerror!void {
-            _ = step; // autofix
+            _ = prog_node; // autofix
 
-            //var database = Database.init(step.owner.allocator);
-            //defer database.deinit();
+            std.debug.print("makeFn called\n", .{});
+            //pro
 
-            ////inline for (to_define) |define| {
-            //    try addClass(step.owner, &database, define.name, define.type);
-            //}
+            var database = Database.init(step.owner.allocator);
+            defer database.deinit();
 
-            //var iter = database.valueIterator();
-            //while (iter.next()) |val| {
-            //    //                std.debug.print("{s}\n", .{val.items});
-            //    val.deinit();
-            //}
-            prog_node.completeOne();
+            inline for (to_define) |define| {
+                try addClass(step.owner, &database, define.name, define.type);
+            }
+
+            var iter = database.valueIterator();
+            while (iter.next()) |val| {
+                std.debug.print("{s}\n", .{val.items});
+                val.deinit();
+            }
         }
 
-        pub fn init(b: *std.Build, output_path: std.Build.LazyPath) @This() {
-            return .{
-                .step = std.Build.Step.init(.{
-                    .id = .custom,
-                    .name = "Generate definitions.lua",
-                    .owner = b,
-                    .makeFn = &makeFn,
-                }),
+        pub fn init(b: *std.Build, output_path: std.Build.LazyPath) !@This() {
+            const result: @This() = .{
+                .step = try b.allocator.create(std.Build.Step),
                 .path = output_path,
             };
+
+            result.step.* = std.Build.Step.init(.{
+                .id = .custom,
+                .name = "Generate definitions.lua",
+                .owner = b,
+                .makeFn = &makeFn,
+            });
+            return result;
         }
     };
 }

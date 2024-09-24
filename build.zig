@@ -138,9 +138,11 @@ pub fn build(b: *Build) !void {
 
     const Define = @import("src/define.zig").Define;
 
-    var def = Define(
+    const def = try Define(
         &.{.{ .type = TestType, .name = "TestType" }},
     ).init(b, b.path("definitions.lua"));
+    const define_step = b.step("define", "Generate definitions.lua file");
+    define_step.dependOn(def.step);
 
     //try def.addClass("TestType", TestType);
 
@@ -157,8 +159,8 @@ pub fn build(b: *Build) !void {
     //    .absolute_path = b.path("zig-out/lib/definitions.lua").getPath(b),
     //};
 
-    const define_step = b.step("define", "Generate definitions.lua file");
-    define_step.dependOn((&def.step));
+    //    const define_step = b.step("define", "Generate definitions.lua file");
+    //    define_step.dependOn((&def.step));
     //define_step.dependOn(b.installFile(, ))
     //define_step.dependOn(&lib.step);
     //define_step.dependOn((&));
