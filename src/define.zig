@@ -32,10 +32,14 @@ pub fn define(
     while (iter.next()) |val| {
         try file.writeAll(val.items);
         try file.writeAll("\n");
-        val.deinit();
     }
 
     try file.setEndPos(try file.getPos());
+
+    iter = database.valueIterator();
+    while (iter.next()) |val| {
+        val.deinit();
+    }
 }
 
 const file_header: []const u8 =
@@ -49,7 +53,7 @@ const file_header: []const u8 =
 
 fn addEnum(alloc: std.mem.Allocator, database: *Database, name: []const u8, comptime T: type) !void {
     if (database.contains(name) == false) {
-        try database.put(name, String.init(alloc));
+        try database.put(name, try String.initCapacity(alloc, 32));
 
         var text = database.getPtr(name).?;
 
