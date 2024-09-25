@@ -22,20 +22,25 @@ pub fn define(
         std.debug.print("finished defining: {any}\n", .{def.type});
     }
 
+    std.debug.print("opening output file: {s}\n", .{absolute_output_path});
     var file = try std.fs.createFileAbsolute(absolute_output_path, .{});
     defer file.close();
 
     try file.seekTo(0);
     try file.writeAll(file_header);
 
+    std.debug.print("writing to file\n", .{});
     var iter = database.valueIterator();
     while (iter.next()) |val| {
+        std.debug.print(" - writing item\n", .{});
         try file.writeAll(val.items);
         try file.writeAll("\n");
     }
+    std.debug.print("finished writing to file\n", .{});
 
     try file.setEndPos(try file.getPos());
 
+    std.debug.print("Freeing memory\n", .{});
     iter = database.valueIterator();
     while (iter.next()) |val| {
         val.deinit();
