@@ -8,8 +8,11 @@ pub const DefineEntry = struct {
     name: []const u8,
 };
 
-pub fn define(absolute_output_path: []const u8, comptime to_define: []const DefineEntry) !void {
-    const alloc = std.heap.c_allocator;
+pub fn define(
+    alloc: std.mem.Allocator,
+    absolute_output_path: []const u8,
+    comptime to_define: []const DefineEntry,
+) !void {
     var database = Database.init(alloc);
     defer database.deinit();
 

@@ -15,5 +15,5 @@ pub fn main() !void {
         .{ .type = T, .name = "T" },
     };
     const output = std.mem.sliceTo(std.os.argv[1], 0);
-    try ziglua.define(output, to_define);
+    try ziglua.define(std.heap.c_allocator, output, to_define);
 }
