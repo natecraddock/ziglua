@@ -84,7 +84,7 @@ fn addClass(
         try state.definitions.append(String.init(state.allocator));
         const index = state.definitions.items.len - 1;
 
-        try state.definitions.items[index].appendSlice("---@class ");
+        try state.definitions.items[index].appendSlice("---@class (exact) ");
         try state.definitions.items[index].appendSlice(name(T));
         try state.definitions.items[index].appendSlice("\n");
 
@@ -93,6 +93,9 @@ fn addClass(
             try state.definitions.items[index].appendSlice(field.name);
             try state.definitions.items[index].appendSlice(" ");
             try luaTypeName(state, index, field.type);
+            if (field.default_value != null) {
+                try state.definitions.items[index].appendSlice(" | nil ");
+            }
             try state.definitions.items[index].appendSlice("\n");
         }
     }
@@ -132,7 +135,7 @@ fn luaTypeName(
         },
         .Optional => |info| {
             try luaTypeName(state, index, info.child);
-            try state.definitions.items[index].appendSlice(" | nil");
+            try state.definitions.items[index].appendSlice("?");
         },
         .Enum => {
             try state.definitions.items[index].appendSlice(name(T));
