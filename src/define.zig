@@ -18,7 +18,7 @@ pub fn define(
 
     inline for (to_define) |def| {
         std.debug.print("defining: {any}\n", .{def.type});
-        _ = try addClass(alloc, &database, def.name, def.type);
+        _ = try addClass(alloc, &database, def.type);
         std.debug.print("finished defining: {any}\n", .{def.type});
     }
 
@@ -59,13 +59,12 @@ const file_header: []const u8 =
 fn addEnum(
     alloc: std.mem.Allocator,
     database: *Database,
-    id: []const u8,
     comptime T: type,
 ) ![]const u8 {
     const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
-    if (database.contains(id) == false) {
+    if (database.contains(@typeName(T)) == false) {
         var text = try String.initCapacity(alloc, 16);
-        try database.put(id, text);
+        try database.put(@typeName(T), text);
 
         try text.appendSlice("---@alias ");
         try text.appendSlice(name);
@@ -80,11 +79,11 @@ fn addEnum(
     return name;
 }
 
-fn addClass(alloc: std.mem.Allocator, database: *Database, id: []const u8, comptime T: type) ![]const u8 {
+fn addClass(alloc: std.mem.Allocator, database: *Database, comptime T: type) ![]const u8 {
     const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
-    if (database.contains(id) == false) {
+    if (database.contains(@typeName(T)) == false) {
         var text = try String.initCapacity(alloc, 16);
-        try database.put(id, text);
+        try database.put(@typeName(T), text);
 
         std.debug.print("defining: {s}\n", .{name});
         try addClassName(&text, name);
@@ -126,7 +125,7 @@ fn addClassFields(
 fn addType(alloc: std.mem.Allocator, database: *Database, text: *String, comptime T: type) !void {
     switch (@typeInfo(T)) {
         .Struct => {
-            const name = try addClass(alloc, database, @typeName(T), T);
+            const name = try addClass(alloc, database, T);
             try text.appendSlice(name);
         },
         .Pointer => |info| {
@@ -156,7 +155,7 @@ fn addType(alloc: std.mem.Allocator, database: *Database, text: *String, comptim
             try text.appendSlice("?");
         },
         .Enum => {
-            const name = try addEnum(alloc, database, @typeName(T), T);
+            const name = try addEnum(alloc, database, T);
             try text.appendSlice(name);
         },
         .Int => {
