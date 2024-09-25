@@ -17,7 +17,9 @@ pub fn define(
     defer database.deinit();
 
     inline for (to_define) |def| {
+        std.debug.print("defining: {any}\n", .{def.type});
         try addClass(alloc, &database, def.name, def.type);
+        std.debug.print("finished defining: {any}\n", .{def.type});
     }
 
     var file = try std.fs.createFileAbsolute(absolute_output_path, .{});
@@ -69,8 +71,10 @@ fn addClass(alloc: std.mem.Allocator, database: *Database, name: []const u8, com
 
         const text = database.getPtr(name).?;
 
+        std.debug.print("defining: {s}\n", .{name});
         try addClassName(text, name);
         try addClassFields(alloc, database, text, @typeInfo(T).Struct.fields);
+        std.debug.print("finished defining: {s}\n", .{name});
     }
 }
 
@@ -81,6 +85,7 @@ fn addClassName(text: *String, name: []const u8) !void {
 }
 
 fn addClassField(alloc: std.mem.Allocator, database: *Database, text: *String, comptime field: std.builtin.Type.StructField) !void {
+    std.debug.print(" - adding field: {s}\n", .{field.name});
     try text.appendSlice("---@field ");
     try text.appendSlice(field.name);
     try text.appendSlice(" ");
