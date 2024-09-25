@@ -91,11 +91,12 @@ fn addClass(
         inline for (@typeInfo(T).Struct.fields) |field| {
             try state.definitions.items[index].appendSlice("---@field ");
             try state.definitions.items[index].appendSlice(field.name);
+
+            if (field.default_value != null) {
+                try state.definitions.items[index].appendSlice("?");
+            }
             try state.definitions.items[index].appendSlice(" ");
             try luaTypeName(state, index, field.type);
-            if (field.default_value != null) {
-                try state.definitions.items[index].appendSlice(" | nil ");
-            }
             try state.definitions.items[index].appendSlice("\n");
         }
     }
