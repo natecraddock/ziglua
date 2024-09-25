@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const String = std.ArrayList(u8);
+const String = std.ArrayListUnmanaged(u8);
 const Database = std.StringHashMap(String);
 
 pub const DefineEntry = struct {
@@ -20,6 +20,7 @@ pub fn define(
         std.debug.print("defining: {any}\n", .{def.type});
         _ = try addClass(alloc, &database, def.type);
         std.debug.print("finished defining: {any}\n", .{def.type});
+        std.debug.print("actual stored value: \n\n{s}\n\n", .{database.get(@typeName(def.type)).?.items});
     }
 
     std.debug.print("opening output file: {s}\n", .{absolute_output_path});
@@ -30,10 +31,10 @@ pub fn define(
     try file.writeAll(file_header);
 
     std.debug.print("writing to file\n", .{});
-    var iter = database.valueIterator();
+    var iter = database.iterator();
     while (iter.next()) |val| {
-        std.debug.print(" - writing item\n", .{});
-        try file.writeAll(val.items);
+        std.debug.print(" - writing item: {s}\n", .{val.key_ptr.*});
+        try file.writeAll(val.value_ptr.items);
         try file.writeAll("\n");
     }
     std.debug.print("finished writing to file\n", .{});
@@ -41,9 +42,9 @@ pub fn define(
     try file.setEndPos(try file.getPos());
 
     std.debug.print("Freeing memory\n", .{});
-    iter = database.valueIterator();
+    iter = database.iterator();
     while (iter.next()) |val| {
-        val.deinit();
+        val.value_ptr.deinit(alloc);
     }
 }
 
@@ -63,17 +64,18 @@ fn addEnum(
 ) ![]const u8 {
     const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
     if (database.contains(@typeName(T)) == false) {
-        var text = try String.initCapacity(alloc, 16);
-        try database.put(@typeName(T), text);
+        const text_basis = try String.initCapacity(alloc, 16);
+        try database.putNoClobber(@typeName(T), text_basis);
+        const text = database.getPtr(@typeName(T)).?;
 
-        try text.appendSlice("---@alias ");
-        try text.appendSlice(name);
-        try text.appendSlice("\n");
+        try text.appendSlice(alloc, "---@alias ");
+        try text.appendSlice(alloc, name);
+        try text.appendSlice(alloc, "\n");
 
         inline for (@typeInfo(T).Enum.fields) |field| {
-            try text.appendSlice("---|\' \"");
-            try text.appendSlice(field.name);
-            try text.appendSlice("\" \'\n");
+            try text.appendSlice(alloc, "---|\' \"");
+            try text.appendSlice(alloc, field.name);
+            try text.appendSlice(alloc, "\" \'\n");
         }
     }
     return name;
@@ -82,30 +84,32 @@ fn addEnum(
 fn addClass(alloc: std.mem.Allocator, database: *Database, comptime T: type) ![]const u8 {
     const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
     if (database.contains(@typeName(T)) == false) {
-        var text = try String.initCapacity(alloc, 16);
-        try database.put(@typeName(T), text);
+        const text_basis = try String.initCapacity(alloc, 16);
+        try database.putNoClobber(@typeName(T), text_basis);
+        const text = database.getPtr(@typeName(T)).?;
 
         std.debug.print("defining: {s}\n", .{name});
-        try addClassName(&text, name);
-        try addClassFields(alloc, database, &text, @typeInfo(T).Struct.fields);
+        try addClassName(alloc, text, name);
+        try addClassFields(alloc, database, text, @typeInfo(T).Struct.fields);
         std.debug.print("finished defining: {s}\n", .{name});
+        std.debug.print("final value: \n{s}\n", .{text.items});
     }
     return name;
 }
 
-fn addClassName(text: *String, name: []const u8) !void {
-    try text.appendSlice("---@class ");
-    try text.appendSlice(name);
-    try text.appendSlice("\n");
+fn addClassName(alloc: std.mem.Allocator, text: *String, name: []const u8) !void {
+    try text.appendSlice(alloc, "---@class ");
+    try text.appendSlice(alloc, name);
+    try text.appendSlice(alloc, "\n");
 }
 
 fn addClassField(alloc: std.mem.Allocator, database: *Database, text: *String, comptime field: std.builtin.Type.StructField) !void {
     std.debug.print(" - adding field: {s}\n", .{field.name});
-    try text.appendSlice("---@field ");
-    try text.appendSlice(field.name);
-    try text.appendSlice(" ");
+    try text.appendSlice(alloc, "---@field ");
+    try text.appendSlice(alloc, field.name);
+    try text.appendSlice(alloc, " ");
     try addType(alloc, database, text, field.type);
-    try text.appendSlice("\n");
+    try text.appendSlice(alloc, "\n");
 }
 
 fn addClassFields(
@@ -126,46 +130,46 @@ fn addType(alloc: std.mem.Allocator, database: *Database, text: *String, comptim
     switch (@typeInfo(T)) {
         .Struct => {
             const name = try addClass(alloc, database, T);
-            try text.appendSlice(name);
+            try text.appendSlice(alloc, name);
         },
         .Pointer => |info| {
             if (info.child == u8 and info.size == .Slice) {
-                try text.appendSlice("string");
+                try text.appendSlice(alloc, "string");
             } else switch (info.size) {
                 .One => {
-                    try text.appendSlice("lightuserdata");
+                    try text.appendSlice(alloc, "lightuserdata");
                 },
                 .C, .Many, .Slice => {
                     try addType(alloc, database, text, info.child);
-                    try text.appendSlice("[]");
+                    try text.appendSlice(alloc, "[]");
                 },
             }
         },
         .Array => |info| {
             try addType(alloc, database, text, info.child);
-            try text.appendSlice("[]");
+            try text.appendSlice(alloc, "[]");
         },
 
         .Vector => |info| {
             try addType(alloc, database, text, info.child);
-            try text.appendSlice("[]");
+            try text.appendSlice(alloc, "[]");
         },
         .Optional => |info| {
             try addType(alloc, database, text, info.child);
-            try text.appendSlice("?");
+            try text.appendSlice(alloc, "?");
         },
         .Enum => {
             const name = try addEnum(alloc, database, T);
-            try text.appendSlice(name);
+            try text.appendSlice(alloc, name);
         },
         .Int => {
-            try text.appendSlice("integer");
+            try text.appendSlice(alloc, "integer");
         },
         .Float => {
-            try text.appendSlice("number");
+            try text.appendSlice(alloc, "number");
         },
         .Bool => {
-            try text.appendSlice("boolean");
+            try text.appendSlice(alloc, "boolean");
         },
         else => {
             @compileLog(T);
