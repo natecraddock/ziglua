@@ -1,18 +1,29 @@
 const std = @import("std");
 
-const String = std.ArrayListUnmanaged(u8);
-const Database = std.StringHashMap(String);
+const String = std.ArrayList(u8);
+const Database = std.StringHashMap(void);
+
+const State = struct {
+    allocator: std.mem.Allocator,
+    database: Database,
+    definitions: std.ArrayList(String),
+};
 
 pub fn define(
     alloc: std.mem.Allocator,
     absolute_output_path: []const u8,
     comptime to_define: []const type,
 ) !void {
-    var database = Database.init(alloc);
-    defer database.deinit();
+    var state = State{
+        .allocator = alloc,
+        .database = Database.init(alloc),
+        .definitions = std.ArrayList(String).init(alloc),
+    };
+    defer state.database.deinit();
+    defer state.definitions.deinit();
 
     inline for (to_define) |T| {
-        _ = try addClass(alloc, &database, T);
+        _ = try addClass(&state, T);
     }
 
     var file = try std.fs.createFileAbsolute(absolute_output_path, .{});
@@ -21,18 +32,13 @@ pub fn define(
     try file.seekTo(0);
     try file.writeAll(file_header);
 
-    var iter = database.iterator();
-    while (iter.next()) |val| {
-        try file.writeAll(val.value_ptr.items);
-        try file.writeAll("\n\n\n");
+    for (state.definitions.items) |def| {
+        try file.writeAll(def.items);
+        try file.writeAll("\n");
+        def.deinit();
     }
 
     try file.setEndPos(try file.getPos());
-
-    iter = database.iterator();
-    while (iter.next()) |val| {
-        val.value_ptr.deinit(alloc);
-    }
 }
 
 const file_header: []const u8 =
@@ -44,115 +50,102 @@ const file_header: []const u8 =
     \\
 ;
 
-fn addEnum(
-    alloc: std.mem.Allocator,
-    database: *Database,
-    comptime T: type,
-) ![]const u8 {
-    const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
-    if (database.contains(@typeName(T)) == false) {
-        const text_basis = try String.initCapacity(alloc, 32);
-        try database.putNoClobber(@typeName(T), text_basis);
-        const text = database.getPtr(@typeName(T)).?;
+fn name(comptime T: type) []const u8 {
+    return (comptime std.fs.path.extension(@typeName(T)))[1..];
+}
 
-        try text.appendSlice(alloc, "---@alias ");
-        try text.appendSlice(alloc, name);
-        try text.appendSlice(alloc, "   (enum)\n");
+fn addEnum(
+    state: *State,
+    comptime T: type,
+) !void {
+    if (state.database.contains(@typeName(T)) == false) {
+        try state.database.put(@typeName(T), {});
+        try state.definitions.append(String.init(state.allocator));
+        const index = state.definitions.items.len - 1;
+
+        try state.definitions.items[index].appendSlice("---@alias ");
+        try state.definitions.items[index].appendSlice(name(T));
+        try state.definitions.items[index].appendSlice("\n");
 
         inline for (@typeInfo(T).Enum.fields) |field| {
-            try text.appendSlice(alloc, "---|\' \"");
-            try text.appendSlice(alloc, field.name);
-            try text.appendSlice(alloc, "\" \'\n");
+            try state.definitions.items[index].appendSlice("---|\' \"");
+            try state.definitions.items[index].appendSlice(field.name);
+            try state.definitions.items[index].appendSlice("\" \'\n");
         }
     }
-    return name ++ "  (enum)";
 }
 
-fn addClass(alloc: std.mem.Allocator, database: *Database, comptime T: type) ![]const u8 {
-    const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
-    if (database.contains(@typeName(T)) == false) {
-        const text_basis = try String.initCapacity(alloc, 32);
-        try database.putNoClobber(@typeName(T), text_basis);
-        const text = database.getPtr(@typeName(T)).?;
-
-        try addClassName(alloc, text, name);
-        try addClassFields(alloc, database, text, @typeInfo(T).Struct.fields);
-    }
-    return name;
-}
-
-fn addClassName(alloc: std.mem.Allocator, text: *String, name: []const u8) !void {
-    try text.appendSlice(alloc, "---@class ");
-    try text.appendSlice(alloc, name);
-    try text.appendSlice(alloc, "\n");
-}
-
-fn addClassField(alloc: std.mem.Allocator, database: *Database, text: *String, comptime field: std.builtin.Type.StructField) !void {
-    try text.appendSlice(alloc, "---@field ");
-    try text.appendSlice(alloc, field.name);
-    try text.appendSlice(alloc, " ");
-    try addType(alloc, database, text, field.type);
-    try text.appendSlice(alloc, "\n");
-}
-
-fn addClassFields(
-    alloc: std.mem.Allocator,
-    database: *Database,
-    text: *String,
-    comptime fields: []const std.builtin.Type.StructField,
+fn addClass(
+    state: *State,
+    comptime T: type,
 ) !void {
-    if (fields.len > 0) {
-        try addClassField(alloc, database, text, fields[0]);
-        try addClassFields(alloc, database, text, fields[1..fields.len]);
-    } else {
-        return;
+    if (state.database.contains(@typeName(T)) == false) {
+        try state.database.put(@typeName(T), {});
+        try state.definitions.append(String.init(state.allocator));
+        const index = state.definitions.items.len - 1;
+
+        try state.definitions.items[index].appendSlice("---@class ");
+        try state.definitions.items[index].appendSlice(name(T));
+        try state.definitions.items[index].appendSlice("\n");
+
+        inline for (@typeInfo(T).Struct.fields) |field| {
+            try state.definitions.items[index].appendSlice("---@field ");
+            try state.definitions.items[index].appendSlice(field.name);
+            try state.definitions.items[index].appendSlice(" ");
+            try luaTypeName(state, index, field.type);
+            try state.definitions.items[index].appendSlice("\n");
+        }
     }
 }
 
-fn addType(alloc: std.mem.Allocator, database: *Database, text: *String, comptime T: type) !void {
+fn luaTypeName(
+    state: *State,
+    index: usize,
+    comptime T: type,
+) !void {
     switch (@typeInfo(T)) {
         .Struct => {
-            const name = try addClass(alloc, database, T);
-            try text.appendSlice(alloc, name);
+            try state.definitions.items[index].appendSlice(name(T));
+            try addClass(state, T);
         },
         .Pointer => |info| {
             if (info.child == u8 and info.size == .Slice) {
-                try text.appendSlice(alloc, "string");
+                try state.definitions.items[index].appendSlice("string");
             } else switch (info.size) {
                 .One => {
-                    try text.appendSlice(alloc, "lightuserdata");
+                    try state.definitions.items[index].appendSlice("lightuserdata");
                 },
                 .C, .Many, .Slice => {
-                    try addType(alloc, database, text, info.child);
-                    try text.appendSlice(alloc, "[]");
+                    try luaTypeName(state, index, info.child);
+                    try state.definitions.items[index].appendSlice("[]");
                 },
             }
         },
         .Array => |info| {
-            try addType(alloc, database, text, info.child);
-            try text.appendSlice(alloc, "[]");
+            try luaTypeName(state, index, info.child);
+            try state.definitions.items[index].appendSlice("[]");
         },
 
         .Vector => |info| {
-            try addType(alloc, database, text, info.child);
-            try text.appendSlice(alloc, "[]");
+            try luaTypeName(state, index, info.child);
+            try state.definitions.items[index].appendSlice("[]");
         },
         .Optional => |info| {
-            try addType(alloc, database, text, info.child);
-            try text.appendSlice(alloc, "?");
+            try luaTypeName(state, index, info.child);
+            try state.definitions.items[index].appendSlice(" | nil");
         },
         .Enum => {
-            const name = try addEnum(alloc, database, T);
-            try text.appendSlice(alloc, name);
+            try state.definitions.items[index].appendSlice(name(T));
+            try addEnum(state, T);
         },
         .Int => {
-            try text.appendSlice(alloc, "integer");
+            try state.definitions.items[index].appendSlice("integer");
         },
         .Float => {
-            try text.appendSlice(alloc, "number");
+            try state.definitions.items[index].appendSlice("number");
         },
         .Bool => {
-            try text.appendSlice(alloc, "boolean");
+            try state.definitions.items[index].appendSlice("boolean");
         },
         else => {
             @compileLog(T);
