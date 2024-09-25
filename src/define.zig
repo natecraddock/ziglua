@@ -49,7 +49,7 @@ fn addEnum(
     database: *Database,
     comptime T: type,
 ) ![]const u8 {
-    const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
+    const name = (comptime std.fs.path.extension(@typeName(T)));
     if (database.contains(@typeName(T)) == false) {
         const text_basis = try String.initCapacity(alloc, 16);
         try database.putNoClobber(@typeName(T), text_basis);
