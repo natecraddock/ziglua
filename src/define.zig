@@ -14,7 +14,7 @@ pub fn define(
     comptime to_define: []const DefineEntry,
 ) !void {
     var database = Database.init(alloc);
-    //defer database.deinit();
+    defer database.deinit();
 
     inline for (to_define) |def| {
         std.debug.print("defining: {any}\n", .{def.type});
@@ -76,13 +76,12 @@ fn addEnum(alloc: std.mem.Allocator, database: *Database, name: []const u8, comp
 
 fn addClass(alloc: std.mem.Allocator, database: *Database, name: []const u8, comptime T: type) !void {
     if (database.contains(name) == false) {
-        try database.put(name, String.init(alloc));
-
-        const text = database.getPtr(name).?;
+        var text = try String.initCapacity(alloc, 16);
+        try database.put(name, text);
 
         std.debug.print("defining: {s}\n", .{name});
-        try addClassName(text, name);
-        try addClassFields(alloc, database, text, @typeInfo(T).Struct.fields);
+        try addClassName(&text, name);
+        try addClassFields(alloc, database, &text, @typeInfo(T).Struct.fields);
         std.debug.print("finished defining: {s}\n", .{name});
     }
 }
