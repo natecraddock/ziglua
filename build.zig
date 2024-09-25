@@ -129,28 +129,14 @@ pub fn build(b: *Build) !void {
     docs_step.dependOn(&install_docs.step);
 
     // definitions example
-    //const MyEnum = enum { asdf, fdsa, qwer, rewq };
-    //const SubType = struct { foo: i32, bar: bool, bip: MyEnum, bap: ?[]MyEnum };
-    //const Bippity = struct { A: ?i32, B: *bool, C: []const u8, D: ?*SubType };
-    //const TestType = struct { a: i32, b: f32, c: bool, d: SubType, e: [10]Bippity };
-    //const Foo = struct { far: MyEnum, near: SubType };
-
-    //const to_define: []const DefineEntry = &.{
-    //    .{ .type = TestType, .name = "TestType" },
-    //    .{ .type = Foo, .name = "Foo" },
-    //};
-    //const def = try Define(to_define).init(b, b.path("definitions.lua"));
-    //const define_step = b.step("define", "Generate definitions.lua file");
-    //define_step.dependOn(&def.step);
-
     const def_exe = b.addExecutable(.{
         .root_source_file = b.path("examples/define-exe.zig"),
-        .name = "def",
+        .name = "define-zig-types",
         .target = target,
     });
     def_exe.root_module.addImport("ziglua", ziglua);
     var run_def_exe = b.addRunArtifact(def_exe);
-    run_def_exe.addArg(b.path("definitions.lua").getPath(b));
+    run_def_exe.addFileArg(b.path("definitions.lua"));
 
     const define_step = b.step("define", "Generate definitions.lua file");
     define_step.dependOn(&run_def_exe.step);

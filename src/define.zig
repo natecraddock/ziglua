@@ -3,45 +3,32 @@ const std = @import("std");
 const String = std.ArrayListUnmanaged(u8);
 const Database = std.StringHashMap(String);
 
-pub const DefineEntry = struct {
-    type: type,
-    name: []const u8,
-};
-
 pub fn define(
     alloc: std.mem.Allocator,
     absolute_output_path: []const u8,
-    comptime to_define: []const DefineEntry,
+    comptime to_define: []const type,
 ) !void {
     var database = Database.init(alloc);
     defer database.deinit();
 
-    inline for (to_define) |def| {
-        std.debug.print("defining: {any}\n", .{def.type});
-        _ = try addClass(alloc, &database, def.type);
-        std.debug.print("finished defining: {any}\n", .{def.type});
-        std.debug.print("actual stored value: \n\n{s}\n\n", .{database.get(@typeName(def.type)).?.items});
+    inline for (to_define) |T| {
+        _ = try addClass(alloc, &database, T);
     }
 
-    std.debug.print("opening output file: {s}\n", .{absolute_output_path});
     var file = try std.fs.createFileAbsolute(absolute_output_path, .{});
     defer file.close();
 
     try file.seekTo(0);
     try file.writeAll(file_header);
 
-    std.debug.print("writing to file\n", .{});
     var iter = database.iterator();
     while (iter.next()) |val| {
-        std.debug.print(" - writing item: {s}\n", .{val.key_ptr.*});
         try file.writeAll(val.value_ptr.items);
         try file.writeAll("\n");
     }
-    std.debug.print("finished writing to file\n", .{});
 
     try file.setEndPos(try file.getPos());
 
-    std.debug.print("Freeing memory\n", .{});
     iter = database.iterator();
     while (iter.next()) |val| {
         val.value_ptr.deinit(alloc);
@@ -88,11 +75,8 @@ fn addClass(alloc: std.mem.Allocator, database: *Database, comptime T: type) ![]
         try database.putNoClobber(@typeName(T), text_basis);
         const text = database.getPtr(@typeName(T)).?;
 
-        std.debug.print("defining: {s}\n", .{name});
         try addClassName(alloc, text, name);
         try addClassFields(alloc, database, text, @typeInfo(T).Struct.fields);
-        std.debug.print("finished defining: {s}\n", .{name});
-        std.debug.print("final value: \n{s}\n", .{text.items});
     }
     return name;
 }
@@ -104,7 +88,6 @@ fn addClassName(alloc: std.mem.Allocator, text: *String, name: []const u8) !void
 }
 
 fn addClassField(alloc: std.mem.Allocator, database: *Database, text: *String, comptime field: std.builtin.Type.StructField) !void {
-    std.debug.print(" - adding field: {s}\n", .{field.name});
     try text.appendSlice(alloc, "---@field ");
     try text.appendSlice(alloc, field.name);
     try text.appendSlice(alloc, " ");
