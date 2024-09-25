@@ -8,51 +8,27 @@ pub const DefineEntry = struct {
     name: []const u8,
 };
 
-pub fn Define(comptime to_define: []const DefineEntry) type {
-    return struct {
-        path: std.Build.LazyPath,
-        step: std.Build.Step,
+pub fn define(absolute_output_path: []const u8, comptime to_define: []const DefineEntry) !void {
+    const alloc = std.heap.c_allocator;
+    var database = Database.init(alloc);
+    defer database.deinit();
 
-        pub fn makeFn(step: *std.Build.Step, prog_node: std.Progress.Node) anyerror!void {
-            const prog = prog_node.start("Deriving Lua Definitions", to_define.len);
-            defer prog.end();
+    inline for (to_define) |def| {
+        try addClass(alloc, &database, def.name, def.type);
+    }
 
-            var database = Database.init(step.owner.allocator);
-            defer database.deinit();
+    var file = try std.fs.createFileAbsolute(absolute_output_path, .{});
+    try file.seekTo(0);
+    try file.writeAll(file_header);
 
-            inline for (to_define, 0..) |define, i| {
-                try addClass(step.owner, &database, define.name, define.type);
-                prog.setCompletedItems(i + 1);
-            }
+    var iter = database.valueIterator();
+    while (iter.next()) |val| {
+        try file.writeAll(val.items);
+        try file.writeAll("\n");
+        val.deinit();
+    }
 
-            const self: *const @This() = @fieldParentPtr("step", step);
-
-            var file = try std.fs.openFileAbsolute(self.path.getPath(step.owner), .{ .mode = .write_only });
-            try file.seekTo(0);
-            try file.writeAll(file_header);
-
-            var iter = database.valueIterator();
-            while (iter.next()) |val| {
-                try file.writeAll(val.items);
-                try file.writeAll("\n");
-                val.deinit();
-            }
-
-            try file.setEndPos(try file.getPos());
-        }
-
-        pub fn init(b: *std.Build, output_path: std.Build.LazyPath) !*@This() {
-            const result: *@This() = try b.allocator.create(@This());
-            result.path = output_path;
-            result.step = std.Build.Step.init(.{
-                .id = .custom,
-                .name = "Generate definitions.lua",
-                .owner = b,
-                .makeFn = &makeFn,
-            });
-            return result;
-        }
-    };
+    try file.setEndPos(try file.getPos());
 }
 
 const file_header: []const u8 =
@@ -64,9 +40,9 @@ const file_header: []const u8 =
     \\
 ;
 
-fn addEnum(b: *std.Build, database: *Database, name: []const u8, comptime T: type) !void {
+fn addEnum(alloc: std.mem.Allocator, database: *Database, name: []const u8, comptime T: type) !void {
     if (database.contains(name) == false) {
-        try database.put(name, String.init(b.allocator));
+        try database.put(name, String.init(alloc));
 
         var text = database.getPtr(name).?;
 
@@ -82,14 +58,14 @@ fn addEnum(b: *std.Build, database: *Database, name: []const u8, comptime T: typ
     }
 }
 
-fn addClass(b: *std.Build, database: *Database, name: []const u8, comptime T: type) !void {
+fn addClass(alloc: std.mem.Allocator, database: *Database, name: []const u8, comptime T: type) !void {
     if (database.contains(name) == false) {
-        try database.put(name, String.init(b.allocator));
+        try database.put(name, String.init(alloc));
 
         const text = database.getPtr(name).?;
 
         try addClassName(text, name);
-        try addClassFields(b, database, text, @typeInfo(T).Struct.fields);
+        try addClassFields(alloc, database, text, @typeInfo(T).Struct.fields);
     }
 }
 
@@ -99,34 +75,34 @@ fn addClassName(text: *String, name: []const u8) !void {
     try text.appendSlice("\n");
 }
 
-fn addClassField(b: *std.Build, database: *Database, text: *String, comptime field: std.builtin.Type.StructField) !void {
+fn addClassField(alloc: std.mem.Allocator, database: *Database, text: *String, comptime field: std.builtin.Type.StructField) !void {
     try text.appendSlice("---@field ");
     try text.appendSlice(field.name);
     try text.appendSlice(" ");
-    try addType(b, database, text, field.type);
+    try addType(alloc, database, text, field.type);
     try text.appendSlice("\n");
 }
 
 fn addClassFields(
-    b: *std.Build,
+    alloc: std.mem.Allocator,
     database: *Database,
     text: *String,
     comptime fields: []const std.builtin.Type.StructField,
 ) !void {
     if (fields.len > 0) {
-        try addClassField(b, database, text, fields[0]);
-        try addClassFields(b, database, text, fields[1..fields.len]);
+        try addClassField(alloc, database, text, fields[0]);
+        try addClassFields(alloc, database, text, fields[1..fields.len]);
     } else {
         return;
     }
 }
 
-fn addType(b: *std.Build, database: *Database, text: *String, comptime T: type) !void {
+fn addType(alloc: std.mem.Allocator, database: *Database, text: *String, comptime T: type) !void {
     switch (@typeInfo(T)) {
         .Struct => {
             const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
             try text.appendSlice(name);
-            try addClass(b, database, name, T);
+            try addClass(alloc, database, name, T);
         },
         .Pointer => |info| {
             if (info.child == u8 and info.size == .Slice) {
@@ -136,27 +112,27 @@ fn addType(b: *std.Build, database: *Database, text: *String, comptime T: type) 
                     try text.appendSlice("lightuserdata");
                 },
                 .C, .Many, .Slice => {
-                    try addType(b, database, text, info.child);
+                    try addType(alloc, database, text, info.child);
                     try text.appendSlice("[]");
                 },
             }
         },
         .Array => |info| {
-            try addType(b, database, text, info.child);
+            try addType(alloc, database, text, info.child);
             try text.appendSlice("[]");
         },
 
         .Vector => |info| {
-            try addType(b, database, text, info.child);
+            try addType(alloc, database, text, info.child);
             try text.appendSlice("[]");
         },
         .Optional => |info| {
-            try addType(b, database, text, info.child);
+            try addType(alloc, database, text, info.child);
             try text.appendSlice("?");
         },
         .Enum => {
             const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
-            try addEnum(b, database, name, T);
+            try addEnum(alloc, database, name, T);
             try text.appendSlice(name);
         },
         .Int => {
