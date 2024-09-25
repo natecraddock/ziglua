@@ -14,7 +14,7 @@ pub fn define(
     comptime to_define: []const DefineEntry,
 ) !void {
     var database = Database.init(alloc);
-    defer database.deinit();
+    //defer database.deinit();
 
     inline for (to_define) |def| {
         std.debug.print("defining: {any}\n", .{def.type});
