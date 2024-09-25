@@ -24,7 +24,7 @@ pub fn define(
     var iter = database.iterator();
     while (iter.next()) |val| {
         try file.writeAll(val.value_ptr.items);
-        try file.writeAll("\n");
+        try file.writeAll("\n\n\n");
     }
 
     try file.setEndPos(try file.getPos());
@@ -49,7 +49,7 @@ fn addEnum(
     database: *Database,
     comptime T: type,
 ) ![]const u8 {
-    const name = (comptime std.fs.path.extension(@typeName(T)));
+    const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
     if (database.contains(@typeName(T)) == false) {
         const text_basis = try String.initCapacity(alloc, 16);
         try database.putNoClobber(@typeName(T), text_basis);
