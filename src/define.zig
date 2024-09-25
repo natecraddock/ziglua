@@ -51,13 +51,13 @@ fn addEnum(
 ) ![]const u8 {
     const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
     if (database.contains(@typeName(T)) == false) {
-        const text_basis = try String.initCapacity(alloc, 16);
+        const text_basis = try String.initCapacity(alloc, 32);
         try database.putNoClobber(@typeName(T), text_basis);
         const text = database.getPtr(@typeName(T)).?;
 
         try text.appendSlice(alloc, "---@alias ");
         try text.appendSlice(alloc, name);
-        try text.appendSlice(alloc, "\n");
+        try text.appendSlice(alloc, "   (enum)\n");
 
         inline for (@typeInfo(T).Enum.fields) |field| {
             try text.appendSlice(alloc, "---|\' \"");
@@ -65,13 +65,13 @@ fn addEnum(
             try text.appendSlice(alloc, "\" \'\n");
         }
     }
-    return name;
+    return name ++ "  (enum)";
 }
 
 fn addClass(alloc: std.mem.Allocator, database: *Database, comptime T: type) ![]const u8 {
     const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
     if (database.contains(@typeName(T)) == false) {
-        const text_basis = try String.initCapacity(alloc, 16);
+        const text_basis = try String.initCapacity(alloc, 32);
         try database.putNoClobber(@typeName(T), text_basis);
         const text = database.getPtr(@typeName(T)).?;
 
