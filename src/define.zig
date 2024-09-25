@@ -18,7 +18,7 @@ pub fn define(
 
     inline for (to_define) |def| {
         std.debug.print("defining: {any}\n", .{def.type});
-        try addClass(alloc, &database, def.name, def.type);
+        _ = try addClass(alloc, &database, def.name, def.type);
         std.debug.print("finished defining: {any}\n", .{def.type});
     }
 
@@ -56,11 +56,16 @@ const file_header: []const u8 =
     \\
 ;
 
-fn addEnum(alloc: std.mem.Allocator, database: *Database, name: []const u8, comptime T: type) !void {
-    if (database.contains(name) == false) {
-        try database.put(name, try String.initCapacity(alloc, 32));
-
-        var text = database.getPtr(name).?;
+fn addEnum(
+    alloc: std.mem.Allocator,
+    database: *Database,
+    id: []const u8,
+    comptime T: type,
+) ![]const u8 {
+    const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
+    if (database.contains(id) == false) {
+        var text = try String.initCapacity(alloc, 16);
+        try database.put(id, text);
 
         try text.appendSlice("---@alias ");
         try text.appendSlice(name);
@@ -72,18 +77,21 @@ fn addEnum(alloc: std.mem.Allocator, database: *Database, name: []const u8, comp
             try text.appendSlice("\" \'\n");
         }
     }
+    return name;
 }
 
-fn addClass(alloc: std.mem.Allocator, database: *Database, name: []const u8, comptime T: type) !void {
-    if (database.contains(name) == false) {
+fn addClass(alloc: std.mem.Allocator, database: *Database, id: []const u8, comptime T: type) ![]const u8 {
+    const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
+    if (database.contains(id) == false) {
         var text = try String.initCapacity(alloc, 16);
-        try database.put(name, text);
+        try database.put(id, text);
 
         std.debug.print("defining: {s}\n", .{name});
         try addClassName(&text, name);
         try addClassFields(alloc, database, &text, @typeInfo(T).Struct.fields);
         std.debug.print("finished defining: {s}\n", .{name});
     }
+    return name;
 }
 
 fn addClassName(text: *String, name: []const u8) !void {
@@ -118,9 +126,8 @@ fn addClassFields(
 fn addType(alloc: std.mem.Allocator, database: *Database, text: *String, comptime T: type) !void {
     switch (@typeInfo(T)) {
         .Struct => {
-            const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
+            const name = try addClass(alloc, database, @typeName(T), T);
             try text.appendSlice(name);
-            try addClass(alloc, database, name, T);
         },
         .Pointer => |info| {
             if (info.child == u8 and info.size == .Slice) {
@@ -149,8 +156,7 @@ fn addType(alloc: std.mem.Allocator, database: *Database, text: *String, comptim
             try text.appendSlice("?");
         },
         .Enum => {
-            const name = (comptime std.fs.path.extension(@typeName(T)))[1..];
-            try addEnum(alloc, database, name, T);
+            const name = try addEnum(alloc, database, @typeName(T), T);
             try text.appendSlice(name);
         },
         .Int => {
