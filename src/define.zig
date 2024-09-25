@@ -136,7 +136,7 @@ fn luaTypeName(
         },
         .Optional => |info| {
             try luaTypeName(state, index, info.child);
-            try state.definitions.items[index].appendSlice("?");
+            try state.definitions.items[index].appendSlice(" | nil");
         },
         .Enum => {
             try state.definitions.items[index].appendSlice(name(T));
