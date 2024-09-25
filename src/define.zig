@@ -21,6 +21,8 @@ pub fn define(
     }
 
     var file = try std.fs.createFileAbsolute(absolute_output_path, .{});
+    defer file.close();
+
     try file.seekTo(0);
     try file.writeAll(file_header);
 
