@@ -3,10 +3,26 @@ const std = @import("std");
 const String = std.ArrayList(u8);
 const Database = std.StringHashMap(void);
 
-const State = struct {
+pub const DefineState = struct {
     allocator: std.mem.Allocator,
     database: Database,
     definitions: std.ArrayList(String),
+
+    pub fn init(alloc: std.mem.Allocator) DefineState {
+        return DefineState{
+            .allocator = alloc,
+            .database = Database.init(alloc),
+            .definitions = std.ArrayList(String).init(alloc),
+        };
+    }
+
+    pub fn deinit(self: *@This()) void {
+        for (self.definitions.items) |def| {
+            def.deinit();
+        }
+        defer self.database.deinit();
+        defer self.definitions.deinit();
+    }
 };
 
 pub fn define(
@@ -14,13 +30,8 @@ pub fn define(
     absolute_output_path: []const u8,
     comptime to_define: []const type,
 ) !void {
-    var state = State{
-        .allocator = alloc,
-        .database = Database.init(alloc),
-        .definitions = std.ArrayList(String).init(alloc),
-    };
-    defer state.database.deinit();
-    defer state.definitions.deinit();
+    var state = DefineState.init(alloc);
+    defer state.deinit();
 
     inline for (to_define) |T| {
         _ = try addClass(&state, T);
@@ -35,7 +46,6 @@ pub fn define(
     for (state.definitions.items) |def| {
         try file.writeAll(def.items);
         try file.writeAll("\n");
-        def.deinit();
     }
 
     try file.setEndPos(try file.getPos());
@@ -55,7 +65,7 @@ fn name(comptime T: type) []const u8 {
 }
 
 fn addEnum(
-    state: *State,
+    state: *DefineState,
     comptime T: type,
 ) !void {
     if (state.database.contains(@typeName(T)) == false) {
@@ -75,8 +85,8 @@ fn addEnum(
     }
 }
 
-fn addClass(
-    state: *State,
+pub fn addClass(
+    state: *DefineState,
     comptime T: type,
 ) !void {
     if (state.database.contains(@typeName(T)) == false) {
@@ -103,7 +113,7 @@ fn addClass(
 }
 
 fn luaTypeName(
-    state: *State,
+    state: *DefineState,
     index: usize,
     comptime T: type,
 ) !void {
