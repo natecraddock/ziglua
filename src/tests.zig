@@ -2816,3 +2816,69 @@ test "doFile" {
 
     try expectEqualStrings("testing", try lua.get([]const u8, "GLOBAL"));
 }
+
+test "define" {
+    const expected =
+        \\---@class (exact) T
+        \\---@field foo integer
+        \\
+        \\---@class (exact) TestType
+        \\---@field a integer
+        \\---@field b number
+        \\---@field c boolean
+        \\---@field d SubType
+        \\---@field e Bippity[]
+        \\
+        \\---@class (exact) SubType
+        \\---@field foo integer
+        \\---@field bar boolean
+        \\---@field bip MyEnum
+        \\---@field bap MyEnum[] | nil
+        \\
+        \\---@alias MyEnum
+        \\---|' "asdf" '
+        \\---|' "fdsa" '
+        \\---|' "qwer" '
+        \\---|' "rewq" '
+        \\
+        \\---@class (exact) Bippity
+        \\---@field A integer | nil
+        \\---@field B lightuserdata
+        \\---@field C string
+        \\---@field D lightuserdata | nil
+        \\
+        \\---@class (exact) Foo
+        \\---@field far MyEnum
+        \\---@field near SubType
+        \\
+        \\
+    ;
+
+    const T = struct { foo: i32 };
+    const MyEnum = enum { asdf, fdsa, qwer, rewq };
+    const SubType = struct { foo: i32, bar: bool, bip: MyEnum, bap: ?[]MyEnum };
+    const Bippity = struct { A: ?i32, B: *bool, C: []const u8, D: ?*SubType };
+    const TestType = struct { a: i32, b: f32, c: bool, d: SubType, e: [10]Bippity };
+    const Foo = struct { far: MyEnum, near: SubType };
+
+    const a = std.testing.allocator;
+
+    var state = ziglua.def.DefineState.init(a);
+    defer state.deinit();
+
+    const to_define: []const type = &.{ T, TestType, Foo };
+    inline for (to_define) |my_type| {
+        _ = try ziglua.def.addClass(&state, my_type);
+    }
+
+    var buffer: [10000]u8 = .{0} ** 10000;
+    var buffer_stream = std.io.fixedBufferStream(&buffer);
+    var writer = buffer_stream.writer();
+
+    for (state.definitions.items) |def| {
+        try writer.writeAll(def.items);
+        try writer.writeAll("\n");
+    }
+
+    try std.testing.expectEqualSlices(u8, expected, buffer_stream.getWritten());
+}

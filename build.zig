@@ -124,6 +124,19 @@ pub fn build(b: *Build) void {
 
     const docs_step = b.step("docs", "Build and install the documentation");
     docs_step.dependOn(&install_docs.step);
+
+    // definitions example
+    const def_exe = b.addExecutable(.{
+        .root_source_file = b.path("examples/define-exe.zig"),
+        .name = "define-zig-types",
+        .target = target,
+    });
+    def_exe.root_module.addImport("ziglua", ziglua);
+    var run_def_exe = b.addRunArtifact(def_exe);
+    run_def_exe.addFileArg(b.path("definitions.lua"));
+
+    const define_step = b.step("define", "Generate definitions.lua file");
+    define_step.dependOn(&run_def_exe.step);
 }
 
 fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lang: Language, shared: bool) *Step.Compile {

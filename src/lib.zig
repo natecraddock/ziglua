@@ -1,5 +1,8 @@
 const std = @import("std");
 
+pub const def = @import("define.zig");
+pub const define = def.define;
+
 const c = @cImport({
     @cInclude("luaconf.h");
     @cInclude("lua.h");
