@@ -12,7 +12,7 @@ pub const Language = enum {
     luau,
 };
 
-pub fn build(b: *Build) !void {
+pub fn build(b: *Build) void {
     // Remove the default install and uninstall steps
     b.top_level_steps = .{};
 
