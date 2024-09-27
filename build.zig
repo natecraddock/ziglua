@@ -12,9 +12,6 @@ pub const Language = enum {
     luau,
 };
 
-pub const Define = @import("src/define.zig").Define;
-pub const DefineEntry = @import("src/define.zig").DefineEntry;
-
 pub fn build(b: *Build) !void {
     // Remove the default install and uninstall steps
     b.top_level_steps = .{};
