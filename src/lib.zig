@@ -1657,7 +1657,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawlen
     pub fn rawLen(lua: *Lua, index: i32) usize {
         switch (lang) {
-            .lua51, .luau => return @intCast(c.lua_objlen(@ptrCast(lua), index)),
+            .lua51, .luau, .luajit => return @intCast(c.lua_objlen(@ptrCast(lua), index)),
             else => return @intCast(c.lua_rawlen(@ptrCast(lua), index)),
         }
     }
