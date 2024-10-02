@@ -3196,11 +3196,8 @@ pub const Lua = opaque {
                     const string: [*:0]const u8 = try lua.toString(index);
                     const end = std.mem.indexOfSentinel(u8, 0, string);
 
-                    if (info.sentinel == null) {
-                        return string[0..end];
-                    } else {
-                        return string[0..end :0];
-                    }
+                    const result = if (info.sentinel == null) string[0..end] else string[0..end :0];
+                    return if (!info.is_const) @constCast(result) else result;
                 } else switch (info.size) {
                     .Slice, .Many => {
                         if (!allow_alloc) {
