@@ -3303,6 +3303,7 @@ pub const Lua = opaque {
         var result: T = undefined;
 
         inline for (@typeInfo(T).Struct.fields) |field| {
+            const field_type_info = comptime @typeInfo(field.type);
             const field_name = comptime field.name ++ "";
             _ = lua.pushStringZ(field_name);
 
@@ -3311,7 +3312,7 @@ pub const Lua = opaque {
             if (lua_field_type == .nil) {
                 if (field.default_value) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
-                } else {
+                } else if (field_type_info != .Optional) {
                     return error.LuaTableMissingValue;
                 }
             } else {
