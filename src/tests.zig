@@ -2446,6 +2446,44 @@ test "toAny struct" {
     ));
 }
 
+test "toAny mutable string" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    //[] u8
+    _ = lua.pushStringZ("hello world");
+    const parsed = try lua.toAnyAlloc([]u8, -1);
+    defer parsed.deinit();
+
+    const my_string = parsed.value;
+
+    try testing.expect(std.mem.eql(u8, my_string, "hello world"));
+}
+
+test "toAny mutable string in struct" {
+    var lua = try Lua.init(&testing.allocator);
+    defer lua.deinit();
+
+    const MyType = struct {
+        name: []u8,
+        bar: bool,
+    };
+    try lua.doString("value = {[\"name\"] = \"hi\", [\"bar\"] = false}");
+    const lua_type = try lua.getGlobal("value");
+    try testing.expect(lua_type == .table);
+    const parsed = try lua.toAnyAlloc(MyType, 1);
+    defer parsed.deinit();
+
+    const my_struct = parsed.value;
+
+    var name: [2]u8 = .{ 'h', 'i' };
+
+    try testing.expectEqualDeep(
+        MyType{ .name = &name, .bar = false },
+        my_struct,
+    );
+}
+
 test "toAny struct recursive" {
     var lua = try Lua.init(&testing.allocator);
     defer lua.deinit();

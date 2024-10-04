@@ -3196,8 +3196,23 @@ pub const Lua = opaque {
                     const string: [*:0]const u8 = try lua.toString(index);
                     const end = std.mem.indexOfSentinel(u8, 0, string);
 
-                    const result = if (info.sentinel == null) string[0..end] else string[0..end :0];
-                    return if (!info.is_const) @constCast(result) else result;
+                    if (!info.is_const) {
+                        if (!allow_alloc) {
+                            @compileError("toAny cannot allocate memory, try using toAnyAlloc");
+                        }
+
+                        if (info.sentinel != null) {
+                            var buf = try a.?.allocSentinel(u8, end, 0);
+                            @memcpy(buf[0..end :0], string[0..end]);
+                            return buf;
+                        } else {
+                            var buf = try a.?.alloc(u8, end);
+                            @memcpy(buf[0..end], string[0..end]);
+                            return buf;
+                        }
+                    } else {
+                        return if (info.sentinel == null) string[0..end] else string[0..end :0];
+                    }
                 } else switch (info.size) {
                     .Slice, .Many => {
                         if (!allow_alloc) {
