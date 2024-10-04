@@ -3214,10 +3214,18 @@ pub const Lua = opaque {
                     const string: [*:0]const u8 = try lua.toString(index);
                     const end = std.mem.indexOfSentinel(u8, 0, string);
 
-                    if (info.sentinel == null) {
-                        return string[0..end];
+                    if (!info.is_const) {
+                        if (!allow_alloc) {
+                            @compileError("toAny cannot allocate memory, try using toAnyAlloc");
+                        }
+
+                        if (info.sentinel != null) {
+                            return try a.?.dupeZ(u8, string[0..end]);
+                        } else {
+                            return try a.?.dupe(u8, string[0..end]);
+                        }
                     } else {
-                        return string[0..end :0];
+                        return if (info.sentinel == null) string[0..end] else string[0..end :0];
                     }
                 } else switch (info.size) {
                     .Slice, .Many => {
@@ -3324,6 +3332,7 @@ pub const Lua = opaque {
         var result: T = undefined;
 
         inline for (@typeInfo(T).Struct.fields) |field| {
+            const field_type_info = comptime @typeInfo(field.type);
             const field_name = comptime field.name ++ "";
             _ = lua.pushStringZ(field_name);
 
@@ -3332,7 +3341,7 @@ pub const Lua = opaque {
             if (lua_field_type == .nil) {
                 if (field.default_value) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
-                } else {
+                } else if (field_type_info != .Optional) {
                     return error.LuaTableMissingValue;
                 }
             } else {
