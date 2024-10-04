@@ -2466,9 +2466,10 @@ test "toAny mutable string in struct" {
 
     const MyType = struct {
         name: []u8,
+        sentinel: [:0]u8,
         bar: bool,
     };
-    try lua.doString("value = {[\"name\"] = \"hi\", [\"bar\"] = false}");
+    try lua.doString("value = {[\"name\"] = \"hi\", [\"sentinel\"] = \"ss\", [\"bar\"] = false}");
     const lua_type = try lua.getGlobal("value");
     try testing.expect(lua_type == .table);
     const parsed = try lua.toAnyAlloc(MyType, 1);
@@ -2477,9 +2478,10 @@ test "toAny mutable string in struct" {
     const my_struct = parsed.value;
 
     var name: [2]u8 = .{ 'h', 'i' };
+    var sentinel: [2:0]u8 = .{ 's', 's' };
 
     try testing.expectEqualDeep(
-        MyType{ .name = &name, .bar = false },
+        MyType{ .name = &name, .sentinel = &sentinel, .bar = false },
         my_struct,
     );
 }

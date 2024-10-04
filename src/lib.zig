@@ -3202,13 +3202,9 @@ pub const Lua = opaque {
                         }
 
                         if (info.sentinel != null) {
-                            var buf = try a.?.allocSentinel(u8, end, 0);
-                            @memcpy(buf[0..end :0], string[0..end]);
-                            return buf;
+                            return try a.?.dupeZ(u8, string[0..end]);
                         } else {
-                            var buf = try a.?.alloc(u8, end);
-                            @memcpy(buf[0..end], string[0..end]);
-                            return buf;
+                            return try a.?.dupe(u8, string[0..end]);
                         }
                     } else {
                         return if (info.sentinel == null) string[0..end] else string[0..end :0];
