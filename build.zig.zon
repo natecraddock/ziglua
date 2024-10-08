@@ -37,5 +37,9 @@
             .url = "https://github.com/luau-lang/luau/archive/refs/tags/0.607.tar.gz",
             .hash = "122003818ff2aa912db37d4bbda314ff9ff70d03d9243af4b639490be98e2bfa7cb6",
         },
+        .emsdk = .{
+            .url = "git+https://github.com/emscripten-core/emsdk#3.1.61",
+            .hash = "12200ba39d83227f5de08287b043b011a2eb855cdb077f4b165edce30564ba73400e",
+        },
     },
 }

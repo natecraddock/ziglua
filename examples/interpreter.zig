@@ -7,14 +7,10 @@ const std = @import("std");
 const ziglua = @import("ziglua");
 
 pub fn main() anyerror!void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
-
     // Initialize The Lua vm and get a reference to the main thread
     //
     // Passing a Zig allocator to the Lua state requires a stable pointer
-    var lua = try ziglua.Lua.init(&allocator);
+    var lua = try ziglua.Lua.init(&std.heap.c_allocator);
     defer lua.deinit();
 
     // Open all Lua standard libraries
