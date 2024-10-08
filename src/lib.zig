@@ -3003,7 +3003,7 @@ pub const Lua = opaque {
         const childinfo = @typeInfo(typeinfo.child);
         if (typeinfo.child == u8 and typeinfo.size != .One) {
             return true;
-        } else if (typeinfo.size == .One and childinfo == .Array and childinfo.Array.child == u8) {
+        } else if (typeinfo.size == .One and childinfo == .array and childinfo.array.child == u8) {
             return true;
         }
         return false;
@@ -3011,10 +3011,10 @@ pub const Lua = opaque {
 
     /// Pushes any string type
     fn pushAnyString(lua: *Lua, value: anytype) !void {
-        const info = @typeInfo(@TypeOf(value)).Pointer;
+        const info = @typeInfo(@TypeOf(value)).pointer;
         switch (info.size) {
             .One => {
-                const childinfo = @typeInfo(info.child).Array;
+                const childinfo = @typeInfo(info.child).array;
                 std.debug.assert(childinfo.child == u8);
                 std.debug.assert(childinfo.sentinel != null);
 
@@ -3046,13 +3046,13 @@ pub const Lua = opaque {
     /// tagged unions, optionals, and strings
     pub fn pushAny(lua: *Lua, value: anytype) !void {
         switch (@typeInfo(@TypeOf(value))) {
-            .Int, .ComptimeInt => {
+            .int, .comptime_int => {
                 lua.pushInteger(@intCast(value));
             },
-            .Float, .ComptimeFloat => {
+            .float, .comptime_float => {
                 lua.pushNumber(@floatCast(value));
             },
-            .Pointer => |info| {
+            .pointer => |info| {
                 if (comptime isTypeString(info)) {
                     try lua.pushAnyString(value);
                 } else switch (info.size) {
@@ -3074,7 +3074,7 @@ pub const Lua = opaque {
                     },
                 }
             },
-            .Array => {
+            .array => {
                 lua.createTable(0, 0);
                 for (value, 0..) |index_value, i| {
                     try lua.pushAny(i + 1);
@@ -3082,23 +3082,23 @@ pub const Lua = opaque {
                     lua.setTable(-3);
                 }
             },
-            .Vector => |info| {
+            .vector => |info| {
                 try lua.pushAny(@as([info.len]info.child, value));
             },
-            .Bool => {
+            .bool => {
                 lua.pushBoolean(value);
             },
-            .Enum => {
+            .@"enum" => {
                 _ = lua.pushStringZ(@tagName(value));
             },
-            .Optional, .Null => {
+            .optional, .null => {
                 if (value == null) {
                     lua.pushNil();
                 } else {
                     try lua.pushAny(value.?);
                 }
             },
-            .Struct => |info| {
+            .@"struct" => |info| {
                 lua.createTable(0, 0);
                 inline for (info.fields) |field| {
                     try lua.pushAny(field.name);
@@ -3106,7 +3106,7 @@ pub const Lua = opaque {
                     lua.setTable(-3);
                 }
             },
-            .Union => |info| {
+            .@"union" => |info| {
                 if (info.tag_type == null) @compileError("Parameter type is not a tagged union");
                 lua.createTable(0, 0);
                 errdefer lua.pop(1);
@@ -3119,10 +3119,10 @@ pub const Lua = opaque {
                 }
                 lua.setTable(-3);
             },
-            .Fn => {
+            .@"fn" => {
                 lua.autoPushFunction(value);
             },
-            .Void => {
+            .void => {
                 lua.createTable(0, 0);
             },
             else => {
@@ -3171,15 +3171,15 @@ pub const Lua = opaque {
         }
 
         switch (@typeInfo(T)) {
-            .Int => {
+            .int => {
                 const result = try lua.toInteger(index);
                 return @as(T, @intCast(result));
             },
-            .Float => {
+            .float => {
                 const result = try lua.toNumber(index);
                 return @as(T, @floatCast(result));
             },
-            .Array, .Vector => {
+            .array, .vector => {
                 const child = std.meta.Child(T);
                 const arr_len = switch (@typeInfo(T)) {
                     inline else => |i| i.len,
@@ -3201,7 +3201,7 @@ pub const Lua = opaque {
                 }
                 return result;
             },
-            .Pointer => |info| {
+            .pointer => |info| {
                 if (comptime isTypeString(info)) {
                     const string: [*:0]const u8 = try lua.toString(index);
                     const end = std.mem.indexOfSentinel(u8, 0, string);
@@ -3231,10 +3231,10 @@ pub const Lua = opaque {
                     },
                 }
             },
-            .Bool => {
+            .bool => {
                 return lua.toBoolean(index);
             },
-            .Enum => |info| {
+            .@"enum" => |info| {
                 const string = try lua.toAnyInternal([]const u8, a, allow_alloc, index);
                 inline for (info.fields) |enum_member| {
                     if (std.mem.eql(u8, string, enum_member.name)) {
@@ -3243,10 +3243,10 @@ pub const Lua = opaque {
                 }
                 return error.InvalidEnumTagName;
             },
-            .Struct => {
+            .@"struct" => {
                 return try lua.toStruct(T, a, allow_alloc, index);
             },
-            .Union => |u| {
+            .@"union" => |u| {
                 if (u.tag_type == null) @compileError("Parameter type is not a tagged union");
                 if (!lua.isTable(index)) return error.ValueIsNotATable;
 
@@ -3265,14 +3265,14 @@ pub const Lua = opaque {
                 }
                 return error.TableIsEmpty;
             },
-            .Optional => {
+            .optional => {
                 if (lua.isNil(index)) {
                     return null;
                 } else {
-                    return try lua.toAnyInternal(@typeInfo(T).Optional.child, a, allow_alloc, index);
+                    return try lua.toAnyInternal(@typeInfo(T).optional.child, a, allow_alloc, index);
                 }
             },
-            .Void => {
+            .void => {
                 if (!lua.isTable(index)) return error.ValueIsNotATable;
                 lua.pushValue(index);
                 defer lua.pop(1);
@@ -3323,7 +3323,7 @@ pub const Lua = opaque {
 
         var result: T = undefined;
 
-        inline for (@typeInfo(T).Struct.fields) |field| {
+        inline for (@typeInfo(T).@"struct".fields) |field| {
             const field_type_info = comptime @typeInfo(field.type);
             const field_name = comptime field.name ++ "";
             _ = lua.pushStringZ(field_name);
@@ -3333,7 +3333,7 @@ pub const Lua = opaque {
             if (lua_field_type == .nil) {
                 if (field.default_value) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
-                } else if (field_type_info != .Optional) {
+                } else if (field_type_info != .optional) {
                     return error.LuaTableMissingValue;
                 }
             } else {
@@ -3377,7 +3377,7 @@ pub const Lua = opaque {
     //automatically generates a wrapper function
     fn GenerateInterface(comptime function: anytype) type {
         const info = @typeInfo(@TypeOf(function));
-        if (info != .Fn) {
+        if (info != .@"fn") {
             @compileLog(info);
             @compileLog(function);
             @compileError("function pointer must be passed");
@@ -3386,10 +3386,10 @@ pub const Lua = opaque {
             pub fn interface(lua: *Lua) i32 {
                 var parameters: std.meta.ArgsTuple(@TypeOf(function)) = undefined;
 
-                inline for (info.Fn.params, 0..) |param, i| {
+                inline for (info.@"fn".params, 0..) |param, i| {
                     const param_info = @typeInfo(param.type.?);
                     //only use the overhead of creating the arena allocator if needed
-                    if (comptime param_info == .Pointer and param_info.Pointer.size != .One) {
+                    if (comptime param_info == .pointer and param_info.pointer.size != .One) {
                         const parsed = lua.toAnyAlloc(param.type.?, (i + 1)) catch |err| {
                             lua.raiseErrorStr(@errorName(err), .{});
                         };
@@ -3406,7 +3406,7 @@ pub const Lua = opaque {
                     }
                 }
 
-                if (@typeInfo(info.Fn.return_type.?) == .ErrorUnion) {
+                if (@typeInfo(info.@"fn".return_type.?) == .error_union) {
                     const result = @call(.auto, function, parameters) catch |err| {
                         lua.raiseErrorStr(@errorName(err), .{});
                     };

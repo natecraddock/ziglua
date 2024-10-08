@@ -78,7 +78,7 @@ pub fn build(b: *Build) void {
         .target = target,
         .optimize = optimize,
     });
-    c_headers.addIncludeDir(b.getInstallPath(install_lib.h_dir.?, ""));
+    c_headers.addIncludePath(lib.getEmittedIncludeTree());
     c_headers.step.dependOn(&install_lib.step);
     ziglua.addImport("c", c_headers.createModule());
 
