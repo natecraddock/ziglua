@@ -77,7 +77,7 @@ fn addEnum(
         try state.definitions.items[index].appendSlice(name(T));
         try state.definitions.items[index].appendSlice("\n");
 
-        inline for (@typeInfo(T).Enum.fields) |field| {
+        inline for (@typeInfo(T).@"enum".fields) |field| {
             try state.definitions.items[index].appendSlice("---|\' \"");
             try state.definitions.items[index].appendSlice(field.name);
             try state.definitions.items[index].appendSlice("\" \'\n");
@@ -98,7 +98,7 @@ pub fn addClass(
         try state.definitions.items[index].appendSlice(name(T));
         try state.definitions.items[index].appendSlice("\n");
 
-        inline for (@typeInfo(T).Struct.fields) |field| {
+        inline for (@typeInfo(T).@"struct".fields) |field| {
             try state.definitions.items[index].appendSlice("---@field ");
             try state.definitions.items[index].appendSlice(field.name);
 
@@ -118,11 +118,11 @@ fn luaTypeName(
     comptime T: type,
 ) !void {
     switch (@typeInfo(T)) {
-        .Struct => {
+        .@"struct" => {
             try state.definitions.items[index].appendSlice(name(T));
             try addClass(state, T);
         },
-        .Pointer => |info| {
+        .pointer => |info| {
             if (info.child == u8 and info.size == .Slice) {
                 try state.definitions.items[index].appendSlice("string");
             } else switch (info.size) {
@@ -135,30 +135,30 @@ fn luaTypeName(
                 },
             }
         },
-        .Array => |info| {
+        .array => |info| {
             try luaTypeName(state, index, info.child);
             try state.definitions.items[index].appendSlice("[]");
         },
 
-        .Vector => |info| {
+        .vector => |info| {
             try luaTypeName(state, index, info.child);
             try state.definitions.items[index].appendSlice("[]");
         },
-        .Optional => |info| {
+        .optional => |info| {
             try luaTypeName(state, index, info.child);
             try state.definitions.items[index].appendSlice(" | nil");
         },
-        .Enum => {
+        .@"enum" => {
             try state.definitions.items[index].appendSlice(name(T));
             try addEnum(state, T);
         },
-        .Int => {
+        .int => {
             try state.definitions.items[index].appendSlice("integer");
         },
-        .Float => {
+        .float => {
             try state.definitions.items[index].appendSlice("number");
         },
-        .Bool => {
+        .bool => {
             try state.definitions.items[index].appendSlice("boolean");
         },
         else => {
