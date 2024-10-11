@@ -26,13 +26,6 @@ const Allocator = std.mem.Allocator;
 // Lua constants and types are declared below in alphabetical order
 // For constants that have a logical grouping (like Operators), Zig enums are used for type safety
 
-/// The type of function that Lua uses for all internal allocations and frees
-/// `data` is an opaque pointer to any data (the allocator), `ptr` is a pointer to the block being alloced/realloced/freed
-/// `osize` is the original size or a code, and `nsize` is the new size
-///
-/// See https://www.lua.org/manual/5.4/manual.html#lua_Alloc for more details
-pub const AllocFn = *const fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque;
-
 const ArithOperator52 = enum(u4) {
     add = c.LUA_OPADD,
     sub = c.LUA_OPSUB,
@@ -627,21 +620,14 @@ pub const Lua = opaque {
     }
 
     /// Returns the std.mem.Allocator used to initialize this Lua state
-    ///
-    /// This function is not safe to use on Lua states created without a Zig allocator.
-    /// If the user data passed to Lua was null, this function will panic. Otherwise use
-    /// of the returned Allocator is undefined and will likely cause a segfault.
     pub fn allocator(lua: *Lua) Allocator {
         var data: ?*Allocator = undefined;
-        _ = lua.getAllocFn(@ptrCast(&data));
+        _ = c.lua_getallocf(@ptrCast(lua), @ptrCast(&data)).?;
 
-        if (data) |allocator_ptr| {
-            // Although the Allocator is passed to Lua as a pointer, return a
-            // copy to make use more convenient.
-            return allocator_ptr.*;
-        }
-
-        @panic("Lua.allocator() invalid on Lua states created without a Zig allocator");
+        // The pointer should never be null because the only way to create a Lua state requires
+        // passing a Zig allocator.
+        // Although the Allocator is passed to Lua as a pointer, return a copy to make use more convenient.
+        return data.?.*;
     }
 
     // Library functions
@@ -938,15 +924,6 @@ pub const Lua = opaque {
         return c.lua_gc(@ptrCast(lua), c.LUA_GCSETSTEPMUL, multiplier);
     }
 
-    /// Returns the memory allocation function of a given state
-    /// If data is not null, it is set to the opaque pointer given when the allocator function was set
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_getallocf
-    pub fn getAllocFn(lua: *Lua, data: ?**anyopaque) AllocFn {
-        // Assert cannot be null because it is impossible (and not useful) to pass null
-        // to the functions that set the allocator (setallocf and newstate)
-        return c.lua_getallocf(@ptrCast(lua), @ptrCast(data)).?;
-    }
-
     /// Called by a continuation function to retrieve the status of the thread and context information
     /// See https://www.lua.org/manual/5.2/manual.html#lua_getctx
     pub fn getContext(lua: *Lua) !?i32 {
@@ -1231,16 +1208,6 @@ pub const Lua = opaque {
         .lua51, .luajit => load51,
         else => load52,
     };
-
-    /// Creates a new independent state and returns its main thread
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_newstate
-    pub fn newState(alloc_fn: AllocFn, data: ?*const anyopaque) !*Lua {
-        if (lang == .luau) zig_registerAssertionHandler();
-
-        if (c.lua_newstate(alloc_fn, @constCast(data))) |state| {
-            return @ptrCast(state);
-        } else return error.OutOfMemory;
-    }
 
     /// Creates a new empty table and pushes it onto the stack
     /// Equivalent to createTable(0, 0)
@@ -1776,12 +1743,6 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rotate
     pub fn rotate(lua: *Lua, index: i32, n: i32) void {
         c.lua_rotate(@ptrCast(lua), index, n);
-    }
-
-    /// Changes the allocator function of a given state to `alloc_fn` with userdata `data`
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_setallocf
-    pub fn setAllocF(lua: *Lua, alloc_fn: AllocFn, data: ?*anyopaque) void {
-        c.lua_setallocf(@ptrCast(lua), alloc_fn, data);
     }
 
     /// Pops a table from the stack and sets it as the new environment for the value at the
@@ -2735,16 +2696,6 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_newmetatable
     pub fn newMetatable(lua: *Lua, key: [:0]const u8) !void {
         if (c.luaL_newmetatable(@ptrCast(lua), key.ptr) == 0) return error.LuaError;
-    }
-
-    /// Creates a new Lua state with an allocator using the default libc allocator
-    /// See https://www.lua.org/manual/5.4/manual.html#luaL_newstate
-    pub fn newStateLibc() !*Lua {
-        if (lang == .luau) zig_registerAssertionHandler();
-
-        if (c.luaL_newstate()) |state| {
-            return @ptrCast(state);
-        } else return error.OutOfMemory;
     }
 
     // luaL_opt (a macro) really isn't that useful, so not going to implement for now

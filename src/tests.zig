@@ -3,7 +3,6 @@ const testing = std.testing;
 
 const ziglua = @import("ziglua");
 
-const AllocFn = ziglua.AllocFn;
 const Buffer = ziglua.Buffer;
 const DebugInfo = ziglua.DebugInfo;
 const Lua = ziglua.Lua;
@@ -24,26 +23,6 @@ inline fn langIn(langs: anytype) bool {
     return false;
 }
 
-fn alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque {
-    _ = data;
-
-    const alignment = @alignOf(std.c.max_align_t);
-    if (@as(?[*]align(alignment) u8, @ptrCast(@alignCast(ptr)))) |prev_ptr| {
-        const prev_slice = prev_ptr[0..osize];
-        if (nsize == 0) {
-            testing.allocator.free(prev_slice);
-            return null;
-        }
-        const new_ptr = testing.allocator.realloc(prev_slice, nsize) catch return null;
-        return new_ptr.ptr;
-    } else if (nsize == 0) {
-        return null;
-    } else {
-        const new_ptr = testing.allocator.alignedAlloc(u8, alignment, nsize) catch return null;
-        return new_ptr.ptr;
-    }
-}
-
 fn failing_alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque {
     _ = data;
     _ = ptr;
@@ -60,35 +39,6 @@ test "initialization" {
 
     // attempt to initialize the Zig wrapper with no memory
     try expectError(error.OutOfMemory, Lua.init(&testing.failing_allocator));
-
-    // use the library directly
-    lua = try Lua.newState(alloc, null);
-    lua.close();
-
-    // use the library with a bad AllocFn
-    try expectError(error.OutOfMemory, Lua.newState(failing_alloc, null));
-
-    // use the auxiliary library (uses libc realloc and cannot be checked for leaks!)
-    lua = try Lua.newStateLibc();
-    lua.close();
-}
-
-test "alloc functions" {
-    var lua = try Lua.newState(alloc, null);
-    defer lua.deinit();
-
-    // get default allocator
-    var data: *anyopaque = undefined;
-    try expectEqual(alloc, lua.getAllocFn(&data));
-
-    if (ziglua.lang != .luau) {
-        // set a bad allocator
-        lua.setAllocF(failing_alloc, null);
-        try expectEqual(failing_alloc, lua.getAllocFn(&data));
-
-        // reset the good one
-        lua.setAllocF(alloc, null);
-    }
 }
 
 test "Zig allocator access" {
