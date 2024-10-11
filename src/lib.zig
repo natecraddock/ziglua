@@ -297,21 +297,21 @@ pub const DebugInfo = switch (lang) {
 /// The superset of all errors returned from ziglua
 pub const Error = error{
     /// A generic failure (used when a function can only fail in one way)
-    Fail,
+    LuaError,
     /// A runtime error
-    Runtime,
+    LuaRuntime,
     /// A syntax error during precompilation
-    Syntax,
+    LuaSyntax,
     /// A memory allocation error
-    Memory,
+    OutOfMemory,
     /// An error while running the message handler
-    MsgHandler,
+    LuaMsgHandler,
     /// A file-releated error
-    File,
+    LuaFile,
 } || switch (lang) {
     .lua52, .lua53 => error{
         /// A memory error in a __gc metamethod
-        GCMetaMethod,
+        LuaGCMetaMethod,
     },
     else => error{},
 };
@@ -618,7 +618,7 @@ pub const Lua = opaque {
         // @constCast() is safe here because Lua does not mutate the pointer internally
         if (c.lua_newstate(alloc, @constCast(allocator_ptr))) |state| {
             return @ptrCast(state);
-        } else return error.Memory;
+        } else return error.OutOfMemory;
     }
 
     /// Deinitialize a Lua state and free all memory
@@ -714,7 +714,7 @@ pub const Lua = opaque {
     /// Never shrinks the stack
     /// See https://www.lua.org/manual/5.4/manual.html#lua_checkstack
     pub fn checkStack(lua: *Lua, n: i32) !void {
-        if (c.lua_checkstack(@ptrCast(lua), n) == 0) return error.Fail;
+        if (c.lua_checkstack(@ptrCast(lua), n) == 0) return error.LuaError;
     }
 
     /// Release all Lua objects in the state and free all dynamic memory
@@ -743,7 +743,7 @@ pub const Lua = opaque {
     /// (This function was introduced in release 5.4.6.)
     /// See https://www.lua.org/manual/5.4/manual.html#lua_closethread
     pub fn closeThread(lua: *Lua, from: ?*Lua) !void {
-        if (c.lua_closethread(@ptrCast(lua), if (from) |f| @ptrCast(f) else null) != StatusCode.ok) return error.Fail;
+        if (c.lua_closethread(@ptrCast(lua), if (from) |f| @ptrCast(f) else null) != StatusCode.ok) return error.LuaError;
     }
 
     /// Compares two Lua values
@@ -769,9 +769,9 @@ pub const Lua = opaque {
         const ret = c.lua_cpcall(@ptrCast(lua), c_fn, userdata);
         switch (ret) {
             StatusCode.ok => return,
-            StatusCode.err_runtime => return error.Runtime,
-            StatusCode.err_memory => return error.Memory,
-            StatusCode.err_error => return error.MsgHandler,
+            StatusCode.err_runtime => return error.LuaRuntime,
+            StatusCode.err_memory => return error.OutOfMemory,
+            StatusCode.err_error => return error.LuaMsgHandler,
             else => unreachable,
         }
     }
@@ -792,11 +792,11 @@ pub const Lua = opaque {
     }
 
     fn dump51(lua: *Lua, writer: CWriterFn, data: *anyopaque) !void {
-        if (c.lua_dump(@ptrCast(lua), writer, data) != 0) return error.Fail;
+        if (c.lua_dump(@ptrCast(lua), writer, data) != 0) return error.LuaError;
     }
 
     fn dump53(lua: *Lua, writer: CWriterFn, data: *anyopaque, strip: bool) !void {
-        if (c.lua_dump(@ptrCast(lua), writer, data, @intFromBool(strip)) != 0) return error.Fail;
+        if (c.lua_dump(@ptrCast(lua), writer, data, @intFromBool(strip)) != 0) return error.LuaError;
     }
 
     /// Dumps a function as a binary chunk
@@ -955,9 +955,9 @@ pub const Lua = opaque {
         switch (ret) {
             StatusCode.ok => return null,
             StatusCode.yield => return ctx,
-            StatusCode.err_runtime => return error.Runtime,
-            StatusCode.err_memory => return error.Memory,
-            StatusCode.err_error => return error.MsgHandler,
+            StatusCode.err_runtime => return error.LuaRuntime,
+            StatusCode.err_memory => return error.OutOfMemory,
+            StatusCode.err_error => return error.LuaMsgHandler,
             else => unreachable,
         }
     }
@@ -1002,7 +1002,7 @@ pub const Lua = opaque {
             }
         };
 
-        if (lua_type == .nil) return error.Fail;
+        if (lua_type == .nil) return error.LuaError;
         return lua_type;
     }
 
@@ -1024,7 +1024,7 @@ pub const Lua = opaque {
 
     fn getUserValue54(lua: *Lua, index: i32, n: i32) !LuaType {
         const val_type: LuaType = @enumFromInt(c.lua_getiuservalue(@ptrCast(lua), index, n));
-        if (val_type == .none) return error.Fail;
+        if (val_type == .none) return error.LuaError;
         return val_type;
     }
 
@@ -1042,7 +1042,7 @@ pub const Lua = opaque {
     /// Otherwise an error is returned
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getmetatable
     pub fn getMetatable(lua: *Lua, index: i32) !void {
-        if (c.lua_getmetatable(@ptrCast(lua), index) == 0) return error.Fail;
+        if (c.lua_getmetatable(@ptrCast(lua), index) == 0) return error.LuaError;
     }
 
     /// Pushes onto the stack the value t[k] where t is the value at the given index and k is the value on the top of the stack
@@ -1187,8 +1187,8 @@ pub const Lua = opaque {
         const ret = c.lua_load(@ptrCast(lua), reader, data, chunk_name.ptr);
         switch (ret) {
             StatusCode.ok => return,
-            StatusCode.err_syntax => return error.Syntax,
-            StatusCode.err_memory => return error.Memory,
+            StatusCode.err_syntax => return error.LuaSyntax,
+            StatusCode.err_memory => return error.OutOfMemory,
             else => unreachable,
         }
     }
@@ -1204,21 +1204,21 @@ pub const Lua = opaque {
         return switch (lang) {
             .lua54 => switch (ret) {
                 StatusCode.ok => {},
-                StatusCode.err_syntax => error.Syntax,
-                StatusCode.err_memory => error.Memory,
+                StatusCode.err_syntax => error.LuaSyntax,
+                StatusCode.err_memory => error.OutOfMemory,
                 // lua_load runs pcall, so can also return any result of a pcall error
-                StatusCode.err_runtime => error.Runtime,
-                StatusCode.err_error => error.MsgHandler,
+                StatusCode.err_runtime => error.LuaRuntime,
+                StatusCode.err_error => error.LuaMsgHandler,
                 else => unreachable,
             },
             else => switch (ret) {
                 StatusCode.ok => {},
-                StatusCode.err_syntax => error.Syntax,
-                StatusCode.err_memory => error.Memory,
+                StatusCode.err_syntax => error.LuaSyntax,
+                StatusCode.err_memory => error.OutOfMemory,
                 // lua_load runs pcall, so can also return any result of a pcall error
-                StatusCode.err_runtime => error.Runtime,
-                StatusCode.err_error => error.MsgHandler,
-                StatusCode.err_gcmm => error.GCMetaMethod,
+                StatusCode.err_runtime => error.LuaRuntime,
+                StatusCode.err_error => error.LuaMsgHandler,
+                StatusCode.err_gcmm => error.LuaGCMetaMethod,
                 else => unreachable,
             },
         };
@@ -1239,7 +1239,7 @@ pub const Lua = opaque {
 
         if (c.lua_newstate(alloc_fn, @constCast(data))) |state| {
             return @ptrCast(state);
-        } else return error.Memory;
+        } else return error.OutOfMemory;
     }
 
     /// Creates a new empty table and pushes it onto the stack
@@ -1317,7 +1317,7 @@ pub const Lua = opaque {
     /// TODO: rename to getUserdataTag?
     pub fn userdataTag(lua: *Lua, index: i32) !i32 {
         const tag = c.lua_userdatatag(@ptrCast(lua), index);
-        if (tag == -1) return error.Fail;
+        if (tag == -1) return error.LuaError;
         return tag;
     }
 
@@ -1349,7 +1349,7 @@ pub const Lua = opaque {
         const min_float: Number = @floatFromInt(min_integer);
         if (n >= min_float and n < -min_float) {
             i.* = @intFromFloat(n);
-        } else return error.Fail;
+        } else return error.LuaError;
     }
 
     /// Returns the length of the value at the given index
@@ -1368,9 +1368,9 @@ pub const Lua = opaque {
         const ret = c.lua_pcall(@ptrCast(lua), num_args, num_results, err_func);
         switch (ret) {
             StatusCode.ok => return,
-            StatusCode.err_runtime => return error.Runtime,
-            StatusCode.err_memory => return error.Memory,
-            StatusCode.err_error => return error.MsgHandler,
+            StatusCode.err_runtime => return error.LuaRuntime,
+            StatusCode.err_memory => return error.OutOfMemory,
+            StatusCode.err_error => return error.LuaMsgHandler,
             else => unreachable,
         }
     }
@@ -1383,17 +1383,17 @@ pub const Lua = opaque {
         return switch (lang) {
             .lua54 => switch (ret) {
                 StatusCode.ok => return,
-                StatusCode.err_runtime => return error.Runtime,
-                StatusCode.err_memory => return error.Memory,
-                StatusCode.err_error => return error.MsgHandler,
+                StatusCode.err_runtime => return error.LuaRuntime,
+                StatusCode.err_memory => return error.OutOfMemory,
+                StatusCode.err_error => return error.LuaMsgHandler,
                 else => unreachable,
             },
             else => switch (ret) {
                 StatusCode.ok => return,
-                StatusCode.err_runtime => return error.Runtime,
-                StatusCode.err_memory => return error.Memory,
-                StatusCode.err_error => return error.MsgHandler,
-                StatusCode.err_gcmm => return error.GCMetaMethod,
+                StatusCode.err_runtime => return error.LuaRuntime,
+                StatusCode.err_memory => return error.OutOfMemory,
+                StatusCode.err_error => return error.LuaMsgHandler,
+                StatusCode.err_gcmm => return error.LuaGCMetaMethod,
                 else => unreachable,
             },
         };
@@ -1410,10 +1410,10 @@ pub const Lua = opaque {
         const ret = c.lua_pcallk(@ptrCast(lua), num_args, num_results, msg_handler, ctx, k);
         switch (ret) {
             StatusCode.ok => return,
-            StatusCode.err_runtime => return error.Runtime,
-            StatusCode.err_memory => return error.Memory,
-            StatusCode.err_error => return error.MsgHandler,
-            StatusCode.err_gcmm => return error.GCMetaMethod,
+            StatusCode.err_runtime => return error.LuaRuntime,
+            StatusCode.err_memory => return error.OutOfMemory,
+            StatusCode.err_error => return error.LuaMsgHandler,
+            StatusCode.err_gcmm => return error.LuaGCMetaMethod,
             else => unreachable,
         }
     }
@@ -1424,17 +1424,17 @@ pub const Lua = opaque {
         return switch (lang) {
             .lua54 => switch (ret) {
                 StatusCode.ok => return,
-                StatusCode.err_runtime => return error.Runtime,
-                StatusCode.err_memory => return error.Memory,
-                StatusCode.err_error => return error.MsgHandler,
+                StatusCode.err_runtime => return error.LuaRuntime,
+                StatusCode.err_memory => return error.OutOfMemory,
+                StatusCode.err_error => return error.LuaMsgHandler,
                 else => unreachable,
             },
             else => switch (ret) {
                 StatusCode.ok => return,
-                StatusCode.err_runtime => return error.Runtime,
-                StatusCode.err_memory => return error.Memory,
-                StatusCode.err_error => return error.MsgHandler,
-                StatusCode.err_gcmm => return error.GCMetaMethod,
+                StatusCode.err_runtime => return error.LuaRuntime,
+                StatusCode.err_memory => return error.OutOfMemory,
+                StatusCode.err_error => return error.LuaMsgHandler,
+                StatusCode.err_gcmm => return error.LuaGCMetaMethod,
                 else => unreachable,
             },
         };
@@ -1718,9 +1718,9 @@ pub const Lua = opaque {
     pub fn resumeThread51(lua: *Lua, num_args: i32) !ResumeStatus {
         const thread_status = c.lua_resume(@ptrCast(lua), num_args);
         switch (thread_status) {
-            StatusCode.err_runtime => return error.Runtime,
-            StatusCode.err_memory => return error.Memory,
-            StatusCode.err_error => return error.MsgHandler,
+            StatusCode.err_runtime => return error.LuaRuntime,
+            StatusCode.err_memory => return error.OutOfMemory,
+            StatusCode.err_error => return error.LuaMsgHandler,
             else => return @enumFromInt(thread_status),
         }
     }
@@ -1731,10 +1731,10 @@ pub const Lua = opaque {
         const from_state: ?*LuaState = if (from) |from_val| @ptrCast(from_val) else null;
         const thread_status = c.lua_resume(@ptrCast(lua), from_state, num_args);
         switch (thread_status) {
-            StatusCode.err_runtime => return error.Runtime,
-            StatusCode.err_memory => return error.Memory,
-            StatusCode.err_error => return error.MsgHandler,
-            StatusCode.err_gcmm => return error.GCMetaMethod,
+            StatusCode.err_runtime => return error.LuaRuntime,
+            StatusCode.err_memory => return error.OutOfMemory,
+            StatusCode.err_error => return error.LuaMsgHandler,
+            StatusCode.err_gcmm => return error.LuaGCMetaMethod,
             else => return @enumFromInt(thread_status),
         }
     }
@@ -1745,9 +1745,9 @@ pub const Lua = opaque {
         const from_state: ?*LuaState = if (from) |from_val| @ptrCast(from_val) else null;
         const thread_status = c.lua_resume(@ptrCast(lua), from_state, num_args, num_results);
         switch (thread_status) {
-            StatusCode.err_runtime => return error.Runtime,
-            StatusCode.err_memory => return error.Memory,
-            StatusCode.err_error => return error.MsgHandler,
+            StatusCode.err_runtime => return error.LuaRuntime,
+            StatusCode.err_memory => return error.OutOfMemory,
+            StatusCode.err_error => return error.LuaMsgHandler,
             else => return @enumFromInt(thread_status),
         }
     }
@@ -1756,9 +1756,9 @@ pub const Lua = opaque {
         const from_state: ?*LuaState = if (from) |from_val| @ptrCast(from_val) else null;
         const thread_status = c.lua_resume(@ptrCast(lua), from_state, num_args);
         switch (thread_status) {
-            StatusCode.err_runtime => return error.Runtime,
-            StatusCode.err_memory => return error.Memory,
-            StatusCode.err_error => return error.MsgHandler,
+            StatusCode.err_runtime => return error.LuaRuntime,
+            StatusCode.err_memory => return error.OutOfMemory,
+            StatusCode.err_error => return error.LuaMsgHandler,
             else => return @enumFromInt(thread_status),
         }
     }
@@ -1788,7 +1788,7 @@ pub const Lua = opaque {
     /// given index. Returns an error if the value at that index is not a function or thread or userdata.
     /// See https://www.lua.org/manual/5.1/manual.html#lua_setfenv
     pub fn setFnEnvironment(lua: *Lua, index: i32) !void {
-        if (c.lua_setfenv(@ptrCast(lua), index) == 0) return error.Fail;
+        if (c.lua_setfenv(@ptrCast(lua), index) == 0) return error.LuaError;
     }
 
     /// Does the equivalent to t[`k`] = v where t is the value at the given `index`
@@ -1824,7 +1824,7 @@ pub const Lua = opaque {
     /// Returns an error if the userdata does not have that value
     /// See https://www.lua.org/manual/5.4/manual.html#lua_setiuservalue
     fn setUserValue54(lua: *Lua, index: i32, n: i32) !void {
-        if (c.lua_setiuservalue(@ptrCast(lua), index, n) == 0) return error.Fail;
+        if (c.lua_setiuservalue(@ptrCast(lua), index, n) == 0) return error.LuaError;
     }
 
     pub const setUserValue = switch (lang) {
@@ -1879,7 +1879,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_stringtonumber
     pub fn stringToNumber(lua: *Lua, str: [:0]const u8) !void {
         const size = c.lua_stringtonumber(@ptrCast(lua), str.ptr);
-        if (size == 0) return error.Fail;
+        if (size == 0) return error.LuaError;
     }
 
     /// Converts the Lua value at the given `index` into a boolean
@@ -1893,7 +1893,7 @@ pub const Lua = opaque {
     /// Returns an error if the value is not a CFn
     /// See https://www.lua.org/manual/5.4/manual.html#lua_tocfunction
     pub fn toCFunction(lua: *Lua, index: i32) !CFn {
-        return c.lua_tocfunction(@ptrCast(lua), index) orelse return error.Fail;
+        return c.lua_tocfunction(@ptrCast(lua), index) orelse return error.LuaError;
     }
 
     /// Marks the given index in the stack as a to-be-closed slot
@@ -1910,13 +1910,13 @@ pub const Lua = opaque {
         switch (lang) {
             .lua51 => {
                 const result = c.lua_tointeger(@ptrCast(lua), index);
-                if (result == 0 and !lua.isNumber(index)) return error.Fail;
+                if (result == 0 and !lua.isNumber(index)) return error.LuaError;
                 return result;
             },
             else => {
                 var success: c_int = undefined;
                 const result = c.lua_tointegerx(@ptrCast(lua), index, &success);
-                if (success == 0) return error.Fail;
+                if (success == 0) return error.LuaError;
                 return result;
             },
         }
@@ -1930,13 +1930,13 @@ pub const Lua = opaque {
         switch (lang) {
             .lua51 => {
                 const result = c.lua_tonumber(@ptrCast(lua), index);
-                if (result == 0 and !lua.isNumber(index)) return error.Fail;
+                if (result == 0 and !lua.isNumber(index)) return error.LuaError;
                 return result;
             },
             else => {
                 var success: c_int = undefined;
                 const result = c.lua_tonumberx(@ptrCast(lua), index, &success);
-                if (success == 0) return error.Fail;
+                if (success == 0) return error.LuaError;
                 return result;
             },
         }
@@ -1946,7 +1946,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_topointer
     pub fn toPointer(lua: *Lua, index: i32) !*const anyopaque {
         if (c.lua_topointer(@ptrCast(lua), index)) |ptr| return ptr;
-        return error.Fail;
+        return error.LuaError;
     }
 
     /// Converts the Lua value at the given `index` to a zero-terminated many-itemed-pointer (string)
@@ -1956,7 +1956,7 @@ pub const Lua = opaque {
     pub fn toString(lua: *Lua, index: i32) ![:0]const u8 {
         var length: usize = undefined;
         if (c.lua_tolstring(@ptrCast(lua), index, &length)) |ptr| return ptr[0..length :0];
-        return error.Fail;
+        return error.LuaError;
     }
 
     /// Converts the value at the given `index` to a Lua thread (wrapped with a `Lua` struct)
@@ -1966,7 +1966,7 @@ pub const Lua = opaque {
     pub fn toThread(lua: *Lua, index: i32) !*Lua {
         const thread = c.lua_tothread(@ptrCast(lua), index);
         if (thread) |thread_ptr| return @ptrCast(thread_ptr);
-        return error.Fail;
+        return error.LuaError;
     }
 
     /// Converts the Lua value at the given index to an unsigned integer
@@ -1975,7 +1975,7 @@ pub const Lua = opaque {
     pub fn toUnsigned(lua: *Lua, index: i32) !Unsigned {
         var success: c_int = undefined;
         const result = c.lua_tounsignedx(@ptrCast(lua), index, &success);
-        if (success == 0) return error.Fail;
+        if (success == 0) return error.LuaError;
         return result;
     }
 
@@ -1985,7 +1985,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_touserdata
     pub fn toUserdata(lua: *Lua, comptime T: type, index: i32) !*T {
         if (c.lua_touserdata(@ptrCast(lua), index)) |ptr| return @ptrCast(@alignCast(ptr));
-        return error.Fail;
+        return error.LuaError;
     }
 
     /// Returns a Lua-owned userdata slice of the given type at the given index.
@@ -2000,12 +2000,12 @@ pub const Lua = opaque {
             };
             return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
         }
-        return error.Fail;
+        return error.LuaError;
     }
 
     pub fn toUserdataTagged(lua: *Lua, comptime T: type, index: i32, tag: i32) !*T {
         if (c.lua_touserdatatagged(@ptrCast(lua), index, tag)) |ptr| return @ptrCast(@alignCast(ptr));
-        return error.Fail;
+        return error.LuaError;
     }
 
     /// Converts the Lua value at the given `index` to a 3- or 4-vector.
@@ -2019,7 +2019,7 @@ pub const Lua = opaque {
                 else => @compileError("invalid luau_vector_size - should not happen"),
             }
         }
-        return error.Fail;
+        return error.LuaError;
     }
 
     /// Converts the Lua string at the given `index` to a string atom.
@@ -2029,7 +2029,7 @@ pub const Lua = opaque {
         if (c.lua_tostringatom(@ptrCast(lua), index, &atom)) |ptr| {
             return .{ atom, std.mem.span(ptr) };
         }
-        return error.Fail;
+        return error.LuaError;
     }
 
     /// Retrieve the user atom index and name for the method being
@@ -2039,7 +2039,7 @@ pub const Lua = opaque {
         if (c.lua_namecallatom(@ptrCast(lua), &atom)) |ptr| {
             return .{ atom, std.mem.span(ptr) };
         }
-        return error.Fail;
+        return error.LuaError;
     }
 
     /// Returns the `LuaType` of the value at the given index
@@ -2253,14 +2253,14 @@ pub const Lua = opaque {
         if (c.lua_getlocal(@ptrCast(lua), &ar, n)) |name| {
             return std.mem.span(name);
         }
-        return error.Fail;
+        return error.LuaError;
     }
 
     fn getLocalLuau(lua: *Lua, level: i32, n: i32) ![:0]const u8 {
         if (c.lua_getlocal(@ptrCast(lua), level, n)) |name| {
             return std.mem.span(name);
         }
-        return error.Fail;
+        return error.LuaError;
     }
 
     /// Gets information about a local variable
@@ -2272,7 +2272,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getstack
     pub fn getStack(lua: *Lua, level: i32) !DebugInfo {
         var ar: Debug = undefined;
-        if (c.lua_getstack(@ptrCast(lua), level, &ar) == 0) return error.Fail;
+        if (c.lua_getstack(@ptrCast(lua), level, &ar) == 0) return error.LuaError;
         return DebugInfo{
             .private = switch (lang) {
                 .lua51, .luajit => ar.i_ci,
@@ -2287,7 +2287,7 @@ pub const Lua = opaque {
         if (c.lua_getupvalue(@ptrCast(lua), func_index, n)) |name| {
             return std.mem.span(name);
         }
-        return error.Fail;
+        return error.LuaError;
     }
 
     /// Sets the debugging hook function
@@ -2309,14 +2309,14 @@ pub const Lua = opaque {
         if (c.lua_setlocal(@ptrCast(lua), &ar, n)) |name| {
             return std.mem.span(name);
         }
-        return error.Fail;
+        return error.LuaError;
     }
 
     fn setLocalLuau(lua: *Lua, level: i32, n: i32) ![:0]const u8 {
         if (c.lua_setlocal(@ptrCast(lua), level, n)) |name| {
             return std.mem.span(name);
         }
-        return error.Fail;
+        return error.LuaError;
     }
 
     /// Sets the value of a local variable
@@ -2332,7 +2332,7 @@ pub const Lua = opaque {
         if (c.lua_setupvalue(@ptrCast(lua), func_index, n)) |name| {
             return std.mem.span(name);
         }
-        return error.Fail;
+        return error.LuaError;
     }
 
     pub fn setInterruptCallbackFn(lua: *Lua, cb: ?CInterruptCallbackFn) void {
@@ -2351,7 +2351,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_upvalueid
     pub fn upvalueId(lua: *Lua, func_index: i32, n: i32) !*anyopaque {
         if (c.lua_upvalueid(@ptrCast(lua), func_index, n)) |ptr| return ptr;
-        return error.Fail;
+        return error.LuaError;
     }
 
     /// Make the `n1`th upvalue of the Lua closure at index `func_index1` refer to the `n2`th upvalue
@@ -2392,7 +2392,7 @@ pub const Lua = opaque {
     /// Calls a metamethod
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_callmeta
     pub fn callMeta(lua: *Lua, obj: i32, field: [:0]const u8) !void {
-        if (c.luaL_callmeta(@ptrCast(lua), obj, field.ptr) == 0) return error.Fail;
+        if (c.luaL_callmeta(@ptrCast(lua), obj, field.ptr) == 0) return error.LuaError;
     }
 
     /// Checks whether the function has an argument of any type at position `arg`
@@ -2574,7 +2574,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_getmetafield
     pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) !LuaType {
         const val_type: LuaType = @enumFromInt(c.luaL_getmetafield(@ptrCast(lua), obj, field.ptr));
-        if (val_type == .nil) return error.Fail;
+        if (val_type == .nil) return error.LuaError;
         return val_type;
     }
 
@@ -2595,7 +2595,7 @@ pub const Lua = opaque {
     /// Ensures that the value t[`field`], where t is the value at `index`, is a table, and pushes that table onto the stack.
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_getsubtable
     pub fn getSubtable(lua: *Lua, index: i32, field: [:0]const u8) !void {
-        if (c.luaL_getsubtable(@ptrCast(lua), index, field.ptr) == 0) return error.Fail;
+        if (c.luaL_getsubtable(@ptrCast(lua), index, field.ptr) == 0) return error.LuaError;
     }
 
     /// Creates a copy of string `str`, replacing any occurrence of the string `pat` with the string `rep`
@@ -2615,8 +2615,8 @@ pub const Lua = opaque {
     fn loadBuffer51(lua: *Lua, buf: []const u8, name: [:0]const u8) !void {
         switch (c.luaL_loadbuffer(@ptrCast(lua), buf.ptr, buf.len, name.ptr)) {
             StatusCode.ok => return,
-            StatusCode.err_syntax => return error.Syntax,
-            StatusCode.err_memory => return error.Memory,
+            StatusCode.err_syntax => return error.LuaSyntax,
+            StatusCode.err_memory => return error.OutOfMemory,
             else => unreachable,
         }
     }
@@ -2629,8 +2629,8 @@ pub const Lua = opaque {
         };
         switch (c.luaL_loadbufferx(@ptrCast(lua), buf.ptr, buf.len, name.ptr, mode_str.ptr)) {
             StatusCode.ok => return,
-            StatusCode.err_syntax => return error.Syntax,
-            StatusCode.err_memory => return error.Memory,
+            StatusCode.err_syntax => return error.LuaSyntax,
+            StatusCode.err_memory => return error.OutOfMemory,
             else => unreachable,
         }
     }
@@ -2646,16 +2646,16 @@ pub const Lua = opaque {
     /// See https://luau-lang.org/getting-started
     /// See also condsiderations for binary bytecode compatibility/safety: https://github.com/luau-lang/luau/issues/493#issuecomment-1185054665
     pub fn loadBytecode(lua: *Lua, chunkname: [:0]const u8, bytecode: []const u8) !void {
-        if (c.luau_load(@ptrCast(lua), chunkname.ptr, bytecode.ptr, bytecode.len, 0) != 0) return error.Fail;
+        if (c.luau_load(@ptrCast(lua), chunkname.ptr, bytecode.ptr, bytecode.len, 0) != 0) return error.LuaError;
     }
 
     fn loadFile51(lua: *Lua, file_name: [:0]const u8) !void {
         const ret = c.luaL_loadfile(@ptrCast(lua), file_name.ptr);
         switch (ret) {
             StatusCode.ok => return,
-            StatusCode.err_syntax => return error.Syntax,
-            StatusCode.err_memory => return error.Memory,
-            err_file => return error.File,
+            StatusCode.err_syntax => return error.LuaSyntax,
+            StatusCode.err_memory => return error.OutOfMemory,
+            err_file => return error.LuaFile,
             else => unreachable,
         }
     }
@@ -2669,9 +2669,9 @@ pub const Lua = opaque {
         const ret = c.luaL_loadfilex(@ptrCast(lua), file_name.ptr, mode_str.ptr);
         switch (ret) {
             StatusCode.ok => return,
-            StatusCode.err_syntax => return error.Syntax,
-            StatusCode.err_memory => return error.Memory,
-            err_file => return error.File,
+            StatusCode.err_syntax => return error.LuaSyntax,
+            StatusCode.err_memory => return error.OutOfMemory,
+            err_file => return error.LuaFile,
             // NOTE: the docs mention possible other return types, but I couldn't figure them out
             else => unreachable,
         }
@@ -2693,7 +2693,7 @@ pub const Lua = opaque {
                 const bytecode = c.luau_compile(str.ptr, str.len, null, &size);
 
                 // Failed to allocate memory for the out buffer
-                if (bytecode == null) return error.Memory;
+                if (bytecode == null) return error.OutOfMemory;
 
                 // luau_compile uses malloc to allocate the bytecode on the heap
                 defer zig_luau_free(bytecode);
@@ -2703,11 +2703,11 @@ pub const Lua = opaque {
                 const ret = c.luaL_loadstring(@ptrCast(lua), str.ptr);
                 switch (ret) {
                     StatusCode.ok => return,
-                    StatusCode.err_syntax => return error.Syntax,
-                    StatusCode.err_memory => return error.Memory,
+                    StatusCode.err_syntax => return error.LuaSyntax,
+                    StatusCode.err_memory => return error.OutOfMemory,
                     // loadstring runs lua_load which runs pcall, so can also return any result of an pcall error
-                    StatusCode.err_runtime => return error.Runtime,
-                    StatusCode.err_error => return error.MsgHandler,
+                    StatusCode.err_runtime => return error.LuaRuntime,
+                    StatusCode.err_error => return error.LuaMsgHandler,
                     else => unreachable,
                 }
             },
@@ -2734,7 +2734,7 @@ pub const Lua = opaque {
     /// Otherwise, creates a new table to be used as a metatable for userdata
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_newmetatable
     pub fn newMetatable(lua: *Lua, key: [:0]const u8) !void {
-        if (c.luaL_newmetatable(@ptrCast(lua), key.ptr) == 0) return error.Fail;
+        if (c.luaL_newmetatable(@ptrCast(lua), key.ptr) == 0) return error.LuaError;
     }
 
     /// Creates a new Lua state with an allocator using the default libc allocator
@@ -2744,7 +2744,7 @@ pub const Lua = opaque {
 
         if (c.luaL_newstate()) |state| {
             return @ptrCast(state);
-        } else return error.Memory;
+        } else return error.OutOfMemory;
     }
 
     // luaL_opt (a macro) really isn't that useful, so not going to implement for now
@@ -2801,7 +2801,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_ref
     pub fn ref(lua: *Lua, index: i32) !i32 {
         const ret = if (lang == .luau) c.lua_ref(@ptrCast(lua), index) else c.luaL_ref(@ptrCast(lua), index);
-        return if (ret == ref_nil) error.Fail else ret;
+        return if (ret == ref_nil) error.LuaError else ret;
     }
 
     /// Opens a library
@@ -2876,7 +2876,7 @@ pub const Lua = opaque {
     pub fn testUserdata(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) !*T {
         if (c.luaL_testudata(@ptrCast(lua), arg, name.ptr)) |ptr| {
             return @ptrCast(@alignCast(ptr));
-        } else return error.Fail;
+        } else return error.LuaError;
     }
 
     /// This function works like `Lua.checkUserdataSlice()` except it returns a Zig error instead of raising a Lua error on fail
@@ -2885,7 +2885,7 @@ pub const Lua = opaque {
         if (c.luaL_testudata(@ptrCast(lua), arg, name.ptr)) |ptr| {
             const size = lua.rawLen(arg) / @sizeOf(T);
             return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
-        } else return error.Fail;
+        } else return error.LuaError;
     }
 
     /// Converts any Lua value at the given index into a string in a reasonable format
@@ -3241,14 +3241,14 @@ pub const Lua = opaque {
                         return @field(T, enum_member.name);
                     }
                 }
-                return error.InvalidEnumTagName;
+                return error.LuaInvalidEnumTagName;
             },
             .Struct => {
                 return try lua.toStruct(T, a, allow_alloc, index);
             },
             .Union => |u| {
                 if (u.tag_type == null) @compileError("Parameter type is not a tagged union");
-                if (!lua.isTable(index)) return error.ValueIsNotATable;
+                if (!lua.isTable(index)) return error.LuaValueIsNotATable;
 
                 lua.pushValue(index);
                 defer lua.pop(1);
@@ -3261,9 +3261,9 @@ pub const Lua = opaque {
                             return @unionInit(T, field.name, try lua.toAny(field.type, -1));
                         }
                     }
-                    return error.InvalidTagName;
+                    return error.LuaInvalidTagName;
                 }
-                return error.TableIsEmpty;
+                return error.LuaTableIsEmpty;
             },
             .Optional => {
                 if (lua.isNil(index)) {
@@ -3273,13 +3273,13 @@ pub const Lua = opaque {
                 }
             },
             .Void => {
-                if (!lua.isTable(index)) return error.ValueIsNotATable;
+                if (!lua.isTable(index)) return error.LuaValueIsNotATable;
                 lua.pushValue(index);
                 defer lua.pop(1);
                 lua.pushNil();
                 if (lua.next(-2)) {
                     lua.pop(2);
-                    return error.VoidTableIsNotEmpty;
+                    return error.LuaVoidTableIsNotEmpty;
                 }
                 return void{};
             },
@@ -3294,7 +3294,7 @@ pub const Lua = opaque {
         const index = lua.absIndex(raw_index);
 
         if (!lua.isTable(index)) {
-            return error.ValueNotATable;
+            return error.LuaValueNotATable;
         }
 
         const size = lua.rawLen(index);
@@ -3318,7 +3318,7 @@ pub const Lua = opaque {
         const index = lua.absIndex(raw_index);
 
         if (!lua.isTable(index)) {
-            return error.ValueNotATable;
+            return error.LuaValueNotATable;
         }
 
         var result: T = undefined;
@@ -3348,7 +3348,7 @@ pub const Lua = opaque {
 
     /// Calls a function and pushes its return value to the top of the stack
     fn autoCallAndPush(lua: *Lua, comptime ReturnType: type, func_name: [:0]const u8, args: anytype) !void {
-        if (try lua.getGlobal(func_name) != LuaType.function) return error.InvalidFunctionName;
+        if (try lua.getGlobal(func_name) != LuaType.function) return error.LuaInvalidFunctionName;
 
         inline for (args) |arg| {
             try lua.pushAny(arg);
@@ -3776,7 +3776,7 @@ pub fn compile(allocator: Allocator, source: []const u8, options: CompileOptions
         .mutableGlobals = options.mutable_globals,
     };
     const bytecode = c.luau_compile(source.ptr, source.len, &opts, &size);
-    if (bytecode == null) return error.Memory;
+    if (bytecode == null) return error.OutOfMemory;
     defer zig_luau_free(bytecode);
     return try allocator.dupe(u8, bytecode[0..size]);
 }
