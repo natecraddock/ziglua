@@ -26,6 +26,8 @@ pub fn build(b: *Build) void {
     // Zig module
     const ziglua = b.addModule("ziglua", .{
         .root_source_file = b.path("src/lib.zig"),
+        .target = target,
+        .optimize = optimize,
     });
 
     // Expose build configuration to the ziglua module
@@ -39,30 +41,6 @@ pub fn build(b: *Build) void {
         ziglua.addCMacro("LUA_VECTOR_SIZE", b.fmt("{}", .{vector_size}));
     }
 
-    const upstream = b.dependency(@tagName(lang), .{});
-
-    const lib = switch (lang) {
-        .luajit => luajit_setup.configure(b, target, optimize, upstream, shared),
-        .luau => luau_setup.configure(b, target, optimize, upstream, luau_use_4_vector),
-        else => lua_setup.configure(b, target, optimize, upstream, lang, shared),
-    };
-
-    // Expose the Lua artifact, and get an install step that header translation can refer to
-    const install_lib = b.addInstallArtifact(lib, .{});
-    b.getInstallStep().dependOn(&install_lib.step);
-
-    switch (lang) {
-        .luau => {
-            ziglua.addIncludePath(upstream.path("Common/include"));
-            ziglua.addIncludePath(upstream.path("Compiler/include"));
-            ziglua.addIncludePath(upstream.path("Ast/include"));
-            ziglua.addIncludePath(upstream.path("VM/include"));
-        },
-        else => ziglua.addIncludePath(upstream.path("src")),
-    }
-
-    ziglua.linkLibrary(lib);
-
     // lib must expose all headers included by these root headers
     const c_header_path = switch (lang) {
         .luajit => b.path("include/luajit_all.h"),
@@ -74,8 +52,41 @@ pub fn build(b: *Build) void {
         .target = target,
         .optimize = optimize,
     });
-    c_headers.addIncludePath(lib.getEmittedIncludeTree());
-    c_headers.step.dependOn(&install_lib.step);
+
+    if (b.systemIntegrationOption("lua", .{})) {
+        // c_headers.addIncludePath(.{ .cwd_relative = "/opt/homebrew/include" });
+        // c_headers.addSystemIncludePath(.{ .cwd_relative = "/opt/homebrew/include" });
+
+        ziglua.linkSystemLibrary("lua", .{});
+    } else {
+        const upstream = b.dependency(@tagName(lang), .{});
+
+        const lib = switch (lang) {
+            .luajit => luajit_setup.configure(b, target, optimize, upstream, shared),
+            .luau => luau_setup.configure(b, target, optimize, upstream, luau_use_4_vector),
+            else => lua_setup.configure(b, target, optimize, upstream, lang, shared),
+        };
+
+        // Expose the Lua artifact, and get an install step that header translation can refer to
+        const install_lib = b.addInstallArtifact(lib, .{});
+        b.getInstallStep().dependOn(&install_lib.step);
+
+        switch (lang) {
+            .luau => {
+                ziglua.addIncludePath(upstream.path("Common/include"));
+                ziglua.addIncludePath(upstream.path("Compiler/include"));
+                ziglua.addIncludePath(upstream.path("Ast/include"));
+                ziglua.addIncludePath(upstream.path("VM/include"));
+            },
+            else => ziglua.addIncludePath(upstream.path("src")),
+        }
+
+        ziglua.linkLibrary(lib);
+
+        c_headers.addIncludePath(lib.getEmittedIncludeTree());
+        c_headers.step.dependOn(&install_lib.step);
+    }
+
     ziglua.addImport("c", c_headers.createModule());
 
     // Tests
