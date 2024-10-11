@@ -605,18 +605,32 @@ pub const Lua = opaque {
     }
 
     /// Initialize a Lua state with the given allocator
-    pub fn init(allocator_ptr: *const Allocator) !*Lua {
+    pub fn init(a: Allocator) !*Lua {
         if (lang == .luau) zig_registerAssertionHandler();
 
+        // the userdata passed to alloc needs to be a pointer with a consistent address
+        // so we allocate an Allocator struct to hold a copy of the allocator's data
+        const allocator_ptr = try a.create(Allocator);
+        allocator_ptr.* = a;
+
         // @constCast() is safe here because Lua does not mutate the pointer internally
-        if (c.lua_newstate(alloc, @constCast(allocator_ptr))) |state| {
+        if (c.lua_newstate(alloc, allocator_ptr)) |state| {
             return @ptrCast(state);
         } else return error.OutOfMemory;
     }
 
     /// Deinitialize a Lua state and free all memory
     pub fn deinit(lua: *Lua) void {
+        // First get a reference to the allocator
+        var data: ?*Allocator = undefined;
+        _ = c.lua_getallocf(@ptrCast(lua), @ptrCast(&data)).?;
+
         lua.close();
+
+        if (data) |a| {
+            const alloc_ = a;
+            alloc_.destroy(a);
+        }
     }
 
     /// Returns the std.mem.Allocator used to initialize this Lua state

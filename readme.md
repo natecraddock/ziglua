@@ -92,7 +92,7 @@ pub fn main() anyerror!void {
     defer _ = gpa.deinit();
 
     // Initialize the Lua vm
-    var lua = try Lua.init(&allocator);
+    var lua = try Lua.init(allocator);
     defer lua.deinit();
 
     // Add an integer to the Lua stack and retrieve it
