@@ -15,7 +15,7 @@ const expectError = testing.expectError;
 
 fn expectStringContains(actual: []const u8, expected_contains: []const u8) !void {
     if (std.mem.indexOf(u8, actual, expected_contains) == null) return;
-    return error.TestExpectedStringContains;
+    return error.LuaTestExpectedStringContains;
 }
 
 /// Return true if ziglua.lang matches any of the given langs
@@ -59,14 +59,14 @@ test "initialization" {
     lua.deinit();
 
     // attempt to initialize the Zig wrapper with no memory
-    try expectError(error.Memory, Lua.init(&testing.failing_allocator));
+    try expectError(error.OutOfMemory, Lua.init(&testing.failing_allocator));
 
     // use the library directly
     lua = try Lua.newState(alloc, null);
     lua.close();
 
     // use the library with a bad AllocFn
-    try expectError(error.Memory, Lua.newState(failing_alloc, null));
+    try expectError(error.OutOfMemory, Lua.newState(failing_alloc, null));
 
     // use the auxiliary library (uses libc realloc and cannot be checked for leaks!)
     lua = try Lua.newStateLibc();
@@ -164,12 +164,12 @@ test "number conversion success and failure" {
     try expectEqual(1234, try lua.toInteger(-1));
 
     lua.pushNil();
-    try expectError(error.Fail, lua.toNumber(-1));
-    try expectError(error.Fail, lua.toInteger(-1));
+    try expectError(error.LuaError, lua.toNumber(-1));
+    try expectError(error.LuaError, lua.toInteger(-1));
 
     _ = lua.pushString("fail");
-    try expectError(error.Fail, lua.toNumber(-1));
-    try expectError(error.Fail, lua.toInteger(-1));
+    try expectError(error.LuaError, lua.toNumber(-1));
+    try expectError(error.LuaError, lua.toInteger(-1));
 }
 
 test "arithmetic (lua_arith)" {
@@ -369,7 +369,7 @@ test "unsigned" {
     try expectEqual(123456, try lua.toUnsigned(-1));
 
     _ = lua.pushString("hello");
-    try expectError(error.Fail, lua.toUnsigned(-1));
+    try expectError(error.LuaError, lua.toUnsigned(-1));
 }
 
 test "executing string contents" {
@@ -385,9 +385,9 @@ test "executing string contents" {
     try expectEqual(.number, try lua.getGlobal("a"));
     try expectEqual(12, try lua.toInteger(1));
 
-    try expectError(if (ziglua.lang == .luau) error.Fail else error.Syntax, lua.loadString("bad syntax"));
+    try expectError(if (ziglua.lang == .luau) error.LuaError else error.LuaSyntax, lua.loadString("bad syntax"));
     try lua.loadString("a = g()");
-    try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
+    try expectError(error.LuaRuntime, lua.protectedCall(0, 0, 0));
 }
 
 test "filling and checking the stack" {
@@ -408,7 +408,7 @@ test "filling and checking the stack" {
     try expectEqual(30, lua.getTop());
 
     // this should fail (beyond max stack size)
-    try expectError(error.Fail, lua.checkStack(1_000_000));
+    try expectError(error.LuaError, lua.checkStack(1_000_000));
 
     // this is small enough it won't fail (would raise an error if it did)
     lua.checkStackErr(40, null);
@@ -703,7 +703,7 @@ test "function registration" {
 
     try lua.doString("funcs.add(10, 20)");
     try lua.doString("funcs.sub('10', 20)");
-    try expectError(error.Runtime, lua.doString("funcs.placeholder()"));
+    try expectError(error.LuaRuntime, lua.doString("funcs.placeholder()"));
 }
 
 test "panic fn" {
@@ -843,7 +843,7 @@ test "table access" {
     _ = lua.pushStringZ("zig");
     lua.rawSetTable(1);
 
-    try expectError(error.Fail, lua.getMetatable(1));
+    try expectError(error.LuaError, lua.getMetatable(1));
 
     // create a metatable (it isn't a useful one)
     lua.newTable();
@@ -854,7 +854,7 @@ test "table access" {
 
     try lua.getMetatable(1);
     _ = try lua.getMetaField(1, "__len");
-    try expectError(error.Fail, lua.getMetaField(1, "__index"));
+    try expectError(error.LuaError, lua.getMetaField(1, "__index"));
 
     lua.pushBoolean(true);
     lua.setField(1, "bool");
@@ -893,7 +893,7 @@ test "conversions" {
     var value: ziglua.Integer = undefined;
     try Lua.numberToInteger(3.14, &value);
     try expectEqual(3, value);
-    try expectError(error.Fail, Lua.numberToInteger(@as(ziglua.Number, @floatFromInt(ziglua.max_integer)) + 10, &value));
+    try expectError(error.LuaError, Lua.numberToInteger(@as(ziglua.Number, @floatFromInt(ziglua.max_integer)) + 10, &value));
 
     // string conversion
     try lua.stringToNumber("1");
@@ -904,9 +904,9 @@ test "conversions" {
     try expect(lua.isNumber(-1));
     try expectEqual(1.0, try lua.toNumber(-1));
 
-    try expectError(error.Fail, lua.stringToNumber("a"));
-    try expectError(error.Fail, lua.stringToNumber("1.a"));
-    try expectError(error.Fail, lua.stringToNumber(""));
+    try expectError(error.LuaError, lua.stringToNumber("a"));
+    try expectError(error.LuaError, lua.stringToNumber("1.a"));
+    try expectError(error.LuaError, lua.stringToNumber(""));
 }
 
 test "absIndex" {
@@ -1034,8 +1034,8 @@ test "userdata and uservalues" {
         try expectEqual(.string, try lua.getUserValue(1, 2));
         try expectEqualStrings("test string", try lua.toString(-1));
 
-        try expectError(error.Fail, lua.setUserValue(1, 3));
-        try expectError(error.Fail, lua.getUserValue(1, 3));
+        try expectError(error.LuaError, lua.setUserValue(1, 3));
+        try expectError(error.LuaError, lua.getUserValue(1, 3));
     }
 }
 
@@ -1162,7 +1162,7 @@ test "raise error" {
     }.inner;
 
     lua.pushFunction(ziglua.wrap(makeError));
-    try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
+    try expectError(error.LuaRuntime, lua.protectedCall(0, 0, 0));
     try expectEqualStrings("makeError made an error", try lua.toString(-1));
 }
 
@@ -1475,7 +1475,7 @@ test "checkOption" {
     // check the raised error
     lua.pushFunction(function);
     _ = lua.pushStringZ("unknown");
-    try expectError(error.Runtime, lua.protectedCall(1, 1, 0));
+    try expectError(error.LuaRuntime, lua.protectedCall(1, 1, 0));
     try expectStringContains("(invalid option 'unknown')", try lua.toString(-1));
 }
 
@@ -1485,7 +1485,7 @@ test "get global fail" {
     var lua = try Lua.init(&testing.allocator);
     defer lua.deinit();
 
-    try expectError(error.Fail, lua.getGlobal("foo"));
+    try expectError(error.LuaError, lua.getGlobal("foo"));
 }
 
 test "globalSub" {
@@ -1543,7 +1543,7 @@ test "ref" {
     defer lua.deinit();
 
     lua.pushNil();
-    try expectError(error.Fail, lua.ref(ziglua.registry_index));
+    try expectError(error.LuaError, lua.ref(ziglua.registry_index));
     try expectEqual(0, lua.getTop());
 
     _ = lua.pushString("Hello there");
@@ -1562,7 +1562,7 @@ test "ref luau" {
     defer lua.deinit();
 
     lua.pushNil();
-    try expectError(error.Fail, lua.ref(1));
+    try expectError(error.LuaError, lua.ref(1));
     try expectEqual(1, lua.getTop());
 
     // In luau lua.ref does not pop the item from the stack
@@ -1618,7 +1618,7 @@ test "args and errors" {
     }.inner);
 
     lua.pushFunction(argCheck);
-    try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
+    try expectError(error.LuaRuntime, lua.protectedCall(0, 0, 0));
 
     const raisesError = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
@@ -1628,7 +1628,7 @@ test "args and errors" {
     }.inner);
 
     lua.pushFunction(raisesError);
-    try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
+    try expectError(error.LuaRuntime, lua.protectedCall(0, 0, 0));
     try expectEqualStrings("some error zig!", try lua.toString(-1));
 
     if (ziglua.lang != .lua54) return;
@@ -1641,7 +1641,7 @@ test "args and errors" {
     }.inner);
 
     lua.pushFunction(argExpected);
-    try expectError(error.Runtime, lua.protectedCall(0, 0, 0));
+    try expectError(error.LuaRuntime, lua.protectedCall(0, 0, 0));
 }
 
 test "traceback" {
@@ -1682,7 +1682,7 @@ test "getSubtable" {
     try lua.getSubtable(-1, "b");
 
     // fail to get the subtable a.c (but it is created)
-    try expectError(error.Fail, lua.getSubtable(-2, "c"));
+    try expectError(error.LuaError, lua.getSubtable(-2, "c"));
 
     // now a.c will pass
     try lua.getSubtable(-3, "b");
@@ -2029,7 +2029,7 @@ test "debug upvalues" {
     _ = try lua.getGlobal("addone");
 
     // index doesn't exist
-    try expectError(error.Fail, lua.getUpvalue(1, 2));
+    try expectError(error.LuaError, lua.getUpvalue(1, 2));
 
     // inspect the upvalue (should be x)
     try expectEqualStrings(if (ziglua.lang == .luau) "" else "x", try lua.getUpvalue(-1, 1));
@@ -2041,7 +2041,7 @@ test "debug upvalues" {
     _ = try lua.setUpvalue(-2, 1);
 
     // test a bad index (the valid one's result is unpredicable)
-    if (ziglua.lang == .lua54) try expectError(error.Fail, lua.upvalueId(-1, 2));
+    if (ziglua.lang == .lua54) try expectError(error.LuaError, lua.upvalueId(-1, 2));
 
     // call the new function (should return 7)
     lua.pushNumber(2);
@@ -2070,7 +2070,7 @@ test "getstack" {
     var lua = try Lua.init(&testing.allocator);
     defer lua.deinit();
 
-    try expectError(error.Fail, lua.getStack(1));
+    try expectError(error.LuaError, lua.getStack(1));
 
     const function = struct {
         fn inner(l: *Lua) i32 {
@@ -2180,14 +2180,14 @@ test "tagged userdata" {
     try testing.expectEqual(100, tag);
 
     // Test that tag mismatch error handling works.  Userdata is not tagged with 123.
-    try expectError(error.Fail, lua.toUserdataTagged(Data, -1, 123));
+    try expectError(error.LuaError, lua.toUserdataTagged(Data, -1, 123));
 
     // should not fail
     _ = try lua.toUserdataTagged(Data, -1, 100);
 
     // Integer is not userdata, so userdataTag should fail.
     lua.pushInteger(13);
-    try expectError(error.Fail, lua.userdataTag(-1));
+    try expectError(error.LuaError, lua.userdataTag(-1));
 }
 
 fn vectorCtor(l: *Lua) i32 {
@@ -2289,7 +2289,7 @@ test "useratom" {
     try expectEqual(-1, atom_idx2);
 
     lua.pushInteger(13);
-    try expectError(error.Fail, lua.toStringAtom(-1));
+    try expectError(error.LuaError, lua.toStringAtom(-1));
 }
 
 test "namecall" {
@@ -2424,7 +2424,7 @@ test "toAny" {
     _ = try lua.getGlobal("value");
     try testing.expectEqual(void{}, try lua.toAny(void, -1));
     _ = try lua.getGlobal("value_err");
-    try testing.expectError(error.VoidTableIsNotEmpty, lua.toAny(void, -1));
+    try testing.expectError(error.LuaVoidTableIsNotEmpty, lua.toAny(void, -1));
 }
 
 test "toAny struct" {
@@ -2842,7 +2842,7 @@ test "loadFile binary mode" {
     defer lua.deinit();
 
     // Should fail to load a lua file as a binary file
-    try expectError(error.Syntax, lua.loadFile("src/test.lua", .binary));
+    try expectError(error.LuaSyntax, lua.loadFile("src/test.lua", .binary));
 }
 
 test "doFile" {
@@ -2950,7 +2950,7 @@ test "interrupt" {
     const expected_err = lua.doString(
         \\c = add(1, 2)
     );
-    try testing.expectError(ziglua.Error.Runtime, expected_err);
+    try testing.expectError(error.LuaRuntime, expected_err);
     try testing.expectEqual(1, interrupt_handler.times_called);
 
     // Handler should have removed itself
