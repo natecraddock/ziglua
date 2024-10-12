@@ -46,13 +46,13 @@ test "Zig allocator access" {
     defer lua.deinit();
 
     const inner = struct {
-        fn inner(l: *Lua) i32 {
+        fn inner(l: *Lua) !i32 {
             const allocator = l.allocator();
 
-            const num = l.toInteger(1) catch unreachable;
+            const num = try l.toInteger(1);
 
             // Use the allocator
-            const nums = allocator.alloc(i32, @intCast(num)) catch unreachable;
+            const nums = try allocator.alloc(i32, @intCast(num));
             defer allocator.free(nums);
 
             // Do something pointless to use the slice
@@ -462,8 +462,8 @@ test "calling a function with cProtectedCall" {
     var value: i32 = 1234;
 
     const testFn = struct {
-        fn inner(l: *Lua) i32 {
-            const passedValue = l.toUserdata(i32, 1) catch unreachable;
+        fn inner(l: *Lua) !i32 {
+            const passedValue = try l.toUserdata(i32, 1);
             if (passedValue.* != 1234) unreachable;
             return 0;
         }
@@ -995,8 +995,8 @@ test "upvalues" {
 
     // counter from PIL
     const counter = struct {
-        fn inner(l: *Lua) i32 {
-            var counter = l.toInteger(Lua.upvalueIndex(1)) catch 0;
+        fn inner(l: *Lua) !i32 {
+            var counter = try l.toInteger(Lua.upvalueIndex(1));
             counter += 1;
             l.pushInteger(counter);
             l.pushInteger(counter);
@@ -1174,8 +1174,8 @@ test "yielding" {
     try expectEqualStrings("done", try thread.toString(-1));
 }
 
-fn continuation52(l: *Lua) i32 {
-    const ctxOrNull = l.getContext() catch unreachable;
+fn continuation52(l: *Lua) !i32 {
+    const ctxOrNull = try l.getContext();
     const ctx = ctxOrNull orelse 0;
     if (ctx == 5) {
         _ = l.pushStringZ("done");
@@ -1196,8 +1196,8 @@ test "yielding Lua 5.2" {
     // here we create some zig functions that will run 5 times, continutally
     // yielding a count until it finally returns the string "done"
     const willYield = struct {
-        fn inner(l: *Lua) i32 {
-            return continuation52(l);
+        fn inner(l: *Lua) !i32 {
+            return try continuation52(l);
         }
     }.inner;
 
@@ -1356,11 +1356,11 @@ test "aux opt functions" {
     defer lua.deinit();
 
     const function = ziglua.wrap(struct {
-        fn inner(l: *Lua) i32 {
-            expectEqual(10, l.optInteger(1) orelse 10) catch unreachable;
-            expectEqualStrings("zig", l.optString(2) orelse "zig") catch unreachable;
-            expectEqual(1.23, l.optNumber(3) orelse 1.23) catch unreachable;
-            expectEqualStrings("lang", l.optString(4) orelse "lang") catch unreachable;
+        fn inner(l: *Lua) !i32 {
+            try expectEqual(10, l.optInteger(1) orelse 10);
+            try expectEqualStrings("zig", l.optString(2) orelse "zig");
+            try expectEqual(1.23, l.optNumber(3) orelse 1.23);
+            try expectEqualStrings("lang", l.optString(4) orelse "lang");
             return 0;
         }
     }.inner);
@@ -1680,11 +1680,8 @@ test "userdata" {
     if (langIn(.{ .lua51, .luajit, .luau })) return;
 
     const testUdata = ziglua.wrap(struct {
-        fn inner(l: *Lua) i32 {
-            const ptr = l.testUserdata(Type, 1, "Type") catch {
-                _ = l.pushString("error!");
-                l.raiseError();
-            };
+        fn inner(l: *Lua) !i32 {
+            const ptr = try l.testUserdata(Type, 1, "Type");
             if (ptr.a != 1234) {
                 _ = l.pushString("error!");
                 l.raiseError();
@@ -1731,12 +1728,12 @@ test "userdata slices" {
     }
 
     const udataFn = struct {
-        fn inner(l: *Lua) i32 {
+        fn inner(l: *Lua) !i32 {
             _ = l.checkUserdataSlice(Integer, 1, "FixedArray");
 
-            if (!langIn(.{ .lua51, .luajit, .luau })) _ = l.testUserdataSlice(Integer, 1, "FixedArray") catch unreachable;
+            if (!langIn(.{ .lua51, .luajit, .luau })) _ = try l.testUserdataSlice(Integer, 1, "FixedArray");
 
-            const arr = l.toUserdataSlice(Integer, 1) catch unreachable;
+            const arr = try l.toUserdataSlice(Integer, 1);
             for (arr, 1..) |item, index| {
                 if (item != index) l.raiseErrorStr("something broke!", .{});
             }
@@ -1836,24 +1833,24 @@ test "debug interface" {
 
     // create a hook
     const hook = struct {
-        fn inner(l: *Lua, event: ziglua.Event, i: *DebugInfo) void {
+        fn inner(l: *Lua, event: ziglua.Event, i: *DebugInfo) !void {
             switch (event) {
                 .call => {
                     if (ziglua.lang == .lua54) l.getInfo(.{ .l = true, .r = true }, i) else l.getInfo(.{ .l = true }, i);
                     if (i.current_line.? != 2) std.debug.panic("Expected line to be 2", .{});
-                    _ = if (ziglua.lang == .lua54) l.getLocal(i, i.first_transfer) catch unreachable else l.getLocal(i, 1) catch unreachable;
-                    if ((l.toNumber(-1) catch unreachable) != 3) std.debug.panic("Expected x to equal 3", .{});
+                    _ = if (ziglua.lang == .lua54) try l.getLocal(i, i.first_transfer) else try l.getLocal(i, 1);
+                    if ((try l.toNumber(-1)) != 3) std.debug.panic("Expected x to equal 3", .{});
                 },
                 .line => if (i.current_line.? == 4) {
                     // modify the value of y to be 0 right before returning
                     l.pushNumber(0);
-                    _ = l.setLocal(i, 2) catch unreachable;
+                    _ = try l.setLocal(i, 2);
                 },
                 .ret => {
                     if (ziglua.lang == .lua54) l.getInfo(.{ .l = true, .r = true }, i) else l.getInfo(.{ .l = true }, i);
                     if (i.current_line.? != 4) std.debug.panic("Expected line to be 4", .{});
-                    _ = if (ziglua.lang == .lua54) l.getLocal(i, i.first_transfer) catch unreachable else l.getLocal(i, 1) catch unreachable;
-                    if ((l.toNumber(-1) catch unreachable) != 3) std.debug.panic("Expected result to equal 3", .{});
+                    _ = if (ziglua.lang == .lua54) try l.getLocal(i, i.first_transfer) else try l.getLocal(i, 1);
+                    if ((try l.toNumber(-1)) != 3) std.debug.panic("Expected result to equal 3", .{});
                 },
                 else => unreachable,
             }
@@ -1926,24 +1923,24 @@ test "debug interface Lua 5.1 and Luau" {
 
     // create a hook
     const hook = struct {
-        fn inner(l: *Lua, event: ziglua.Event, i: *DebugInfo) void {
+        fn inner(l: *Lua, event: ziglua.Event, i: *DebugInfo) !void {
             switch (event) {
                 .call => {
                     l.getInfo(.{ .l = true }, i);
                     if (i.current_line.? != 2) std.debug.panic("Expected line to be 2", .{});
-                    _ = l.getLocal(i, 1) catch unreachable;
-                    if ((l.toNumber(-1) catch unreachable) != 3) std.debug.panic("Expected x to equal 3", .{});
+                    _ = try l.getLocal(i, 1);
+                    if ((try l.toNumber(-1)) != 3) std.debug.panic("Expected x to equal 3", .{});
                 },
                 .line => if (i.current_line.? == 4) {
                     // modify the value of y to be 0 right before returning
                     l.pushNumber(0);
-                    _ = l.setLocal(i, 2) catch unreachable;
+                    _ = try l.setLocal(i, 2);
                 },
                 .ret => {
                     l.getInfo(.{ .l = true }, i);
                     if (i.current_line.? != 4) std.debug.panic("Expected line to be 4", .{});
-                    _ = l.getLocal(i, 1) catch unreachable;
-                    if ((l.toNumber(-1) catch unreachable) != 3) std.debug.panic("Expected result to equal 3", .{});
+                    _ = try l.getLocal(i, 1);
+                    if ((try l.toNumber(-1)) != 3) std.debug.panic("Expected result to equal 3", .{});
                 },
                 else => unreachable,
             }
@@ -2023,11 +2020,11 @@ test "getstack" {
     try expectError(error.LuaError, lua.getStack(1));
 
     const function = struct {
-        fn inner(l: *Lua) i32 {
+        fn inner(l: *Lua) !i32 {
             // get info about calling lua function
-            var info = l.getStack(1) catch unreachable;
+            var info = try l.getStack(1);
             l.getInfo(.{ .n = true }, &info);
-            expectEqualStrings("g", info.name.?) catch unreachable;
+            try expectEqualStrings("g", info.name.?);
             return 0;
         }
     }.inner;
@@ -2140,10 +2137,10 @@ test "tagged userdata" {
     try expectError(error.LuaError, lua.userdataTag(-1));
 }
 
-fn vectorCtor(l: *Lua) i32 {
-    const x = l.toNumber(1) catch unreachable;
-    const y = l.toNumber(2) catch unreachable;
-    const z = l.toNumber(3) catch unreachable;
+fn vectorCtor(l: *Lua) !i32 {
+    const x = try l.toNumber(1);
+    const y = try l.toNumber(2);
+    const z = try l.toNumber(3);
     if (ziglua.luau_vector_size == 4) {
         const w = l.optNumber(4, 0);
         l.pushVector(@floatCast(x), @floatCast(y), @floatCast(z), @floatCast(w));
@@ -2908,4 +2905,24 @@ test "interrupt" {
         \\c = add(1, 2)
     );
     try testing.expectEqual(1, interrupt_handler.times_called);
+}
+
+test "error union for CFn" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const fails = struct {
+        fn inner(l: *Lua) !i32 {
+            // Test returning some error union
+            _ = l.toInteger(1) catch return error.MissingInteger;
+            return 0;
+        }
+    }.inner;
+
+    // This will fail because there is no argument passed
+    lua.pushFunction(ziglua.wrap(fails));
+    lua.protectedCall(0, 0, 0) catch {
+        // Get the error string
+        try expectEqualStrings("MissingInteger", try lua.toString(-1));
+    };
 }

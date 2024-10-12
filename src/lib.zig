@@ -3560,157 +3560,202 @@ pub const Buffer = struct {
 
 // Helper functions to make the ziglua API easier to use
 
-pub const ZigFn = fn (lua: *Lua) i32;
-pub const ZigHookFn = fn (lua: *Lua, event: Event, info: *DebugInfo) void;
-pub const ZigContFn = fn (lua: *Lua, status: Status, ctx: Context) i32;
-pub const ZigReaderFn = fn (lua: *Lua, data: *anyopaque) ?[]const u8;
-pub const ZigUserdataDtorFn = fn (data: *anyopaque) void;
-pub const ZigInterruptCallbackFn = fn (lua: *Lua, gc: i32) void;
-pub const ZigUserAtomCallbackFn = fn (str: []const u8) i16;
-pub const ZigWarnFn = fn (data: ?*anyopaque, msg: []const u8, to_cont: bool) void;
-pub const ZigWriterFn = fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool;
+const Tuple = std.meta.Tuple;
 
-fn TypeOfWrap(comptime T: type) type {
-    return switch (T) {
-        LuaState => Lua,
-        ZigFn => CFn,
-        ZigHookFn => CHookFn,
-        ZigContFn => CContFn,
-        ZigReaderFn => CReaderFn,
-        ZigUserdataDtorFn => CUserdataDtorFn,
-        ZigInterruptCallbackFn => CInterruptCallbackFn,
-        ZigUserAtomCallbackFn => CUserAtomCallbackFn,
-        ZigWarnFn => CWarnFn,
-        ZigWriterFn => CWriterFn,
-        else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
+fn TypeOfWrap(comptime function: anytype) type {
+    const Args = std.meta.ArgsTuple(@TypeOf(function));
+    return switch (Args) {
+        Tuple(&.{*Lua}) => CFn,
+        Tuple(&.{ *Lua, Event, *DebugInfo }) => CHookFn,
+        Tuple(&.{ *Lua, Status, Context }) => CContFn,
+        Tuple(&.{ *Lua, *anyopaque }) => CReaderFn,
+        Tuple(&.{*anyopaque}) => CUserdataDtorFn,
+        Tuple(&.{ *Lua, i32 }) => CInterruptCallbackFn,
+        Tuple(&.{[]const u8}) => CUserAtomCallbackFn,
+        Tuple(&.{ ?*anyopaque, []const u8, bool }) => CWarnFn,
+        Tuple(&.{ *Lua, []const u8, *anyopaque }) => CWriterFn,
+        else => @compileError("Unsupported function given to wrap '" ++ @typeName(@TypeOf(function)) ++ "'"),
     };
 }
 
-/// Wraps the given value for use in the Lua API
-/// Supports the following:
-/// * `LuaState` => `Lua`
-pub fn wrap(comptime value: anytype) TypeOfWrap(@TypeOf(value)) {
-    const T = @TypeOf(value);
-    return switch (T) {
-        ZigFn => wrapZigFn(value),
-        ZigHookFn => wrapZigHookFn(value),
-        ZigContFn => wrapZigContFn(value),
-        ZigReaderFn => wrapZigReaderFn(value),
-        ZigUserdataDtorFn => wrapZigUserdataDtorFn(value),
-        ZigInterruptCallbackFn => wrapZigInterruptCallbackFn(value),
-        ZigUserAtomCallbackFn => wrapZigUserAtomCallbackFn(value),
-        ZigWarnFn => wrapZigWarnFn(value),
-        ZigWriterFn => wrapZigWriterFn(value),
-        else => @compileError("unsupported type given to wrap: '" ++ @typeName(T) ++ "'"),
-    };
-}
+/// Wraps the given Zig function for use in the Lua API
+///
+/// * Wraps `fn (lua: *Lua) i32` as `CFn`
+/// * Wraps `fn (lua: *Lua, event: Event, info: *DebugInfo) void` as `CHookFn`
+/// * Wraps `fn (lua: *Lua, status: Status, ctx: Context) i32` as 'CContFn'
+/// * Wraps `fn (lua: *Lua, data: *anyopaque) ?[]const u8` as `CReaderFn`
+/// * Wraps `fn (data: *anyopaque) void` as `CUserdataDtorFn`
+/// * Wraps `fn (lua: *Lua, gc: i32) void` as `CInterruptCallbackFn`
+/// * Wraps `fn (str: []const u8) i16` as `CUserAtomCallbackFn`
+/// * Wraps `fn (data: ?*anyopaque, msg: []const u8, to_cont: bool) void` as `CWarnFn`
+/// * Wraps `fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool` as `CWriterFn`
+///
+/// Functions that accept a `*Lua` pointer also support returning error unions. For example,
+/// wrap also supports `fn (lua: *Lua) !i32` for a `CFn`.
+pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
+    const info = @typeInfo(@TypeOf(function));
+    if (info != .Fn) {
+        @compileError("Wrap only accepts functions");
+    }
 
-/// Wrap a ZigFn in a CFn for passing to the API
-fn wrapZigFn(comptime f: ZigFn) CFn {
-    return struct {
-        fn inner(state: ?*LuaState) callconv(.C) c_int {
-            // this is called by Lua, state should never be null
-            return @call(.always_inline, f, .{@as(*Lua, @ptrCast(state.?))});
-        }
-    }.inner;
-}
+    const has_error_union = @typeInfo(info.Fn.return_type.?) == .ErrorUnion;
 
-/// Wrap a ZigHookFn in a CHookFn for passing to the API
-fn wrapZigHookFn(comptime f: ZigHookFn) CHookFn {
-    return struct {
-        fn inner(state: ?*LuaState, ar: ?*Debug) callconv(.C) void {
-            // this is called by Lua, state should never be null
-            var info: DebugInfo = .{
-                .current_line = if (ar.?.currentline == -1) null else ar.?.currentline,
-                .private = switch (lang) {
-                    .lua51, .luajit => ar.?.i_ci,
-                    else => @ptrCast(ar.?.i_ci),
-                },
-            };
-            @call(.always_inline, f, .{ @as(*Lua, @ptrCast(state.?)), @as(Event, @enumFromInt(ar.?.event)), &info });
-        }
-    }.inner;
-}
+    const Args = std.meta.ArgsTuple(@TypeOf(function));
+    switch (Args) {
+        // CFn
+        Tuple(&.{*Lua}) => {
+            return struct {
+                fn inner(state: ?*LuaState) callconv(.C) c_int {
+                    // this is called by Lua, state should never be null
+                    var lua: *Lua = @ptrCast(state.?);
+                    if (has_error_union) {
+                        return @call(.always_inline, function, .{lua}) catch |err| {
+                            lua.raiseErrorStr(@errorName(err), .{});
+                        };
+                    } else {
+                        return @call(.always_inline, function, .{lua});
+                    }
+                }
+            }.inner;
+        },
+        // CHookFn
+        Tuple(&.{ *Lua, Event, *DebugInfo }) => {
+            return struct {
+                fn inner(state: ?*LuaState, ar: ?*Debug) callconv(.C) void {
+                    // this is called by Lua, state should never be null
+                    var lua: *Lua = @ptrCast(state.?);
+                    var debug_info: DebugInfo = .{
+                        .current_line = if (ar.?.currentline == -1) null else ar.?.currentline,
+                        .private = switch (lang) {
+                            .lua51, .luajit => ar.?.i_ci,
+                            else => @ptrCast(ar.?.i_ci),
+                        },
+                    };
+                    if (has_error_union) {
+                        @call(.always_inline, function, .{ lua, @as(Event, @enumFromInt(ar.?.event)), &debug_info }) catch |err| {
+                            lua.raiseErrorStr(@errorName(err), .{});
+                        };
+                    } else {
+                        @call(.always_inline, function, .{ lua, @as(Event, @enumFromInt(ar.?.event)), &debug_info });
+                    }
+                }
+            }.inner;
+        },
+        // CContFn
+        Tuple(&.{ *Lua, Status, Context }) => {
+            return struct {
+                fn inner(state: ?*LuaState, status: c_int, ctx: Context) callconv(.C) c_int {
+                    // this is called by Lua, state should never be null
+                    var lua: *Lua = @ptrCast(state.?);
+                    if (has_error_union) {
+                        return @call(.always_inline, function, .{ lua, @as(Status, @enumFromInt(status)), ctx }) catch |err| {
+                            lua.raiseErrorStr(@errorName(err), .{});
+                        };
+                    } else {
+                        return @call(.always_inline, function, .{ lua, @as(Status, @enumFromInt(status)), ctx });
+                    }
+                }
+            }.inner;
+        },
+        // CReaderFn
+        Tuple(&.{ *Lua, *anyopaque }) => {
+            return struct {
+                fn inner(state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.C) [*c]const u8 {
+                    // this is called by Lua, state should never be null
+                    var lua: *Lua = @ptrCast(state.?);
+                    if (has_error_union) {
+                        const result = @call(.always_inline, function, .{ lua, data.? }) catch |err| {
+                            lua.raiseErrorStr(@errorName(err), .{});
+                        };
+                        if (result) |buffer| {
+                            size.* = buffer.len;
+                            return buffer.ptr;
+                        } else {
+                            size.* = 0;
+                            return null;
+                        }
+                    } else {
+                        if (@call(.always_inline, function, .{ lua, data.? })) |buffer| {
+                            size.* = buffer.len;
+                            return buffer.ptr;
+                        } else {
+                            size.* = 0;
+                            return null;
+                        }
+                    }
+                }
+            }.inner;
+        },
+        // CUserdataDtorFn
+        Tuple(&.{*anyopaque}) => {
+            return struct {
+                fn inner(userdata: *anyopaque) callconv(.C) void {
+                    return @call(.always_inline, function, .{userdata});
+                }
+            }.inner;
+        },
+        // CInterruptCallbackFn
+        Tuple(&.{ *Lua, i32 }) => {
+            return struct {
+                fn inner(state: ?*LuaState, gc: c_int) callconv(.C) void {
+                    // this is called by Lua, state should never be null
+                    var lua: *Lua = @ptrCast(state.?);
+                    if (has_error_union) {
+                        @call(.always_inline, function, .{ lua, gc }) catch |err| {
+                            lua.raiseErrorStr(@errorName(err), .{});
+                        };
+                    } else {
+                        @call(.always_inline, function, .{ lua, gc });
+                    }
+                }
+            }.inner;
+        },
+        // CUserAtomCallbackFn
+        Tuple(&.{[]const u8}) => {
+            return struct {
+                fn inner(str: [*c]const u8, len: usize) callconv(.C) i16 {
+                    if (str) |s| {
+                        const buf = s[0..len];
+                        return @call(.always_inline, function, .{buf});
+                    }
+                    return -1;
+                }
+            }.inner;
+        },
+        // CWarnFn
+        Tuple(&.{ ?*anyopaque, []const u8, bool }) => {
+            return struct {
+                fn inner(data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.C) void {
+                    // warning messages emitted from Lua should be null-terminated for display
+                    const message = std.mem.span(@as([*:0]const u8, @ptrCast(msg)));
+                    @call(.always_inline, function, .{ data, message, to_cont != 0 });
+                }
+            }.inner;
+        },
+        // CWriterFn
+        Tuple(&.{ *Lua, []const u8, *anyopaque }) => {
+            return struct {
+                fn inner(state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int {
+                    // this is called by Lua, state should never be null
+                    var lua: *Lua = @ptrCast(state.?);
+                    const buffer = @as([*]const u8, @ptrCast(buf))[0..size];
 
-/// Wrap a ZigContFn in a CContFn for passing to the API
-fn wrapZigContFn(comptime f: ZigContFn) CContFn {
-    return struct {
-        fn inner(state: ?*LuaState, status: c_int, ctx: Context) callconv(.C) c_int {
-            // this is called by Lua, state should never be null
-            return @call(.always_inline, f, .{ @as(*Lua, @ptrCast(state.?)), @as(Status, @enumFromInt(status)), ctx });
-        }
-    }.inner;
-}
+                    const result = if (has_error_union) blk: {
+                        break :blk @call(.always_inline, function, .{ lua, buffer, data.? }) catch |err| {
+                            lua.raiseErrorStr(@errorName(err), .{});
+                        };
+                    } else blk: {
+                        break :blk @call(.always_inline, function, .{ lua, buffer, data.? });
+                    };
 
-/// Wrap a ZigReaderFn in a CReaderFn for passing to the API
-fn wrapZigReaderFn(comptime f: ZigReaderFn) CReaderFn {
-    return struct {
-        fn inner(state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.C) [*c]const u8 {
-            if (@call(.always_inline, f, .{ @as(*Lua, @ptrCast(state.?)), data.? })) |buffer| {
-                size.* = buffer.len;
-                return buffer.ptr;
-            } else {
-                size.* = 0;
-                return null;
-            }
-        }
-    }.inner;
-}
-
-/// Wrap a ZigFn in a CFn for passing to the API
-fn wrapZigUserdataDtorFn(comptime f: ZigUserdataDtorFn) CUserdataDtorFn {
-    return struct {
-        fn inner(userdata: *anyopaque) callconv(.C) void {
-            return @call(.always_inline, f, .{userdata});
-        }
-    }.inner;
-}
-
-/// Wrap a ZigFn in a CFn for passing to the API
-fn wrapZigInterruptCallbackFn(comptime f: ZigInterruptCallbackFn) CInterruptCallbackFn {
-    return struct {
-        fn inner(lua: ?*LuaState, gc: c_int) callconv(.C) void {
-            @call(.always_inline, f, .{ @as(*Lua, @ptrCast(lua.?)), gc });
-        }
-    }.inner;
-}
-
-/// Wrap a ZigFn in a CFn for passing to the API
-fn wrapZigUserAtomCallbackFn(comptime f: ZigUserAtomCallbackFn) CUserAtomCallbackFn {
-    return struct {
-        fn inner(str: [*c]const u8, len: usize) callconv(.C) i16 {
-            if (str) |s| {
-                const buf = s[0..len];
-                return @call(.always_inline, f, .{buf});
-            }
-            return -1;
-        }
-    }.inner;
-}
-
-/// Wrap a ZigWarnFn in a CWarnFn for passing to the API
-fn wrapZigWarnFn(comptime f: ZigWarnFn) CWarnFn {
-    return struct {
-        fn inner(data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.C) void {
-            // warning messages emitted from Lua should be null-terminated for display
-            const message = std.mem.span(@as([*:0]const u8, @ptrCast(msg)));
-            @call(.always_inline, f, .{ data, message, to_cont != 0 });
-        }
-    }.inner;
-}
-
-/// Wrap a ZigWriterFn in a CWriterFn for passing to the API
-fn wrapZigWriterFn(comptime f: ZigWriterFn) CWriterFn {
-    return struct {
-        fn inner(state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int {
-            // this is called by Lua, state should never be null
-            const buffer = @as([*]const u8, @ptrCast(buf))[0..size];
-            const result = @call(.always_inline, f, .{ @as(*Lua, @ptrCast(state.?)), buffer, data.? });
-            // it makes more sense for the inner writer function to return false for failure,
-            // so negate the result here
-            return @intFromBool(!result);
-        }
-    }.inner;
+                    // it makes more sense for the inner writer function to return false for failure,
+                    // so negate the result here
+                    return @intFromBool(!result);
+                }
+            }.inner;
+        },
+        else => @compileError("Unsupported function given to wrap '" ++ @typeName(@TypeOf(function)) ++ "'"),
+    }
 }
 
 /// Zig wrapper for Luau lua_CompileOptions that uses the same defaults as Luau if
@@ -3749,7 +3794,7 @@ pub fn compile(allocator: Allocator, source: []const u8, options: CompileOptions
 /// Export a Zig function to be used as a the entry point to a Lua module
 ///
 /// Exported as luaopen_[name]
-pub fn exportFn(comptime name: []const u8, comptime func: ZigFn) CFn {
+pub fn exportFn(comptime name: []const u8, comptime func: anytype) CFn {
     if (lang == .luau) @compileError("Luau does not support compiling or loading shared modules");
 
     return struct {
