@@ -625,7 +625,7 @@ pub const Lua = opaque {
         var data: ?*Allocator = undefined;
         _ = c.lua_getallocf(@ptrCast(lua), @ptrCast(&data)).?;
 
-        lua.close();
+        c.lua_close(@ptrCast(lua));
 
         if (data) |a| {
             const alloc_ = a;
@@ -715,12 +715,6 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_checkstack
     pub fn checkStack(lua: *Lua, n: i32) !void {
         if (c.lua_checkstack(@ptrCast(lua), n) == 0) return error.LuaError;
-    }
-
-    /// Release all Lua objects in the state and free all dynamic memory
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_close
-    pub fn close(lua: *Lua) void {
-        c.lua_close(@ptrCast(lua));
     }
 
     fn closeSlot54(lua: *Lua, index: i32) void {
