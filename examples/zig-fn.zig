@@ -7,7 +7,7 @@ const ziglua = @import("ziglua");
 // it is used multiple times throughout a file.
 const Lua = ziglua.Lua;
 
-// A Zig function called by Lua must accept a single *Lua parameter and must return an i32.
+// A Zig function called by Lua must accept a single *Lua parameter and must return an i32 (an error union is allowed)
 // This is the Zig equivalent of the lua_CFunction typedef int (*lua_CFunction) (lua_State *L) in the C API
 fn adder(lua: *Lua) i32 {
     const a = lua.toInteger(1) catch 0;
