@@ -860,8 +860,6 @@ test "conversions" {
 }
 
 test "absIndex" {
-    if (!langIn(.{ .lua52, .lua53, .lua54 })) return;
-
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
