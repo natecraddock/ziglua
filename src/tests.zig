@@ -67,7 +67,7 @@ test "Zig allocator access" {
 
     lua.pushFunction(ziglua.wrap(inner));
     lua.pushInteger(10);
-    try lua.protectedCall(1, 1, 0);
+    try lua.protectedCall(.{ .args = 1, .results = 1 });
 
     try expectEqual(45, try lua.toInteger(-1));
 }
@@ -328,16 +328,16 @@ test "executing string contents" {
     lua.openLibs();
 
     try lua.loadString("f = function(x) return x + 10 end");
-    try lua.protectedCall(0, 0, 0);
+    try lua.protectedCall(.{});
     try lua.loadString("a = f(2)");
-    try lua.protectedCall(0, 0, 0);
+    try lua.protectedCall(.{});
 
     try expectEqual(.number, try lua.getGlobal("a"));
     try expectEqual(12, try lua.toInteger(1));
 
     try expectError(if (ziglua.lang == .luau) error.LuaError else error.LuaSyntax, lua.loadString("bad syntax"));
     try lua.loadString("a = g()");
-    try expectError(error.LuaRuntime, lua.protectedCall(0, 0, 0));
+    try expectError(error.LuaRuntime, lua.protectedCall(.{}));
 }
 
 test "filling and checking the stack" {
@@ -449,7 +449,7 @@ test "calling a function" {
     lua.pushInteger(32);
 
     // protectedCall is preferred, but we might as well test call when we know it is safe
-    lua.call(2, 1);
+    lua.call(.{ .args = 2, .results = 1 });
     try expectEqual(42, try lua.toInteger(1));
 }
 
@@ -603,7 +603,7 @@ test "function registration" {
         _ = lua.getField(-1, "add");
         lua.pushInteger(1);
         lua.pushInteger(2);
-        try lua.protectedCall(2, 1, 0);
+        try lua.protectedCall(.{ .args = 2, .results = 1 });
         try expectEqual(3, lua.toInteger(-1));
         lua.setTop(0);
 
@@ -615,7 +615,7 @@ test "function registration" {
         _ = lua.getField(-1, "add");
         lua.pushInteger(1);
         lua.pushInteger(2);
-        try lua.protectedCall(2, 1, 0);
+        try lua.protectedCall(.{ .args = 2, .results = 1 });
         try expectEqual(3, lua.toInteger(-1));
 
         return;
@@ -642,7 +642,7 @@ test "function registration" {
     // also try calling the sub function sub(42, 40)
     lua.pushInteger(42);
     lua.pushInteger(40);
-    try lua.protectedCall(2, 1, 0);
+    try lua.protectedCall(.{ .args = 2, .results = 1 });
     try expectEqual(2, try lua.toInteger(-1));
 
     // now test the newlib variation to build a library from functions
@@ -922,11 +922,11 @@ test "dump and load" {
 
     // run the function (creating a new function)
     lua.pushInteger(5);
-    try lua.protectedCall(1, 1, 0);
+    try lua.protectedCall(.{ .args = 1, .results = 1 });
 
     // now call the new function (which should return the value + 5)
     lua.pushInteger(6);
-    try lua.protectedCall(1, 1, 0);
+    try lua.protectedCall(.{ .args = 1, .results = 1 });
     try expectEqual(11, try lua.toInteger(-1));
 }
 
@@ -1012,7 +1012,7 @@ test "upvalues" {
     var expected: i32 = 1;
     while (expected <= 10) : (expected += 1) {
         _ = try lua.getGlobal("counter");
-        lua.call(0, 1);
+        lua.call(.{ .results = 1 });
         try expectEqual(expected, try lua.toInteger(-1));
         lua.pop(1);
     }
@@ -1110,7 +1110,7 @@ test "raise error" {
     }.inner;
 
     lua.pushFunction(ziglua.wrap(makeError));
-    try expectError(error.LuaRuntime, lua.protectedCall(0, 0, 0));
+    try expectError(error.LuaRuntime, lua.protectedCall(.{}));
     try expectEqualStrings("makeError made an error", try lua.toString(-1));
 }
 
@@ -1284,14 +1284,14 @@ test "aux check functions" {
     }.inner);
 
     lua.pushFunction(function);
-    lua.protectedCall(0, 0, 0) catch {
+    lua.protectedCall(.{ .args = 0 }) catch {
         try expectStringContains("argument #1", try lua.toString(-1));
         lua.pop(-1);
     };
 
     lua.pushFunction(function);
     lua.pushNil();
-    lua.protectedCall(1, 0, 0) catch {
+    lua.protectedCall(.{ .args = 1 }) catch {
         try expectStringContains("number expected", try lua.toString(-1));
         lua.pop(-1);
     };
@@ -1299,7 +1299,7 @@ test "aux check functions" {
     lua.pushFunction(function);
     lua.pushNil();
     lua.pushInteger(3);
-    lua.protectedCall(2, 0, 0) catch {
+    lua.protectedCall(.{ .args = 2 }) catch {
         try expectStringContains("string expected", try lua.toString(-1));
         lua.pop(-1);
     };
@@ -1308,7 +1308,7 @@ test "aux check functions" {
     lua.pushNil();
     lua.pushInteger(3);
     lua.pushNumber(4);
-    lua.protectedCall(3, 0, 0) catch {
+    lua.protectedCall(.{ .args = 3 }) catch {
         try expectStringContains("string expected", try lua.toString(-1));
         lua.pop(-1);
     };
@@ -1318,7 +1318,7 @@ test "aux check functions" {
     lua.pushInteger(3);
     lua.pushNumber(4);
     _ = lua.pushString("hello world");
-    lua.protectedCall(4, 0, 0) catch {
+    lua.protectedCall(.{ .args = 4 }) catch {
         try expectStringContains("boolean expected", try lua.toString(-1));
         lua.pop(-1);
     };
@@ -1330,7 +1330,7 @@ test "aux check functions" {
         lua.pushNumber(4);
         _ = lua.pushString("hello world");
         lua.pushBoolean(true);
-        lua.protectedCall(5, 0, 0) catch {
+        lua.protectedCall(.{ .args = 5 }) catch {
             try expectEqualStrings("bad argument #6 to '?' (number expected, got no value)", try lua.toString(-1));
             lua.pop(-1);
         };
@@ -1345,8 +1345,8 @@ test "aux check functions" {
     lua.pushBoolean(true);
     if (ziglua.lang == .lua52) {
         lua.pushUnsigned(1);
-        try lua.protectedCall(6, 0, 0);
-    } else try lua.protectedCall(5, 0, 0);
+        try lua.protectedCall(.{ .args = 6 });
+    } else try lua.protectedCall(.{ .args = 5 });
 }
 
 test "aux opt functions" {
@@ -1364,14 +1364,14 @@ test "aux opt functions" {
     }.inner);
 
     lua.pushFunction(function);
-    try lua.protectedCall(0, 0, 0);
+    try lua.protectedCall(.{});
 
     lua.pushFunction(function);
     lua.pushInteger(10);
     _ = lua.pushString("zig");
     lua.pushNumber(1.23);
     _ = lua.pushStringZ("lang");
-    try lua.protectedCall(4, 0, 0);
+    try lua.protectedCall(.{ .args = 4 });
 }
 
 test "checkOption" {
@@ -1398,32 +1398,32 @@ test "checkOption" {
 
     lua.pushFunction(function);
     _ = lua.pushStringZ("one");
-    try lua.protectedCall(1, 1, 0);
+    try lua.protectedCall(.{ .args = 1, .results = 1 });
     try expectEqual(1, try lua.toInteger(-1));
     lua.pop(1);
 
     lua.pushFunction(function);
     _ = lua.pushStringZ("two");
-    try lua.protectedCall(1, 1, 0);
+    try lua.protectedCall(.{ .args = 1, .results = 1 });
     try expectEqual(2, try lua.toInteger(-1));
     lua.pop(1);
 
     lua.pushFunction(function);
     _ = lua.pushStringZ("three");
-    try lua.protectedCall(1, 1, 0);
+    try lua.protectedCall(.{ .args = 1, .results = 1 });
     try expectEqual(3, try lua.toInteger(-1));
     lua.pop(1);
 
     // try the default now
     lua.pushFunction(function);
-    try lua.protectedCall(0, 1, 0);
+    try lua.protectedCall(.{ .results = 1 });
     try expectEqual(1, try lua.toInteger(-1));
     lua.pop(1);
 
     // check the raised error
     lua.pushFunction(function);
     _ = lua.pushStringZ("unknown");
-    try expectError(error.LuaRuntime, lua.protectedCall(1, 1, 0));
+    try expectError(error.LuaRuntime, lua.protectedCall(.{ .args = 1, .results = 1 }));
     try expectStringContains("(invalid option 'unknown')", try lua.toString(-1));
 }
 
@@ -1456,7 +1456,7 @@ test "loadBuffer" {
         _ = try lua.loadBuffer("global = 10", "chunkname");
     } else _ = try lua.loadBuffer("global = 10", "chunkname", .text);
 
-    try lua.protectedCall(0, ziglua.mult_return, 0);
+    try lua.protectedCall(.{ .args = 0, .results = ziglua.mult_return });
     _ = try lua.getGlobal("global");
     try expectEqual(10, try lua.toInteger(-1));
 }
@@ -1566,7 +1566,7 @@ test "args and errors" {
     }.inner);
 
     lua.pushFunction(argCheck);
-    try expectError(error.LuaRuntime, lua.protectedCall(0, 0, 0));
+    try expectError(error.LuaRuntime, lua.protectedCall(.{}));
 
     const raisesError = ziglua.wrap(struct {
         fn inner(l: *Lua) i32 {
@@ -1576,7 +1576,7 @@ test "args and errors" {
     }.inner);
 
     lua.pushFunction(raisesError);
-    try expectError(error.LuaRuntime, lua.protectedCall(0, 0, 0));
+    try expectError(error.LuaRuntime, lua.protectedCall(.{}));
     try expectEqualStrings("some error zig!", try lua.toString(-1));
 
     if (ziglua.lang != .lua54) return;
@@ -1589,7 +1589,7 @@ test "args and errors" {
     }.inner);
 
     lua.pushFunction(argExpected);
-    try expectError(error.LuaRuntime, lua.protectedCall(0, 0, 0));
+    try expectError(error.LuaRuntime, lua.protectedCall(.{}));
 }
 
 test "traceback" {
@@ -1672,7 +1672,7 @@ test "userdata" {
 
         // call checkUdata asserting that the udata passed in with the
         // correct metatable and values
-        try lua.protectedCall(1, 1, 0);
+        try lua.protectedCall(.{ .args = 1, .results = 1 });
     }
 
     if (langIn(.{ .lua51, .luajit, .luau })) return;
@@ -1702,7 +1702,7 @@ test "userdata" {
 
         // call checkUdata asserting that the udata passed in with the
         // correct metatable and values
-        try lua.protectedCall(1, 0, 0);
+        try lua.protectedCall(.{ .args = 1 });
     }
 }
 
@@ -1743,7 +1743,7 @@ test "userdata slices" {
     lua.pushFunction(ziglua.wrap(udataFn));
     lua.pushValue(2);
 
-    try lua.protectedCall(1, 0, 0);
+    try lua.protectedCall(.{ .args = 1 });
 }
 
 test "function environments" {
@@ -1759,7 +1759,7 @@ test "function environments" {
     lua.setGlobal("x");
 
     _ = try lua.getGlobal("test");
-    try lua.protectedCall(0, 1, 0);
+    try lua.protectedCall(.{ .results = 1 });
     try testing.expectEqual(10, lua.toInteger(1));
     lua.pop(1);
 
@@ -1770,7 +1770,7 @@ test "function environments" {
     lua.setField(2, "x");
     try lua.setFnEnvironment(1);
 
-    try lua.protectedCall(0, 1, 0);
+    try lua.protectedCall(.{ .results = 1 });
     try testing.expectEqual(20, lua.toInteger(1));
     lua.pop(1);
 
@@ -1866,7 +1866,7 @@ test "debug interface" {
 
     _ = try lua.getGlobal("f");
     lua.pushNumber(3);
-    try lua.protectedCall(1, 1, 0);
+    try lua.protectedCall(.{ .args = 1, .results = 1 });
 }
 
 test "debug interface Lua 5.1 and Luau" {
@@ -1956,7 +1956,7 @@ test "debug interface Lua 5.1 and Luau" {
 
     _ = try lua.getGlobal("f");
     lua.pushNumber(3);
-    try lua.protectedCall(1, 1, 0);
+    try lua.protectedCall(.{ .args = 1, .results = 1 });
 }
 
 test "debug upvalues" {
@@ -1990,7 +1990,7 @@ test "debug upvalues" {
 
     // call the new function (should return 7)
     lua.pushNumber(2);
-    try lua.protectedCall(1, 1, 0);
+    try lua.protectedCall(.{ .args = 1, .results = 1 });
     try expectEqual(7, try lua.toNumber(-1));
 
     if (langIn(.{ .lua51, .luajit, .luau })) return;
@@ -2051,7 +2051,7 @@ test "compile and run bytecode" {
     defer testing.allocator.free(bc);
 
     try lua.loadBytecode("...", bc);
-    try lua.protectedCall(0, 1, 0);
+    try lua.protectedCall(.{ .results = 1 });
     const v = try lua.toInteger(-1);
     try expectEqual(133, v);
 
@@ -2165,7 +2165,7 @@ test "luau vectors" {
         \\end
     );
     _ = try lua.getGlobal("test");
-    try lua.protectedCall(0, 1, 0);
+    try lua.protectedCall(.{ .results = 1 });
     var v = try lua.toVector(-1);
     try testing.expectEqualSlices(f32, &[3]f32{ 10, 14, 18 }, v[0..3]);
 
@@ -2919,7 +2919,7 @@ test "error union for CFn" {
 
     // This will fail because there is no argument passed
     lua.pushFunction(ziglua.wrap(fails));
-    lua.protectedCall(0, 0, 0) catch {
+    lua.protectedCall(.{}) catch {
         // Get the error string
         try expectEqualStrings("MissingInteger", try lua.toString(-1));
     };

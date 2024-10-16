@@ -31,5 +31,5 @@ pub fn main() anyerror!void {
     defer allocator.free(bc);
 
     try lua.loadBytecode("...", bc);
-    try lua.protectedCall(0, 0, 0);
+    try lua.protectedCall(.{});
 }

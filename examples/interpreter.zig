@@ -50,7 +50,7 @@ pub fn main() anyerror!void {
         };
 
         // Execute a line of Lua code
-        lua.protectedCall(0, 0, 0) catch {
+        lua.protectedCall(.{}) catch {
             // Error handling here is the same as above.
             try stdout.print("{s}\n", .{lua.toString(-1) catch unreachable});
             lua.pop(1);
