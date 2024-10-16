@@ -733,6 +733,13 @@ pub const Lua = opaque {
         return c.lua_atpanic(@ptrCast(lua), panic_fn);
     }
 
+    pub const CallArgs = struct {
+        /// The number of args passed to the function from the stack
+        args: i32 = 0,
+        /// The number of results the function pushes to the stack upon returning
+        results: i32 = 0,
+    };
+
     /// Calls a function
     ///
     /// Like regular Lua calls, `Lua.call()` respects the `__call` metamethod. So, here the word "function" means any callable value.
@@ -741,49 +748,60 @@ pub const Lua = opaque {
     /// * First, the function to be called is pushed onto the stack
     /// * Then, the arguments to the call are pushed in direct order that is, the first argument is pushed first.
     /// * Finally you call `Lua.call()`
-    /// * `num_args` is the number of arguments that you pushed onto the stack. When the function returns, all arguments and
+    /// * `args.args` is the number of arguments that you pushed onto the stack. When the function returns, all arguments and
     /// the function value are popped and the call results are pushed onto the stack.
-    /// * The number of results is adjusted to `num_results`, unless `num_results` is `ziglua.mult_return`. In this case, all results from the function are pushed
+    /// * The number of results is adjusted to `args.results`, unless `args.results` is `ziglua.mult_return`. In this case, all results from the function are pushed
     /// * Lua takes care that the returned values fit into the stack space, but it does not ensure any extra space in the stack. The function results
     /// are pushed onto the stack in direct order (the first result is pushed first), so that after the call the last result is
     /// on the top of the stack.
     ///
     /// Any error while calling and running the function is propagated upwards (with a longjmp).
     ///
-    /// * Pops:   `(num_args+1)`
-    /// * Pushes: `num_results`
+    /// * Pops:   `(args.args+1)`
+    /// * Pushes: `args.results`
     /// * Errors: `other`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_call
-    pub fn call(lua: *Lua, num_args: i32, num_results: i32) void {
+    pub fn call(lua: *Lua, args: CallArgs) void {
         switch (lang) {
-            .lua51, .luajit, .luau => c.lua_call(@ptrCast(lua), num_args, num_results),
-            else => lua.callCont(num_args, num_results, 0, null),
+            .lua51, .luajit, .luau => c.lua_call(@ptrCast(lua), args.args, args.results),
+            else => c.lua_callk(@ptrCast(lua), args.args, args.results, 0, null),
         }
     }
 
-    fn callCont52(lua: *Lua, num_args: i32, num_results: i32, ctx: i32, k: ?CFn) void {
-        c.lua_callk(@ptrCast(lua), num_args, num_results, ctx, k);
-    }
-
-    fn callCont53(lua: *Lua, num_args: i32, num_results: i32, ctx: Context, k: ?CContFn) void {
-        c.lua_callk(@ptrCast(lua), num_args, num_results, ctx, k);
-    }
+    /// Continuations are supported in Lua 5.2, 5.3, and 5.4
+    /// See https://www.lua.org/manual/5.4/manual.html#4.5
+    pub const CallContArgs = struct {
+        /// The number of args passed to the function from the stack
+        args: i32 = 0,
+        /// The number of results the function pushes to the stack upon returning
+        results: i32 = 0,
+        /// Context value passed to the continuation function
+        ctx: switch (lang) {
+            .lua52 => i32,
+            .lua53, .lua54 => Context,
+            else => void,
+        },
+        /// The continuation function
+        k: switch (lang) {
+            .lua52 => CFn,
+            .lua53, .lua54 => CContFn,
+            else => void,
+        },
+    };
 
     /// This function behaves exactly like `Lua.call()`, but allows the called function to yield
     ///
     /// Not implemented in Lua 5.1, LuaJIT, or Luau
     ///
-    /// * Pops:   `(nargs + 1)`
-    /// * Pushes: `nresults`
+    /// * Pops:   `(args.args + 1)`
+    /// * Pushes: `args.results`
     /// * Errors: `other`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_callk
-    pub const callCont = switch (lang) {
-        .lua52 => callCont52,
-        .lua53, .lua54 => callCont53,
-        else => @compileError("callCont() not defined"),
-    };
+    pub fn callCont(lua: *Lua, args: CallContArgs) void {
+        c.lua_callk(@ptrCast(lua), args.args, args.results, args.ctx, args.k);
+    }
 
     /// Ensures that the stack has space for at least `n` extra elements, that is, that you can safely push up to `n` values into
     /// it. It returns an error if it cannot fulfill the request, either because it would cause the stack to be greater than a
@@ -1710,91 +1728,117 @@ pub const Lua = opaque {
         return c.lua_objlen(@ptrCast(lua), index);
     }
 
-    fn protectedCall51(lua: *Lua, num_args: i32, num_results: i32, err_func: i32) !void {
-        // The translate-c version of lua_pcall does not type-check so we must rewrite it
-        // (macros don't always translate well with translate-c)
-        const ret = c.lua_pcall(@ptrCast(lua), num_args, num_results, err_func);
-        switch (ret) {
-            StatusCode.ok => return,
-            StatusCode.err_runtime => return error.LuaRuntime,
-            StatusCode.err_memory => return error.OutOfMemory,
-            StatusCode.err_error => return error.LuaMsgHandler,
-            else => unreachable,
-        }
-    }
-
-    fn protectedCall52(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32) !void {
-        // The translate-c version of lua_pcall does not type-check so we must rewrite it
-        // (macros don't always translate well with translate-c)
-        const ret = c.lua_pcallk(@ptrCast(lua), num_args, num_results, msg_handler, 0, null);
-
-        return switch (lang) {
-            .lua54 => switch (ret) {
-                StatusCode.ok => return,
-                StatusCode.err_runtime => return error.LuaRuntime,
-                StatusCode.err_memory => return error.OutOfMemory,
-                StatusCode.err_error => return error.LuaMsgHandler,
-                else => unreachable,
-            },
-            else => switch (ret) {
-                StatusCode.ok => return,
-                StatusCode.err_runtime => return error.LuaRuntime,
-                StatusCode.err_memory => return error.OutOfMemory,
-                StatusCode.err_error => return error.LuaMsgHandler,
-                StatusCode.err_gcmm => return error.LuaGCMetaMethod,
-                else => unreachable,
-            },
-        };
-    }
-
-    /// Calls a function (or callable object) in protected mode
-    /// See https://www.lua.org/manual/5.4/manual.html#lua_pcall
-    pub const protectedCall = switch (lang) {
-        .lua51, .luajit, .luau => protectedCall51,
-        else => protectedCall52,
+    pub const ProtectedCallArgs = struct {
+        /// The number of args passed to the function from the stack
+        args: i32 = 0,
+        /// The number of results the function pushes to the stack upon returning
+        results: i32 = 0,
+        /// The stack index of a message handler (known as errfunc in some versions of Lua)
+        msg_handler: i32 = 0,
     };
 
-    fn protectedCallCont52(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: i32, k: CFn) !void {
-        const ret = c.lua_pcallk(@ptrCast(lua), num_args, num_results, msg_handler, ctx, k);
-        switch (ret) {
-            StatusCode.ok => return,
-            StatusCode.err_runtime => return error.LuaRuntime,
-            StatusCode.err_memory => return error.OutOfMemory,
-            StatusCode.err_error => return error.LuaMsgHandler,
-            StatusCode.err_gcmm => return error.LuaGCMetaMethod,
-            else => unreachable,
-        }
-    }
-
-    fn protectedCallCont53(lua: *Lua, num_args: i32, num_results: i32, msg_handler: i32, ctx: Context, k: CContFn) !void {
-        const ret = c.lua_pcallk(@ptrCast(lua), num_args, num_results, msg_handler, ctx, k);
-
-        return switch (lang) {
-            .lua54 => switch (ret) {
-                StatusCode.ok => return,
-                StatusCode.err_runtime => return error.LuaRuntime,
-                StatusCode.err_memory => return error.OutOfMemory,
-                StatusCode.err_error => return error.LuaMsgHandler,
-                else => unreachable,
-            },
-            else => switch (ret) {
-                StatusCode.ok => return,
-                StatusCode.err_runtime => return error.LuaRuntime,
-                StatusCode.err_memory => return error.OutOfMemory,
-                StatusCode.err_error => return error.LuaMsgHandler,
-                StatusCode.err_gcmm => return error.LuaGCMetaMethod,
-                else => unreachable,
-            },
-        };
-    }
-
-    /// Behaves exactly like `Lua.protectedCall()` except that it allows the called function to yield
+    /// Calls a function (or a callable object) in protected mode.
+    /// Both `args.args` and `args.results` have the same meaning as in `Lua.call()`. If there are no errors during the call, `Lua.protectedCall()` behaves
+    /// exactly like `Lua.call()`. However, if there is any error, `Lua.protectedCall()` catches it, pushes a single value on the stack (the
+    /// error object), and returns an error code. Like `Lua.call()`, `Lua.protectedCall()` always removes the function and its arguments from
+    /// the stack.
+    ///
+    /// If `args.msg_handler` is 0, then the error object returned on the stack is exactly the original error object. Otherwise, `args.msg_handler` is the
+    /// stack index of a message handler. (This index cannot be a pseudo-index.) In case of runtime errors, this handler will
+    /// be called with the error object and its return value will be the object returned on the stack by `Lua.protectedCall()`.
+    /// Typically, the message handler is used to add more debug information to the error object, such as a stack traceback.
+    /// Such information cannot be gathered after the return of `Lua.protectedCall()`, since by then the stack has unwound.
+    ///
+    /// * Pops:   `(args.args + 1)`
+    /// * Pushes: `(args.results|1)`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pcallk
-    pub const protectedCallCont = switch (lang) {
-        .lua52 => protectedCallCont52,
-        .lua53, .lua54 => protectedCallCont53,
-        else => @compileError("protectedCallCont() not implemented"),
+    pub fn protectedCall(lua: *Lua, args: ProtectedCallArgs) !void {
+        const ret = switch (lang) {
+            .lua51, .luajit, .luau => c.lua_pcall(@ptrCast(lua), args.args, args.results, args.msg_handler),
+            else => c.lua_pcallk(@ptrCast(lua), args.args, args.results, args.msg_handler, 0, null),
+        };
+
+        return switch (lang) {
+            .lua54 => switch (ret) {
+                StatusCode.ok => return,
+                StatusCode.err_runtime => return error.LuaRuntime,
+                StatusCode.err_memory => return error.OutOfMemory,
+                StatusCode.err_error => return error.LuaMsgHandler,
+                else => unreachable,
+            },
+            .lua52, .lua53 => switch (ret) {
+                StatusCode.ok => return,
+                StatusCode.err_runtime => return error.LuaRuntime,
+                StatusCode.err_memory => return error.OutOfMemory,
+                StatusCode.err_error => return error.LuaMsgHandler,
+                StatusCode.err_gcmm => return error.LuaGCMetaMethod,
+                else => unreachable,
+            },
+            else => switch (ret) {
+                StatusCode.ok => return,
+                StatusCode.err_runtime => return error.LuaRuntime,
+                StatusCode.err_memory => return error.OutOfMemory,
+                StatusCode.err_error => return error.LuaMsgHandler,
+                else => unreachable,
+            },
+        };
+    }
+
+    pub const ProtectedCallContArgs = struct {
+        /// The number of args passed to the function from the stack
+        args: i32 = 0,
+        /// The number of results the function pushes to the stack upon returning
+        results: i32 = 0,
+        /// The stack index of a message handler (known as errfunc in some versions of Lua)
+        msg_handler: i32 = 0,
+        /// Context value passed to the continuation function
+        ctx: switch (lang) {
+            .lua52 => i32,
+            .lua53, .lua54 => Context,
+            else => void,
+        },
+        /// The continuation function
+        k: switch (lang) {
+            .lua52 => CFn,
+            .lua53, .lua54 => CContFn,
+            else => void,
+        },
     };
+
+    /// This function behaves exactly like `Lua.protectedCall()`, except that it allows the called function to yield
+    ///
+    /// * Pops:   `(nargs + 1)`
+    /// * Pushes: `(nresults|1)`
+    /// * Errors: `never`
+    ///
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_pcallk
+    pub fn protectedCallCont(lua: *Lua, args: ProtectedCallContArgs) !void {
+        const ret = switch (lang) {
+            .lua51, .luajit, .luau => c.lua_pcall(@ptrCast(lua), args.args, args.results, args.msg_handler),
+            else => c.lua_pcallk(@ptrCast(lua), args.args, args.results, args.msg_handler, 0, null),
+        };
+
+        return switch (lang) {
+            .lua54 => switch (ret) {
+                StatusCode.ok => return,
+                StatusCode.err_runtime => return error.LuaRuntime,
+                StatusCode.err_memory => return error.OutOfMemory,
+                StatusCode.err_error => return error.LuaMsgHandler,
+                else => unreachable,
+            },
+            .lua52, .lua53 => switch (ret) {
+                StatusCode.ok => return,
+                StatusCode.err_runtime => return error.LuaRuntime,
+                StatusCode.err_memory => return error.OutOfMemory,
+                StatusCode.err_error => return error.LuaMsgHandler,
+                StatusCode.err_gcmm => return error.LuaGCMetaMethod,
+                else => unreachable,
+            },
+            else => @compileError("Only implemented in Lua 5.2, 5.3, and 5.4"),
+        };
+    }
 
     /// Pops `n` elements from the top of the stack
     ///
@@ -3008,7 +3052,7 @@ pub const Lua = opaque {
             .luajit, .lua51 => try lua.loadFile(file_name),
             else => try lua.loadFile(file_name, .binary_text),
         }
-        try lua.protectedCall(0, mult_return, 0);
+        try lua.protectedCall(.{ .results = mult_return });
     }
 
     /// Loads and runs the given string
@@ -3016,7 +3060,7 @@ pub const Lua = opaque {
     pub fn doString(lua: *Lua, str: [:0]const u8) !void {
         // trnaslate-c failure
         try lua.loadString(str);
-        try lua.protectedCall(0, mult_return, 0);
+        try lua.protectedCall(.{ .results = mult_return });
     }
 
     /// Raises an error
@@ -3314,7 +3358,7 @@ pub const Lua = opaque {
             .lua51, .luajit, .luau => {
                 lua.pushFunction(open_fn);
                 _ = lua.pushStringZ(mod_name);
-                lua.call(1, 0);
+                lua.call(.{ .args = 1 });
             },
             else => c.luaL_requiref(@ptrCast(lua), mod_name.ptr, open_fn, @intFromBool(global)),
         }
@@ -3665,7 +3709,7 @@ pub const Lua = opaque {
                     if (lua.getMetaField(-1, "__index")) |_| {
                         lua.pushValue(-2);
                         lua.pushInteger(@intCast(i + 1));
-                        lua.call(2, 1);
+                        lua.call(.{ .args = 1, .results = 1 });
                     } else |_| {
                         _ = lua.rawGetIndex(-1, @intCast(i + 1));
                     }
@@ -3828,7 +3872,7 @@ pub const Lua = opaque {
         }
 
         const num_results = if (ReturnType == void) 0 else 1;
-        try lua.protectedCall(args.len, num_results, 0);
+        try lua.protectedCall(.{ .args = args.len, .results = num_results });
     }
 
     ///automatically calls a lua function with the given arguments
