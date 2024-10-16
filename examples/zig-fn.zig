@@ -39,7 +39,7 @@ pub fn main() anyerror!void {
 
     // Call the function. It accepts 2 arguments and returns 1 value
     // We use catch unreachable because we can verify this function call will not fail
-    lua.protectedCall(2, 1, 0) catch unreachable;
+    lua.protectedCall(.{ .args = 2, .results = 1 }) catch unreachable;
 
     // The result of the function call is on the stack.
     // Use toInteger to read the integer at index 1
