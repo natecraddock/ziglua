@@ -1523,15 +1523,17 @@ pub const Lua = opaque {
         return c.lua_next(@ptrCast(lua), index) != 0;
     }
 
-    /// Tries to convert a Lua float into a Lua integer
-    /// Returns an error if the conversion was unsuccessful
+    /// Tries to convert a Lua float to a Lua integer; the float `n` must have an integral value. If that value is within the range of Lua integers, it is converted to an integer and assigned to *p. The macro results in a boolean indicating whether the conversion was successful. (Note that this range test can be tricky to do correctly without this macro, due to rounding.)
+    ///
+    /// Only available in Lua 5.4
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_numbertointeger
-    pub fn numberToInteger(n: Number, i: *Integer) !void {
+    pub fn numberToInteger(n: Number) !Integer {
         // translate-c failure
         // return c.lua_numbertointeger(n, i) != 0;
         const min_float: Number = @floatFromInt(min_integer);
         if (n >= min_float and n < -min_float) {
-            i.* = @intFromFloat(n);
+            return @intFromFloat(n);
         } else return error.LuaError;
     }
 

@@ -23,14 +23,6 @@ inline fn langIn(langs: anytype) bool {
     return false;
 }
 
-fn failing_alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*anyopaque {
-    _ = data;
-    _ = ptr;
-    _ = osize;
-    _ = nsize;
-    return null;
-}
-
 test "initialization" {
     // initialize the Zig wrapper
     var lua = try Lua.init(testing.allocator);
@@ -840,10 +832,8 @@ test "conversions" {
     defer lua.deinit();
 
     // number conversion
-    var value: ziglua.Integer = undefined;
-    try Lua.numberToInteger(3.14, &value);
-    try expectEqual(3, value);
-    try expectError(error.LuaError, Lua.numberToInteger(@as(ziglua.Number, @floatFromInt(ziglua.max_integer)) + 10, &value));
+    try expectEqual(3, Lua.numberToInteger(3.14));
+    try expectError(error.LuaError, Lua.numberToInteger(@as(ziglua.Number, @floatFromInt(ziglua.max_integer)) + 10));
 
     // string conversion
     try lua.stringToNumber("1");
