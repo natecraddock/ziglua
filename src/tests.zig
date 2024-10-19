@@ -712,9 +712,9 @@ test "garbage collector" {
     lua.gcRestart();
     _ = lua.gcCount();
     _ = lua.gcCountB();
+    lua.gcStep(10);
 
     if (ziglua.lang != .lua51 and ziglua.lang != .luajit) _ = lua.gcIsRunning();
-    if (ziglua.lang != .lua54) lua.gcStep();
 
     if (langIn(.{ .lua51, .lua52, .lua53 })) {
         _ = lua.gcSetPause(2);
@@ -725,7 +725,6 @@ test "garbage collector" {
         lua.gcSetGenerational();
         lua.gcSetGenerational();
     } else if (ziglua.lang == .lua54) {
-        lua.gcStep(10);
         try expect(lua.gcSetGenerational(0, 10));
         try expect(lua.gcSetIncremental(0, 0, 0));
         try expect(!lua.gcSetIncremental(0, 0, 0));
