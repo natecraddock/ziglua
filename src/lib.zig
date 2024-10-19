@@ -1023,20 +1023,11 @@ pub const Lua = opaque {
         };
     }
 
-    fn gcStep54(lua: *Lua, step_size: i32) void {
-        _ = c.lua_gc(@ptrCast(lua), c.LUA_GCSTEP, step_size);
-    }
-
-    fn gcStep51(lua: *Lua) void {
-        _ = c.lua_gc(@ptrCast(lua), c.LUA_GCSTEP, 0);
-    }
-
     /// Performs an incremental step of garbage collection corresponding to the allocation of step_size Kbytes
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
-    pub const gcStep = switch (lang) {
-        .lua54 => gcStep54,
-        else => gcStep51,
-    };
+    pub fn gcStep(lua: *Lua, step_size: i32) void {
+        _ = c.lua_gc(@ptrCast(lua), c.LUA_GCSTEP, step_size);
+    }
 
     /// Returns the current amount of memory (in Kbytes) in use by Lua
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
