@@ -2906,18 +2906,33 @@ pub const Lua = opaque {
     // Each is kept similar to the original C API function while also making it easy to use from Zig
 
     /// Returns the current hook function
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gethook
     pub fn getHook(lua: *Lua) ?CHookFn {
         return c.lua_gethook(@ptrCast(lua));
     }
 
     /// Returns the current hook count
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gethookcount
     pub fn getHookCount(lua: *Lua) i32 {
         return c.lua_gethookcount(@ptrCast(lua));
     }
 
     /// Returns the current hook mask
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gethookmask
     pub fn getHookMask(lua: *Lua) HookMask {
         return HookMask.fromInt(c.lua_gethookmask(@ptrCast(lua)));
@@ -3010,8 +3025,11 @@ pub const Lua = opaque {
     }
 
     /// Gets information about a specific function or function invocation
-    /// Returns an error if an invalid option was given, but the valid options
-    /// are still handled
+    ///
+    /// * Pops:   `(0|1)`
+    /// * Pushes: `(0|1|2)`
+    /// * Errors: `memory`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getinfo
     pub const getInfo = if (lang == .luau) getInfoLuau else getInfoLua;
 
@@ -3036,12 +3054,38 @@ pub const Lua = opaque {
         return error.LuaError;
     }
 
-    /// Gets information about a local variable
-    /// Returns the name of the local variable
+    /// Gets information about a local variable or a temporary value of a given activation record or a given function.
+    ///
+    /// In the first case, the parameter ar must be a valid activation record that was filled by a previous call to
+    /// `Lua.getStack()` or given as argument to a hook. The index n selects which local variable to inspect; see
+    /// debug.getlocal for details about variable indices and names.
+    ///
+    /// `Lua.getLocal()` pushes the variable's value onto the stack and returns its name.
+    ///
+    /// In the second case, ar must be NULL and the function to be inspected must be on the top of the stack. In this case,
+    /// only parameters of Lua functions are visible (as there is no information about what variables are active) and no values
+    /// are pushed onto the stack.
+    ///
+    /// Returns an error (and pushes nothing) when the index is greater than the number of active local variables.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `(0|1)`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getlocal
     pub const getLocal = if (lang == .luau) getLocalLuau else getLocalLua;
 
-    /// Gets information about the interpreter runtime stack
+    /// Gets information about the interpreter runtime stack.
+    ///
+    /// This function returns a `DebugInfo` structure with an identification of the activation record of the function
+    /// executing at a given level. Level `0` is the current running function, whereas level `n+1` is the function that has called
+    /// level `n` (except for tail calls, which do not count in the stack). When called with a level greater than the stack
+    /// depth, `Lua.getStack()` returns an error.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getstack
     pub fn getStack(lua: *Lua, level: i32) !DebugInfo {
         var ar: Debug = undefined;
@@ -3054,7 +3098,14 @@ pub const Lua = opaque {
         };
     }
 
-    /// Gets information about the `n`th upvalue of the closure at index `func_index`
+    /// Gets information about the `n`-th upvalue of the closure at index `func_index`. It pushes the upvalue's value onto the stack
+    /// and returns its name. Returns an error (and pushes nothing) when the index `n` is greater than the number of upvalues.
+    /// See debug.getupvalue for more information about upvalues.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `(0|1)`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getupvalue
     pub fn getUpvalue(lua: *Lua, func_index: i32, n: i32) ![:0]const u8 {
         if (c.lua_getupvalue(@ptrCast(lua), func_index, n)) |name| {
@@ -3063,12 +3114,35 @@ pub const Lua = opaque {
         return error.LuaError;
     }
 
-    /// Sets the debugging hook function
+    /// Sets the debugging hook function.
+    ///
+    /// * Argument `f` is the hook function
+    /// * `mask` specifies on which events the hook will be called.
+    /// * The count argument is only meaningful when the mask includes `count`
+    ///
+    /// For each event, the hook is called as explained below:
+    /// * The call hook: is called when the interpreter calls a function. The hook is called just after Lua enters the new
+    /// function.
+    /// * The return hook: is called when the interpreter returns from a function. The hook is called just before Lua
+    /// leaves the function.
+    /// * The line hook: is called when the interpreter is about to start the execution of a new line of
+    /// code, or when it jumps back in the code (even to the same line). This event only happens while Lua is executing a Lua
+    /// function.
+    /// * The count hook: is called after the interpreter executes every count instructions. This event only happens
+    /// while Lua is executing a Lua function.
+    ///
+    /// Hooks are disabled by setting mask to zero.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_sethook
-    pub fn setHook(lua: *Lua, hook_fn: CHookFn, mask: HookMask, count: i32) void {
+    /// TODO: allow setting mask to null to set to zero?
+    pub fn setHook(lua: *Lua, f: CHookFn, mask: HookMask, count: i32) void {
         const hook_mask = HookMask.toInt(mask);
         // Lua 5.1 and 5.2 always return 1. Other versions return void
-        _ = c.lua_sethook(@ptrCast(lua), hook_fn, hook_mask, count);
+        _ = c.lua_sethook(@ptrCast(lua), f, hook_mask, count);
     }
 
     fn setLocalLua(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
@@ -3092,14 +3166,29 @@ pub const Lua = opaque {
         return error.LuaError;
     }
 
-    /// Sets the value of a local variable
-    /// Returns an error when the index is greater than the number of active locals
-    /// Returns the name of the local variable
+    /// Sets the value of a local variable of a given activation record. It assigns the value on the top of the stack to the
+    /// variable and returns its name. It also pops the value from the stack.
+    ///
+    /// Returns an error (and pops nothing) when the index is greater than the number of active local variables.
+    /// Parameters `ar` and `n` are as in the function `Lua.getLocal()`.
+    ///
+    /// * Pops:   `(0|1)`
+    /// * Pushes: `0`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_setlocal
     pub const setLocal = if (lang == .luau) setLocalLuau else setLocalLua;
 
-    /// Sets the value of a closure's upvalue
-    /// Returns the name of the upvalue or an error if the upvalue does not exist
+    /// Sets the value of a closure's upvalue. It assigns the value on the top of the stack to the upvalue and returns its
+    /// name. It also pops the value from the stack.
+    /// Returns an error (and pops nothing) when the index `n` is greater than the number of upvalues.
+    ///
+    /// Parameters `func_index` and `n` are as in the function lua_getupvalue.
+    ///
+    /// * Pops:   `(0|1)`
+    /// * Pushes: `0`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_setupvalue
     pub fn setUpvalue(lua: *Lua, func_index: i32, n: i32) ![:0]const u8 {
         if (c.lua_setupvalue(@ptrCast(lua), func_index, n)) |name| {
@@ -3108,27 +3197,48 @@ pub const Lua = opaque {
         return error.LuaError;
     }
 
+    /// Only available in Luau
     pub fn setInterruptCallbackFn(lua: *Lua, cb: ?CInterruptCallbackFn) void {
         if (c.lua_callbacks(@ptrCast(lua))) |cb_struct| {
             cb_struct.*.interrupt = cb;
         }
     }
 
+    /// Only available in Luau
     pub fn setUserAtomCallbackFn(lua: *Lua, cb: CUserAtomCallbackFn) void {
         if (c.lua_callbacks(@ptrCast(lua))) |cb_struct| {
             cb_struct.*.useratom = cb;
         }
     }
 
-    /// Returns a unique identifier for the upvalue numbered `n` from the closure index `func_index`
+    /// Returns a unique identifier for the upvalue numbered `n` from the closure at index funcindex.
+    ///
+    /// These unique identifiers allow a program to check whether different closures share upvalues. Lua closures that share an
+    /// upvalue (that is, that access a same external local variable) will return identical ids for those upvalue indices.
+    ///
+    /// Parameters `func_index` and `n` are as in the function `Lua.getUpvalue()`, but `n` cannot be greater than the number of upvalues.
+    ///
+    /// Not implemented in Lua 5.1, LuaJIT or Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_upvalueid
     pub fn upvalueId(lua: *Lua, func_index: i32, n: i32) !*anyopaque {
         if (c.lua_upvalueid(@ptrCast(lua), func_index, n)) |ptr| return ptr;
         return error.LuaError;
     }
 
-    /// Make the `n1`th upvalue of the Lua closure at index `func_index1` refer to the `n2`th upvalue
-    /// of the Lua closure at index `func_index2`
+    /// Make the `n1`-th upvalue of the Lua closure at index `func_index1` refer to the `n2`-th upvalue of the Lua closure at index
+    /// `func_index2`.
+    ///
+    /// Not implemented in Lua 5.1, LuaJIT or Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_upvaluejoin
     pub fn upvalueJoin(lua: *Lua, func_index1: i32, n1: i32, func_index2: i32, n2: i32) void {
         c.lua_upvaluejoin(@ptrCast(lua), func_index1, n1, func_index2, n2);
