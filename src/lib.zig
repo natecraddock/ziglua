@@ -3250,7 +3250,12 @@ pub const Lua = opaque {
     // Each is kept similar to the original C API function while also making it easy to use from Zig
 
     /// Checks whether `cond` is true. Raises an error using `Lua.argError()` if not
-    /// Possibly never returns
+    /// Possibly never returns.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_argcheck
     pub fn argCheck(lua: *Lua, cond: bool, arg: i32, extra_msg: [:0]const u8) void {
         // translate-c failed
@@ -3258,6 +3263,14 @@ pub const Lua = opaque {
     }
 
     /// Raises an error reporting a problem with argument `arg` of the C function that called it
+    /// using a standard message that includes extramsg as a comment: bad argument #arg to 'funcname' (extramsg)
+    ///
+    ///  This function never returns.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_argerror
     pub fn argError(lua: *Lua, arg: i32, extra_msg: [:0]const u8) noreturn {
         _ = c.luaL_argerror(@as(*LuaState, @ptrCast(lua)), arg, extra_msg.ptr);
@@ -3266,25 +3279,54 @@ pub const Lua = opaque {
 
     /// Checks whether `cond` is true. Raises an error using `Lua.typeError()` if not
     /// Possibly never returns
+    ///
+    /// Only available in Lua 5.4
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_argexpected
     pub fn argExpected(lua: *Lua, cond: bool, arg: i32, type_name: [:0]const u8) void {
         // translate-c failed
         if (!cond) lua.typeError(arg, type_name);
     }
 
-    /// Calls a metamethod
+    /// Calls a metamethod.
+    ///
+    /// If the object at index `obj` has a metatable and this metatable has a field `field`,
+    /// this function calls this field passing the object as its only argument.
+    /// In this case this function pushes onto the stack the value returned by the call.
+    /// If there is no metatable or no metamethod, this function returns an error without pushing any value on the stack.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `(0|1)`
+    /// * Errors: `other`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_callmeta
     pub fn callMeta(lua: *Lua, obj: i32, field: [:0]const u8) !void {
         if (c.luaL_callmeta(@ptrCast(lua), obj, field.ptr) == 0) return error.LuaError;
     }
 
-    /// Checks whether the function has an argument of any type at position `arg`
+    /// Checks whether the function has an argument of any type (including nil) at position `arg`
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkany
     pub fn checkAny(lua: *Lua, arg: i32) void {
         c.luaL_checkany(@ptrCast(lua), arg);
     }
 
     /// Checks whether the function argument `arg` is a number and returns this number cast to an i32
+    ///
+    /// Not available in Lua 5.3 and 5.4
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_checkint
     /// TODO: is this ever useful?
     pub fn checkInt(lua: *Lua, arg: i32) i32 {
@@ -3292,21 +3334,35 @@ pub const Lua = opaque {
     }
 
     /// Checks whether the function argument `arg` is an integer (or can be converted to an integer) and returns the integer
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkinteger
     pub fn checkInteger(lua: *Lua, arg: i32) Integer {
         return c.luaL_checkinteger(@ptrCast(lua), arg);
     }
 
     /// Checks whether the function argument `arg` is a number and returns the number
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checknumber
     pub fn checkNumber(lua: *Lua, arg: i32) Number {
         return c.luaL_checknumber(@ptrCast(lua), arg);
     }
 
-    /// Checks whether the function argument `arg` is a string and searches for the enum value with the same name in `T`.
-    /// `default` is used as a default value when not null
-    /// Returns the enum value found
+    /// Returns the enum value found, or raises a Lua error otherwise
+    ///
     /// Useful for mapping Lua strings to Zig enums
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkoption
     pub fn checkOption(lua: *Lua, comptime T: type, arg: i32, default: ?T) T {
         const name = blk: {
@@ -3326,14 +3382,26 @@ pub const Lua = opaque {
         return lua.argError(arg, lua.pushFString("invalid option '%s'", .{name.ptr}));
     }
 
-    /// Grows the stack size to top + `size` elements, raising an error if the stack cannot grow to that size
+    /// Grows the stack size to top + `size` elements, raising an error if the stack cannot grow to that size.
     /// `msg` is an additional text to go into the error message
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkstack
     pub fn checkStackErr(lua: *Lua, size: i32, msg: ?[:0]const u8) void {
         c.luaL_checkstack(@ptrCast(lua), size, if (msg) |m| m.ptr else null);
     }
 
-    /// Checks whether the function argument `arg` is a string and returns the string
+    /// Checks whether the function argument `arg` is a string and returns the string.
+    /// This uses the same underlying Lua function (lua_tolstring) that `Lua.toString()` uses,
+    /// so all conversions and caveats of that function apply here.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkstring
     pub fn checkString(lua: *Lua, arg: i32) [:0]const u8 {
         var length: usize = 0;
@@ -3343,21 +3411,36 @@ pub const Lua = opaque {
     }
 
     /// Checks whether the function argument `arg` has type `t`
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checktype
     pub fn checkType(lua: *Lua, arg: i32, t: LuaType) void {
         c.luaL_checktype(@ptrCast(lua), arg, @intFromEnum(t));
     }
 
-    /// Checks whether the function argument `arg` is a userdata of the type `name`
+    /// Checks whether the function argument `arg` is a userdata of the type `name`.
     /// Returns a pointer to the userdata
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkudata
     pub fn checkUserdata(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) *T {
         // the returned pointer will not be null
         return @ptrCast(@alignCast(c.luaL_checkudata(@ptrCast(lua), arg, name.ptr).?));
     }
 
-    /// Checks whether the function argument `arg` is a userdata of the type `name`
+    /// Checks whether the function argument `arg` is a userdata of the type `name`.
     /// Returns a Lua-owned userdata slice
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkudata
     pub fn checkUserdataSlice(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) []T {
         // the returned pointer will not be null
@@ -3371,12 +3454,21 @@ pub const Lua = opaque {
     }
 
     /// Checks whether the function argument arg is a number and returns this number cast to an unsigned
+    ///
+    /// Only available in Lua 5.2
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_checkunsigned
     pub fn checkUnsigned(lua: *Lua, arg: i32) Unsigned {
         return c.luaL_checkunsigned(@ptrCast(lua), arg);
     }
 
     /// Checks whether the function argument `arg` is a vector and returns the vector as a floating point slice.
+    ///
+    /// Only available in Luau
     pub fn checkVector(lua: *Lua, arg: i32) [luau_vector_size]f32 {
         const vec = lua.toVector(arg) catch {
             lua.typeError(arg, lua.typeName(LuaType.vector));
@@ -3394,13 +3486,25 @@ pub const Lua = opaque {
 
     /// Checks whether the code making the call and the Lua library being called are using
     /// the same version of Lua and the same numeric types.
+    ///
+    /// Not available in Lua 5.1, LuaJIT, or Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkversion
     pub const checkVersion = switch (lang) {
         .lua53, .lua54 => checkVersion53,
         else => checkVersion52,
     };
 
-    /// Loads and runs the given file
+    /// Loads and runs the given file, potentially returning an error.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `?`
+    /// * Errors: `memory`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_dofile
     pub fn doFile(lua: *Lua, file_name: [:0]const u8) !void {
         // translate-c failure
@@ -3411,7 +3515,12 @@ pub const Lua = opaque {
         try lua.protectedCall(.{ .results = mult_return });
     }
 
-    /// Loads and runs the given string
+    /// Loads and runs the given string, potentially returning an error.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `?`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_dostring
     pub fn doString(lua: *Lua, str: [:0]const u8) !void {
         // trnaslate-c failure
@@ -3420,6 +3529,11 @@ pub const Lua = opaque {
     }
 
     /// Raises an error
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_error
     pub fn raiseErrorStr(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
         _ = @call(
@@ -3432,6 +3546,8 @@ pub const Lua = opaque {
 
     /// Raises an error from inside a Luau interrupt
     /// See https://github.com/luau-lang/luau/blob/ce8495a69e7a4e774a5402f99e1fc282a92ced91/CLI/Repl.cpp#L59
+    ///
+    /// Only available in Luau
     pub fn raiseInterruptErrorStr(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
         if (lang != .luau) return;
         c.lua_rawcheckstack(@ptrCast(lua), 1);
@@ -3439,20 +3555,41 @@ pub const Lua = opaque {
         unreachable;
     }
 
-    /// This function produces the return values for process-related functions in the standard library
+    /// This function produces the return values for process-related functions in the standard library (os.execute and io.close).
+    ///
+    /// Not available in Lua 5.1, LuaJIT, or Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `3`
+    /// * Errors: `memory`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_execresult
     pub fn execResult(lua: *Lua, stat: i32) i32 {
         return c.luaL_execresult(@ptrCast(lua), stat);
     }
 
     /// This function produces the return values for file-related functions in the standard library
+    /// (io.open, os.rename, file:seek, etc.).
+    ///
+    /// Not available in Lua 5.1, LuaJIT, or Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `(1|3)`
+    /// * Errors: `memory`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_fileresult
     pub fn fileResult(lua: *Lua, stat: i32, file_name: [:0]const u8) i32 {
         return c.luaL_fileresult(@ptrCast(lua), stat, file_name.ptr);
     }
 
     /// Pushes onto the stack the field `e` from the metatable of the object at index `obj`
-    /// and returns the type of the pushed value
+    /// and returns the type of the pushed value. If the object does not have a
+    /// metatable, or if the metatable does not have this field, pushes nothing and the tupe returned is nil.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `(0|1)`
+    /// * Errors: `memory`
+    ///
     /// TODO: possibly return an error if nil
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_getmetafield
     pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) !LuaType {
@@ -3461,8 +3598,14 @@ pub const Lua = opaque {
         return val_type;
     }
 
-    /// Pushes onto the stack the metatable associated with the name `type_name` in the registry
-    /// or nil if there is no metatable associated with that name. Returns the type of the pushed value
+    /// Pushes onto the stack the metatable associated with the name tname in the
+    /// registry (see `Lua.newMetatable()`), or nil if there is no metatable associated
+    /// with that name. Returns the type of the pushed value.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `1`
+    /// * Errors: `memory`
+    ///
     /// TODO: return error when type is nil?
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_getmetatable
     pub fn getMetatableRegistry(lua: *Lua, table_name: [:0]const u8) LuaType {
@@ -3475,21 +3618,44 @@ pub const Lua = opaque {
         }
     }
 
-    /// Ensures that the value t[`field`], where t is the value at `index`, is a table, and pushes that table onto the stack.
+    /// Ensures that the value `t[field]`, where `t` is the value at `index`, is a table, and pushes that table onto the stack.
+    /// Returns true if it finds a previous table there and false if it creates a new table.
+    ///
+    /// Not available in Lua 5.1, LuaJIT, or Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `1`
+    /// * Errors: `other`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_getsubtable
-    pub fn getSubtable(lua: *Lua, index: i32, field: [:0]const u8) !void {
-        if (c.luaL_getsubtable(@ptrCast(lua), index, field.ptr) == 0) return error.LuaError;
+    pub fn getSubtable(lua: *Lua, index: i32, field: [:0]const u8) bool {
+        return c.luaL_getsubtable(@ptrCast(lua), index, field.ptr) != 0;
     }
 
     /// Creates a copy of string `str`, replacing any occurrence of the string `pat` with the string `rep`
     /// Pushes the resulting string on the stack and returns it.
+    ///
+    /// Not available in Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `1`
+    /// * Errors: `memory`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_gsub
-    pub fn globalSub(lua: *Lua, str: [:0]const u8, pat: [:0]const u8, rep: [:0]const u8) [:0]const u8 {
-        return std.mem.span(c.luaL_gsub(@ptrCast(lua), str.ptr, pat.ptr, rep.ptr));
+    pub fn globalSub(lua: *Lua, str: [:0]const u8, pat: [:0]const u8, rep: [:0]const u8) []const u8 {
+        const s = c.luaL_gsub(@ptrCast(lua), str.ptr, pat.ptr, rep.ptr);
+        const l = lua.rawLen(-1);
+        return s[0..l];
     }
 
     /// Returns the "length" of the value at the given index as a number
-    /// it is equivalent to the '#' operator in Lua
+    /// it is equivalent to the '#' operator in Lua. Raises a Lua error if the
+    /// result of the operation is not an integer. (This case can only happen through metamethods.)
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_len
     pub fn lenRaiseErr(lua: *Lua, index: i32) i64 {
         return c.luaL_len(@ptrCast(lua), index);

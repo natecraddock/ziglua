@@ -1616,13 +1616,13 @@ test "getSubtable" {
     _ = try lua.getGlobal("a");
 
     // get the subtable a.b
-    try lua.getSubtable(-1, "b");
+    _ = lua.getSubtable(-1, "b");
 
     // fail to get the subtable a.c (but it is created)
-    try expectError(error.LuaError, lua.getSubtable(-2, "c"));
+    try expectEqual(false, lua.getSubtable(-2, "c"));
 
-    // now a.c will pass
-    try lua.getSubtable(-3, "b");
+    // now a.c will return true
+    try expectEqual(true, lua.getSubtable(-3, "c"));
 }
 
 test "userdata" {
