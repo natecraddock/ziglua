@@ -3764,6 +3764,13 @@ pub const Lua = opaque {
     }
 
     /// Creates a new table and registers there the functions in `list`
+    ///
+    /// Not available in Lua 5.1, LuaJIT, or Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `1`
+    /// * Errors: `memory`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_newlib
     pub fn newLib(lua: *Lua, list: []const FnReg) void {
         // translate-c failure
@@ -3773,6 +3780,14 @@ pub const Lua = opaque {
     }
 
     /// Creates a new table with a size optimized to store all entries in the array `list`
+    /// (but does not actually store them). It is intended to be used in conjunction with `Lua.setFuncs()`
+    ///
+    /// Not available in Lua 5.1, LuaJIT, or Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `1`
+    /// * Errors: `memory`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_newlibtable
     pub fn newLibTable(lua: *Lua, list: []const FnReg) void {
         // translate-c failure
@@ -3780,7 +3795,16 @@ pub const Lua = opaque {
     }
 
     /// If the registry already has the key `key`, returns an error
-    /// Otherwise, creates a new table to be used as a metatable for userdata
+    /// Otherwise, creates a new table to be used as a metatable for userdata,
+    /// adds to this new table the pair `__name = tname`,
+    /// and adds to the registry the pair `[tname] = new table`.
+    ///
+    /// In both cases, the function pushes onto the stack the final value associated with tname in the registry.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `1`
+    /// * Errors: `memory`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_newmetatable
     pub fn newMetatable(lua: *Lua, key: [:0]const u8) !void {
         if (c.luaL_newmetatable(@ptrCast(lua), key.ptr) == 0) return error.LuaError;
@@ -3789,7 +3813,14 @@ pub const Lua = opaque {
     // luaL_opt (a macro) really isn't that useful, so not going to implement for now
 
     /// If the function argument `arg` is a number, returns this number cast to an i32.
-    /// If the argument is absent or nil returns null
+    /// If the argument is absent or nil returns null. Otherwise raises an error
+    ///
+    /// Not available in Lua 5.3 and 5.4
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_optint
     /// TODO: just like checkInt, is this ever useful?
     pub fn optInt(lua: *Lua, arg: i32) ?i32 {
@@ -3797,8 +3828,14 @@ pub const Lua = opaque {
         return lua.checkInt(arg);
     }
 
-    /// If the function argument `arg` is an integer, returns the integer
-    /// If the argument is absent or nil returns null
+    /// If the function argument `arg` is an integer, (or it is convertible to an
+    /// integer) returns the integer. If the argument is absent or nil returns null.
+    /// Otherwise raises an error
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_optinteger
     pub fn optInteger(lua: *Lua, arg: i32) ?Integer {
         if (lua.isNoneOrNil(arg)) return null;
@@ -3806,7 +3843,12 @@ pub const Lua = opaque {
     }
 
     /// If the function argument `arg` is a number, returns the number
-    /// If the argument is absent or nil returns null
+    /// If the argument is absent or nil returns null. Otherwise, raises an error.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_optnumber
     pub fn optNumber(lua: *Lua, arg: i32) ?Number {
         if (lua.isNoneOrNil(arg)) return null;
@@ -3814,7 +3856,12 @@ pub const Lua = opaque {
     }
 
     /// If the function argument `arg` is a string, returns the string
-    /// If the argment is absent or nil returns null
+    /// If the argment is absent or nil returns null. Otherwise raises an error.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_optstring
     pub fn optString(lua: *Lua, arg: i32) ?[:0]const u8 {
         if (lua.isNoneOrNil(arg)) return null;
@@ -3823,6 +3870,13 @@ pub const Lua = opaque {
 
     /// If the function argument is a number, returns this number as an unsigned
     /// If the argument is absent or nil returns null, otherwise raises an error
+    ///
+    /// Only available in Lua 5.2
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_optunsigned
     pub fn optUnsigned(lua: *Lua, arg: i32) ?Unsigned {
         if (lua.isNoneOrNil(arg)) return null;
@@ -3830,6 +3884,13 @@ pub const Lua = opaque {
     }
 
     /// Pushes the fail value onto the stack
+    ///
+    /// Only available in Lua 5.4
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `1`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_pushfail
     pub fn pushFail(lua: *Lua) void {
         c.luaL_pushfail(@as(*LuaState, @ptrCast(lua)));
@@ -3837,6 +3898,20 @@ pub const Lua = opaque {
 
     /// Creates and returns a reference in the table at index `index` for the object on the top of the stack
     /// Pops the object
+    ///
+    /// A reference is a unique integer key. As long as you do not manually add integer
+    /// keys into the table t, `Lua.ref()` ensures the uniqueness of the key it returns.
+    /// You can retrieve an object referred by the reference r by calling
+    /// `Lua.rawGetIndex(index, r)`. The function `Lua.unref()` frees a reference.
+    ///
+    /// If the object on the top of the stack is nil, `Lua.ref()` returns the constant
+    /// `ref_nil`. The constant `ref_no` is guaranteed to be different from any
+    /// reference returned by `Lua.ref()`.
+    ///
+    /// * Pops:   `1`
+    /// * Pushes: `0`
+    /// * Errors: `memory`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_ref
     pub fn ref(lua: *Lua, index: i32) !i32 {
         const ret = if (lang == .luau) c.lua_ref(@ptrCast(lua), index) else c.luaL_ref(@ptrCast(lua), index);
@@ -3844,6 +3919,25 @@ pub const Lua = opaque {
     }
 
     /// Opens a library
+    ///
+    /// When called with libname equal to `null`, it simply registers all functions in
+    /// the list `funcs` (see luaL_Reg) into the table on the top of the stack.
+    ///
+    /// When called with a non-null libname, `Lua.registerFns` creates a new table t, sets
+    /// it as the value of the global variable `libname`, sets it as the value of
+    /// `package.loaded[libname]`, and registers on it all functions in the list `funcs`. If
+    /// there is a table in `package.loaded[libname]` or in variable `libname`, reuses this
+    /// table instead of creating a new one.
+    ///
+    /// In any case the function leaves the table on the top of the stack.
+    ///
+    /// Only available in Lua 5.1, LuaJIT, and Luau
+    ///
+    /// * Pops:   `(0|1)`
+    /// * Pushes: `1`
+    /// * Errors: `memory`
+    ///
+    ///
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_register
     pub fn registerFns(lua: *Lua, libname: ?[:0]const u8, funcs: []const FnReg) void {
         // translated from the implementation of luaI_openlib so we can use a slice of
@@ -3873,7 +3967,17 @@ pub const Lua = opaque {
     }
 
     /// If package.loaded[`mod_name`] is not true, calls the function `open_fn` with `mod_name`
-    /// as an argument and sets the call result to package.loaded[`mod_name`]
+    /// as an argument and sets the call result to package.loaded[`mod_name`] as if that function
+    /// has been called through require.
+    ///
+    /// If `global` is true, also stores the module into the global `mod_name`.
+    ///
+    /// Leaves a copy of the module on the stack.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `1`
+    /// * Errors: `other`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_requiref
     pub fn requireF(lua: *Lua, mod_name: [:0]const u8, open_fn: CFn, global: bool) void {
         switch (lang) {
@@ -3887,7 +3991,20 @@ pub const Lua = opaque {
     }
 
     /// Registers all functions in the array `fns` into the table on the top of the stack
-    /// All functions are created with `num_upvalues` upvalues
+    ///
+    /// All functions are created with `num_upvalues` upvalues initialized
+    /// with copies of the `num_upvalues` values previously pushed on the stack on top of the
+    /// library table. These values are popped from the stack after the registration.
+    ///
+    /// A function with a `null` value represents a placeholder, which is filled with
+    /// false.
+    ///
+    /// Not available in Lua 5.1, LuaJIT, or Luau
+    ///
+    /// * Pops:   `num_upvalues`
+    /// * Pushes: `0`
+    /// * Errors: `memory`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_setfuncs
     pub fn setFuncs(lua: *Lua, funcs: []const FnReg, num_upvalues: i32) void {
         lua.checkStackErr(num_upvalues, "too many upvalues");
@@ -3905,12 +4022,26 @@ pub const Lua = opaque {
 
     /// Sets the metatable of the object on the top of the stack as the metatable associated
     /// with `table_name` in the registry
+    ///
+    /// Not available in Lua 5.1, LuaJIT, or Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_setmetatable
     pub fn setMetatableRegistry(lua: *Lua, table_name: [:0]const u8) void {
         c.luaL_setmetatable(@ptrCast(lua), table_name.ptr);
     }
 
     /// This function works like `Lua.checkUserdata()` except it returns a Zig error instead of raising a Lua error on fail
+    ///
+    /// Not available in Lua 5.1, LuaJIT, or Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `memory`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_testudata
     pub fn testUserdata(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) !*T {
         if (c.luaL_testudata(@ptrCast(lua), arg, name.ptr)) |ptr| {
@@ -3919,6 +4050,13 @@ pub const Lua = opaque {
     }
 
     /// This function works like `Lua.checkUserdataSlice()` except it returns a Zig error instead of raising a Lua error on fail
+    ///
+    /// Not available in Lua 5.1, LuaJIT, or Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `memory`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkudata
     pub fn testUserdataSlice(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) ![]T {
         if (c.luaL_testudata(@ptrCast(lua), arg, name.ptr)) |ptr| {
@@ -3929,6 +4067,13 @@ pub const Lua = opaque {
 
     /// Converts any Lua value at the given index into a string in a reasonable format
     /// Uses the __tostring metamethod if available
+    ///
+    /// Not available in Lua 5.1, LuaJIT, or Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `1`
+    /// * Errors: `other`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_tolstring
     pub fn toStringEx(lua: *Lua, index: i32) [:0]const u8 {
         var length: usize = undefined;
@@ -3936,13 +4081,28 @@ pub const Lua = opaque {
         return ptr[0..length :0];
     }
 
-    /// Creates and pushes a traceback of the stack of `other`
+    /// Creates and pushes a traceback of the stack of `state`. If `msg` is not `null`, it is
+    /// appended at the beginning of the traceback. The `level` parameter tells at which
+    /// level to start the traceback.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `1`
+    /// * Errors: `memory`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_traceback
-    pub fn traceback(lua: *Lua, other: *Lua, msg: [:0]const u8, level: i32) void {
-        c.luaL_traceback(@ptrCast(lua), @ptrCast(other), msg.ptr, level);
+    pub fn traceback(lua: *Lua, state: *Lua, msg: ?[:0]const u8, level: i32) void {
+        c.luaL_traceback(@ptrCast(lua), @ptrCast(state), if (msg) |message| message.ptr else null, level);
     }
 
-    /// Raises a type error for the argument `arg` of the C function that called it
+    /// Raises a type error for the argument `arg` of the C function that called it.
+    /// `type_name` is the name of the expected type.
+    ///
+    /// Only available in Lua 5.4
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_typeerror
     pub fn typeError(lua: *Lua, arg: i32, type_name: [:0]const u8) noreturn {
         _ = c.luaL_typeerror(@as(*LuaState, @ptrCast(lua)), arg, type_name.ptr);
@@ -3950,6 +4110,11 @@ pub const Lua = opaque {
     }
 
     /// Returns the name of the type of the value at the given `index`
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_typename
     pub fn typeNameIndex(lua: *Lua, index: i32) [:0]const u8 {
         return std.mem.span(c.luaL_typename(@as(*LuaState, @ptrCast(lua)), index));
@@ -3963,12 +4128,34 @@ pub const Lua = opaque {
         c.lua_unref(@ptrCast(lua), r);
     }
 
-    /// Releases the reference `r` from the table at index `index`
+    /// Releases the reference `r` from the table at index `index`.
+    ///
+    /// The entry is removed from the table, so that the referred object can be collected. The
+    /// reference ref is also freed to be used again.
+    ///
+    /// If ref is `ref_no` or `ref_nil`, `Lua.unref()` does nothing.
+    ///
+    /// Luau does not support the index parameter.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `never`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_unref
     pub const unref = if (lang == .luau) unrefLuau else unrefLua;
 
     /// Pushes onto the stack a string identifying the current position of the control
     /// at the call stack `level`
+    ///
+    /// Typically this string has the following format: `chunkname:currentline:`
+    ///
+    /// Level 0 is the running function, level 1 is the function that called the
+    /// running function, etc. This function is used to build a prefix for error messages.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `1`
+    /// * Errors: `memory`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_where
     pub fn where(lua: *Lua, level: i32) void {
         c.luaL_where(@ptrCast(lua), level);
@@ -3977,64 +4164,132 @@ pub const Lua = opaque {
     // Standard library loading functions
 
     /// Open all standard libraries
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
+    ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_openlibs
     pub fn openLibs(lua: *Lua) void {
         c.luaL_openlibs(@ptrCast(lua));
     }
 
     /// Open the basic standard library
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
     pub fn openBase(lua: *Lua) void {
         lua.requireF("_G", c.luaopen_base, true);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
 
     /// Open the coroutine standard library
+    ///
+    /// Not available in Lua 5.1 and LuaJIT
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
     pub fn openCoroutine(lua: *Lua) void {
         lua.requireF(c.LUA_COLIBNAME, c.luaopen_coroutine, true);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
 
     /// Open the package standard library
+    ///
+    /// Not available in Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
     pub fn openPackage(lua: *Lua) void {
         lua.requireF(c.LUA_LOADLIBNAME, c.luaopen_package, true);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
 
     /// Open the string standard library
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
     pub fn openString(lua: *Lua) void {
         lua.requireF(c.LUA_STRLIBNAME, c.luaopen_string, true);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
 
     /// Open the UTF-8 standard library
+    ///
+    /// Not available in Lua 5.1, 5.2, and LuaJIT
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
     pub fn openUtf8(lua: *Lua) void {
         lua.requireF(c.LUA_UTF8LIBNAME, c.luaopen_utf8, true);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
 
     /// Open the table standard library
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
     pub fn openTable(lua: *Lua) void {
         lua.requireF(c.LUA_TABLIBNAME, c.luaopen_table, true);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
 
     /// Open the math standard library
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
     pub fn openMath(lua: *Lua) void {
         lua.requireF(c.LUA_MATHLIBNAME, c.luaopen_math, true);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
 
     /// Open the io standard library
+    ///
+    /// Not available in Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
     pub fn openIO(lua: *Lua) void {
         lua.requireF(c.LUA_IOLIBNAME, c.luaopen_io, true);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
 
     /// Open the os standard library
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
     pub fn openOS(lua: *Lua) void {
         lua.requireF(c.LUA_OSLIBNAME, c.luaopen_os, true);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
 
     /// Open the debug standard library
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
     pub fn openDebug(lua: *Lua) void {
         lua.requireF(c.LUA_DBLIBNAME, c.luaopen_debug, true);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
 
     /// Open the bit32 standard library
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
     pub fn openBit32(lua: *Lua) void {
         lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit32, true);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
 
     /// Returns if given typeinfo is a string type

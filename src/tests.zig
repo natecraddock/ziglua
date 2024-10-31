@@ -86,6 +86,8 @@ test "standard library loading" {
         lua.openOS();
         lua.openDebug();
 
+        if (ziglua.lang != .lua51 and ziglua.lang != .lua53 and ziglua.lang != .lua54) lua.openBit32();
+
         if (ziglua.lang != .luau) {
             lua.openPackage();
             lua.openIO();
