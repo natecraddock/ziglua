@@ -5,15 +5,19 @@ const Step = std.Build.Step;
 
 pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, shared: bool) *Step.Compile {
     // TODO: extract this to the main build function because it is shared between all specialized build functions
-    const lib_opts = .{
-        .name = "lua",
-        .target = target,
-        .optimize = optimize,
-    };
+
     const lib: *Step.Compile = if (shared)
-        b.addSharedLibrary(lib_opts)
+        b.addSharedLibrary(.{
+            .name = "lua",
+            .target = target,
+            .optimize = optimize,
+        })
     else
-        b.addStaticLibrary(lib_opts);
+        b.addStaticLibrary(.{
+            .name = "lua",
+            .target = target,
+            .optimize = optimize,
+        });
 
     // Compile minilua interpreter used at build time to generate files
     const minilua = b.addExecutable(.{
