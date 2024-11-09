@@ -980,6 +980,10 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.1/manual.html#lua_equal
     pub fn equal(lua: *Lua, index1: i32, index2: i32) bool {
+        switch (lang) {
+            .lua52, .lua53, .lua54 => @compileError("lua_equal is deprecated, use Lua.compare with .eq instead"),
+            else => {},
+        }
         return c.lua_equal(@ptrCast(lua), index1, index2) == 1;
     }
 
