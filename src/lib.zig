@@ -994,8 +994,6 @@ pub const Lua = opaque {
     /// * Pushes: `0`
     /// * Errors: `explained in text / on purpose`
     ///
-    /// Raises a Lua error using the value at the top of the stack as the error object
-    /// Does a longjump and therefore never returns
     /// See https://www.lua.org/manual/5.4/manual.html#lua_error
     pub fn raiseError(lua: *Lua) noreturn {
         _ = c.lua_error(@ptrCast(lua));
