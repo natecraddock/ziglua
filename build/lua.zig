@@ -13,22 +13,28 @@ pub const Language = enum {
 };
 
 pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lang: Language, shared: bool) *Step.Compile {
-    const lib_opts = .{
-        .name = "lua",
-        .target = target,
-        .optimize = optimize,
-        .version = switch (lang) {
-            .lua51 => std.SemanticVersion{ .major = 5, .minor = 1, .patch = 5 },
-            .lua52 => std.SemanticVersion{ .major = 5, .minor = 2, .patch = 4 },
-            .lua53 => std.SemanticVersion{ .major = 5, .minor = 3, .patch = 6 },
-            .lua54 => std.SemanticVersion{ .major = 5, .minor = 4, .patch = 6 },
-            else => unreachable,
-        },
+    const version = switch (lang) {
+        .lua51 => std.SemanticVersion{ .major = 5, .minor = 1, .patch = 5 },
+        .lua52 => std.SemanticVersion{ .major = 5, .minor = 2, .patch = 4 },
+        .lua53 => std.SemanticVersion{ .major = 5, .minor = 3, .patch = 6 },
+        .lua54 => std.SemanticVersion{ .major = 5, .minor = 4, .patch = 6 },
+        else => unreachable,
     };
+
     const lib = if (shared)
-        b.addSharedLibrary(lib_opts)
+        b.addSharedLibrary(.{
+            .name = "lua",
+            .target = target,
+            .optimize = optimize,
+            .version = version,
+        })
     else
-        b.addStaticLibrary(lib_opts);
+        b.addStaticLibrary(.{
+            .name = "lua",
+            .target = target,
+            .optimize = optimize,
+            .version = version,
+        });
 
     lib.addIncludePath(upstream.path("src"));
 
