@@ -5138,7 +5138,7 @@ pub fn exportFn(comptime name: []const u8, comptime func: anytype) CFn {
         }
 
         comptime {
-            @export(luaopen, .{ .name = "luaopen_" ++ name });
+            @export(&luaopen, .{ .name = "luaopen_" ++ name });
         }
     }.luaopen;
 }
