@@ -76,7 +76,15 @@ pub fn build(b: *Build) void {
     });
     c_headers.addIncludePath(lib.getEmittedIncludeTree());
     c_headers.step.dependOn(&install_lib.step);
-    ziglua.addImport("c", c_headers.createModule());
+
+    const ziglua_c = b.addModule("ziglua-c", .{
+        .root_source_file = c_headers.getOutput(),
+        .target = c_headers.target,
+        .optimize = c_headers.optimize,
+        .link_libc = c_headers.link_libc,
+    });
+
+    ziglua.addImport("c", ziglua_c);
 
     // Tests
     const tests = b.addTest(.{
