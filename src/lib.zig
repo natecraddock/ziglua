@@ -5094,16 +5094,40 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
 /// Zig wrapper for Luau lua_CompileOptions that uses the same defaults as Luau if
 /// no compile options is specified.
 pub const CompileOptions = struct {
+    /// 0. no optimization
+    /// 1. baseline optimization level that doesn't prevent debuggability
+    /// 2. includes optimizations that harm debuggability such as inlining
     optimization_level: i32 = 1,
+
+    /// 0. no debugging support
+    /// 1. line info & function names only; sufficient for backtraces
+    /// 2. full debug info with local & upvalue names; necessary for debugger
     debug_level: i32 = 1,
+
+    /// type information is used to guide native code generation decisions
+    /// information includes testable types for function arguments, locals, upvalues and some temporaries
+    ///
+    /// 0. generate for native modules
+    /// 1. generate for all modules
+    type_info_level: i32 = 0,
+
+    /// 0. no code coverage support
+    /// 1. statement coverage
+    /// 2. statement and expression coverage (verbose)
     coverage_level: i32 = 0,
-    /// global builtin to construct vectors; disabled by default (<vector_lib>.<vector_ctor>)
+
+    /// alternative global builtin to construct vectors, in addition to default builtin 'vector.create'
     vector_lib: ?[*:0]const u8 = null,
     vector_ctor: ?[*:0]const u8 = null,
-    /// vector type name for type tables; disabled by default
+
+    /// alternative vector type name for type tables, in addition to default type 'vector'
     vector_type: ?[*:0]const u8 = null,
+
     /// null-terminated array of globals that are mutable; disables the import optimization for fields accessed through these
     mutable_globals: ?[*:null]const ?[*:0]const u8 = null,
+
+    /// null-terminated array of userdata types that will be included in the type information
+    userdata_types: ?[*:null]const ?[*:0]const u8 = null,
 };
 
 /// Compile luau source into bytecode, return callee owned buffer allocated through the given allocator.
@@ -5113,10 +5137,12 @@ pub fn compile(allocator: Allocator, source: []const u8, options: CompileOptions
     var opts = c.lua_CompileOptions{
         .optimizationLevel = options.optimization_level,
         .debugLevel = options.debug_level,
+        .typeInfoLevel = options.type_info_level,
         .coverageLevel = options.coverage_level,
         .vectorLib = options.vector_lib,
         .vectorCtor = options.vector_ctor,
         .mutableGlobals = options.mutable_globals,
+        .userdataTypes = options.userdata_types,
     };
     const bytecode = c.luau_compile(source.ptr, source.len, &opts, &size);
     if (bytecode == null) return error.OutOfMemory;
