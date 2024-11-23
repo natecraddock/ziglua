@@ -8,7 +8,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
         .name = "luau",
         .target = target,
         .optimize = optimize,
-        .version = std.SemanticVersion{ .major = 0, .minor = 607, .patch = 0 },
+        .version = std.SemanticVersion{ .major = 0, .minor = 653, .patch = 0 },
     });
 
     lib.addIncludePath(upstream.path("Common/include"));
@@ -84,10 +84,12 @@ const luau_source_files = [_][]const u8{
     "VM/src/ltm.cpp",
     "VM/src/ludata.cpp",
     "VM/src/lutf8lib.cpp",
+    "VM/src/lveclib.cpp",
     "VM/src/lvmexecute.cpp",
     "VM/src/lvmload.cpp",
     "VM/src/lvmutils.cpp",
 
+    "Ast/src/Allocator.cpp",
     "Ast/src/Ast.cpp",
     "Ast/src/Confusables.cpp",
     "Ast/src/Lexer.cpp",
