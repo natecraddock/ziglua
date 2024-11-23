@@ -4296,6 +4296,18 @@ pub const Lua = opaque {
         if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
 
+    /// Open the vector standard library
+    ///
+    /// Only available in Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
+    pub fn openVector(lua: *Lua) void {
+        lua.requireF(c.LUA_VECLIBNAME, c.luaopen_vector, true);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
+    }
+
     /// Returns if given typeinfo is a string type
     fn isTypeString(typeinfo: std.builtin.Type.Pointer) bool {
         const childinfo = @typeInfo(typeinfo.child);
