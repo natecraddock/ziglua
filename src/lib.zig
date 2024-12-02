@@ -585,6 +585,34 @@ pub fn Parsed(comptime T: type) type {
     };
 }
 
+const internals = [_][]const u8{ "toStruct", "toSlice", "toTuple", "toAnyInternal" };
+
+// wrap over some internal functions of the Lua struct
+pub const Internals = blk: {
+    const StructField = std.builtin.Type.StructField;
+    var fields: [internals.len]StructField = undefined;
+    for (internals, 0..) |entry, i| {
+        const F = @field(Lua, entry);
+        const T = @TypeOf(F);
+        fields[i] = .{
+            .name = @ptrCast(entry),
+            .type = T,
+            .default_value = &F,
+            .is_comptime = false,
+            .alignment = @alignOf(T),
+        };
+    }
+
+    const TT = @Type(.{ .@"struct" = .{
+        .layout = .auto,
+        .fields = &fields,
+        .decls = &.{},
+        .is_tuple = false,
+    } });
+
+    break :blk TT{};
+};
+
 /// A Zig wrapper around the Lua C API
 /// Represents a Lua state or thread and contains the entire state of the Lua interpreter
 pub const Lua = opaque {
@@ -4352,7 +4380,27 @@ pub const Lua = opaque {
     /// Works with ints, floats, booleans, structs,
     /// tagged unions, optionals, and strings
     pub fn pushAny(lua: *Lua, value: anytype) !void {
-        switch (@typeInfo(@TypeOf(value))) {
+        const T = @TypeOf(value);
+        const type_info = @typeInfo(T);
+
+        if (type_info == .@"struct" or type_info == .@"union" or type_info == .@"enum") {
+            if (@hasDecl(T, "ziglua_pushAny")) {
+                const fnInfo = @typeInfo(@TypeOf(T.ziglua_pushAny)).@"fn";
+                switch (fnInfo.params.len) {
+                    // fn(self, lua) -> void
+                    2 => {
+                        if (@typeInfo(fnInfo.return_type.?) == .error_union) {
+                            return try value.ziglua_pushAny(lua);
+                        } else {
+                            return value.ziglua_pushAny(lua);
+                        }
+                    },
+                    else => @compileError(@typeName(T) ++ ".ziglua_pushAny has invalid signature, required: fn(self: T, lua: *Lua) void"),
+                }
+            }
+        }
+
+        switch (type_info) {
             .int, .comptime_int => {
                 lua.pushInteger(@intCast(value));
             },
@@ -4407,10 +4455,18 @@ pub const Lua = opaque {
             },
             .@"struct" => |info| {
                 lua.createTable(0, 0);
-                inline for (info.fields) |field| {
-                    try lua.pushAny(field.name);
-                    try lua.pushAny(@field(value, field.name));
-                    lua.setTable(-3);
+                if (info.is_tuple) {
+                    inline for (0..info.fields.len) |i| {
+                        try lua.pushAny(i + 1);
+                        try lua.pushAny(value[i]);
+                        lua.setTable(-3);
+                    }
+                } else {
+                    inline for (info.fields) |field| {
+                        try lua.pushAny(field.name);
+                        try lua.pushAny(@field(value, field.name));
+                        lua.setTable(-3);
+                    }
                 }
             },
             .@"union" => |info| {
@@ -4477,7 +4533,26 @@ pub const Lua = opaque {
             }
         }
 
-        switch (@typeInfo(T)) {
+        const type_info = @typeInfo(T);
+
+        if (type_info == .@"struct" or type_info == .@"union" or type_info == .@"enum") {
+            if (@hasDecl(T, "ziglua_toAny")) {
+                const fnInfo = @typeInfo(@TypeOf(T.ziglua_toAny)).@"fn";
+                switch (fnInfo.params.len) {
+                    // fn(lua_state, alloc, allow_alloc, index) -> T
+                    4 => {
+                        if (@typeInfo(fnInfo.return_type.?) == .error_union) {
+                            return try T.ziglua_toAny(lua, a, allow_alloc, index);
+                        } else {
+                            return T.ziglua_toAny(lua, a, allow_alloc, index);
+                        }
+                    },
+                    else => @compileError(@typeName(T) ++ ".ziglua_toAny has invalid signature, required: fn(lua: *Lua, alloc: ?std.mem.Allocator, comptime allow_alloc: bool, index: i32) T"),
+                }
+            }
+        }
+
+        switch (type_info) {
             .int => {
                 const result = try lua.toInteger(index);
                 return @as(T, @intCast(result));
@@ -4551,7 +4626,11 @@ pub const Lua = opaque {
                 return error.LuaInvalidEnumTagName;
             },
             .@"struct" => {
-                return try lua.toStruct(T, a, allow_alloc, index);
+                if (type_info.@"struct".is_tuple) {
+                    return try lua.toTuple(T, a, allow_alloc, index);
+                } else {
+                    return try lua.toStruct(T, a, allow_alloc, index);
+                }
             },
             .@"union" => |u| {
                 if (u.tag_type == null) @compileError("Parameter type is not a tagged union");
@@ -4612,6 +4691,49 @@ pub const Lua = opaque {
             _ = lua.getTable(index);
             defer lua.pop(1);
             result[i - 1] = try lua.toAnyInternal(ChildType, a, true, -1);
+        }
+
+        return result;
+    }
+
+    /// Converts value at given index to a zig struct tuple if possible
+    fn toTuple(lua: *Lua, comptime T: type, a: ?std.mem.Allocator, comptime allow_alloc: bool, raw_index: i32) !T {
+        const stack_size_on_entry = lua.getTop();
+        defer std.debug.assert(lua.getTop() == stack_size_on_entry);
+
+        const info = @typeInfo(T).@"struct";
+        const index = lua.absIndex(raw_index);
+
+        var result: T = undefined;
+
+        if (lua.isTable(index)) {
+            lua.pushValue(index);
+            defer lua.pop(1);
+
+            inline for (info.fields, 0..) |field, i| {
+                if (lua.getMetaField(-1, "__index")) |_| {
+                    lua.pushValue(-2);
+                    lua.pushInteger(@intCast(i + 1));
+                    lua.call(.{ .args = 1, .results = 1 });
+                } else |_| {
+                    _ = lua.rawGetIndex(-1, @intCast(i + 1));
+                }
+                defer lua.pop(1);
+                result[i] = try lua.toAnyInternal(field.type, a, allow_alloc, -1);
+            }
+        } else {
+            // taking it as vararg
+            const in_range = if (raw_index < 0) (index - @as(i32, info.fields.len)) >= 0 else ((index + @as(i32, info.fields.len)) - 1) <= stack_size_on_entry;
+            if (in_range) {
+                inline for (info.fields, 0..) |field, i| {
+                    const stack_size_before_call = lua.getTop();
+                    const idx = if (raw_index < 0) index - @as(i32, @intCast(i)) else index + @as(i32, @intCast(i));
+                    result[i] = try lua.toAnyInternal(field.type, a, allow_alloc, idx);
+                    std.debug.assert(stack_size_before_call == lua.getTop());
+                }
+            } else {
+                return error.NotInRange;
+            }
         }
 
         return result;
