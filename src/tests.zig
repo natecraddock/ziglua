@@ -2382,6 +2382,91 @@ test "toAny struct" {
     ));
 }
 
+test "toAny tuple from vararg" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const Tuple = std.meta.Tuple(&.{ i32, bool, i32 });
+
+    lua.pushInteger(100);
+    lua.pushBoolean(true);
+    lua.pushInteger(300);
+
+    const result = try lua.toAny(Tuple, 1);
+    try testing.expect(std.meta.eql(result, .{ 100, true, 300 }));
+
+    const result_reverse = try lua.toAny(Tuple, -1);
+    try testing.expect(std.meta.eql(result_reverse, .{ 300, true, 100 }));
+
+    const result_error = lua.toAny(Tuple, 2);
+    try testing.expectError(error.NotInRange, result_error);
+
+    const result_reverse_error = lua.toAny(Tuple, -2);
+    try testing.expectError(error.NotInRange, result_reverse_error);
+}
+
+test "toAny tuple from struct" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const MyType = struct {
+        foo: i32,
+        bar: bool,
+        tuple: std.meta.Tuple(&.{ i32, bool, struct { foo: bool } }),
+    };
+
+    try lua.doString(
+        \\ value = {
+        \\   ["foo"] = 10,
+        \\   ["bar"] = false,
+        \\   ["tuple"] = {100, false, {["foo"] = true}}
+        \\ }
+    );
+
+    const lua_type = try lua.getGlobal("value");
+    try testing.expect(lua_type == .table);
+    const my_struct = try lua.toAny(MyType, 1);
+    try testing.expect(std.meta.eql(
+        my_struct,
+        MyType{ .foo = 10, .bar = false, .tuple = .{ 100, false, .{ .foo = true } } },
+    ));
+}
+
+test "toAny from struct with custom toAny" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const MyType = struct {
+        foo: bool,
+        bar: struct {
+            const Self = @This();
+            foo: i32,
+
+            pub fn ziglua_toAny(l: *Lua, a: ?std.mem.Allocator, comptime aa: bool, i: i32) !Self {
+                return try ziglua.Internals.toStruct(l, Self, a, aa, i);
+            }
+        },
+    };
+
+    try lua.doString(
+        \\ value = {
+        \\   ["foo"] = true,
+        \\   ["bar"] = {
+        \\     ["foo"] = 12
+        \\   }
+        \\ }
+    );
+
+    const lua_type = try lua.getGlobal("value");
+    try testing.expect(lua_type == .table);
+    const my_struct = try lua.toAny(MyType, 1);
+    lua.pop(-1);
+    try testing.expect(std.meta.eql(
+        my_struct,
+        MyType{ .foo = true, .bar = .{ .foo = 12 } },
+    ));
+}
+
 test "toAny mutable string" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -2591,18 +2676,47 @@ test "pushAny struct" {
     try testing.expect(value.bar == (MyType{}).bar);
 }
 
-test "pushAny anon struct" {
+test "pushAny tuple" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const Tuple = std.meta.Tuple(&.{ i32, bool, i32 });
+    const value: Tuple = .{ 500, false, 600 };
+
+    try lua.pushAny(value);
+
+    const result = try lua.toAny(Tuple, 1);
+    try testing.expect(std.meta.eql(result, .{ 500, false, 600 }));
+}
+
+test "pushAny from struct with custom pushAny" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
     const MyType = struct {
-        x: i32,
-        enable: bool,
+        const Self = @This();
+        foo: i32,
+        tuple: std.meta.Tuple(&.{ i32, i32 }),
+
+        pub fn ziglua_pushAny(self: *const Self, l: *Lua) !void {
+            l.newTable();
+
+            inline for (@typeInfo(Self).@"struct".fields) |f| {
+                try l.pushAny(f.name);
+                try l.pushAny(@field(self, f.name));
+                l.setTable(-3);
+            }
+        }
     };
-    try lua.pushAny(.{ .x = @as(i32, 13), .enable = true });
-    const value = try lua.toAny(MyType, -1);
-    try testing.expect(value.x == 13);
-    try testing.expect(value.enable == true);
+
+    const value: MyType = .{ .foo = 15, .tuple = .{ 1, 2 } };
+
+    try lua.pushAny(value);
+    const my_struct = try lua.toAny(MyType, 1);
+    try testing.expect(std.meta.eql(
+        my_struct,
+        MyType{ .foo = 15, .tuple = .{ 1, 2 } },
+    ));
 }
 
 test "pushAny tagged union" {
