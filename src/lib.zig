@@ -4400,6 +4400,70 @@ pub const Lua = opaque {
             }
         }
 
+        if (type_info == .@"struct" or type_info == .@"union" or type_info == .@"enum") {
+            if (@hasDecl(T, "toLua")) {
+                const toLuaArgs = .{ value, lua };
+                const fnSignature = comptime fn_sign: {
+                    var b: []const u8 = "pub fn toLua(";
+
+                    for (0..toLuaArgs.len) |i| {
+                        b = b ++ std.fmt.comptimePrint("{s}{s}", .{ @typeName(@TypeOf(toLuaArgs[i])), if (i == (toLuaArgs.len - 1)) "" else ", " });
+                    }
+
+                    b = b ++ ") !void";
+
+                    break :fn_sign b;
+                };
+
+                const fl = @field(T, "toLua");
+                const flt = @TypeOf(fl);
+                const fli = @typeInfo(flt);
+                switch (fli) {
+                    .@"fn" => |f| {
+                        const args_ok = comptime args_ok: {
+                            const f_params = f.params;
+
+                            if (f_params.len != toLuaArgs.len) break :args_ok false;
+
+                            for (0..toLuaArgs.len) |i| {
+                                if (f_params[i].type != @TypeOf(toLuaArgs[i])) break :args_ok false;
+                            }
+
+                            break :args_ok true;
+                        };
+
+                        if (args_ok) {
+                            if (f.return_type) |rt| {
+                                const rti = @typeInfo(rt);
+                                switch (rti) {
+                                    .error_union => {
+                                        if (rti.error_union.payload == void) {
+                                            try @call(.auto, fl, toLuaArgs);
+                                        } else {
+                                            @compileError("toLua invalid return type, required fn signature: " ++ fnSignature);
+                                        }
+                                    },
+                                    .void => {
+                                        @call(.auto, fl, toLuaArgs);
+                                    },
+                                    else => {
+                                        @compileError("toLua invalid return type, required fn signature: " ++ fnSignature);
+                                    },
+                                }
+                            } else {
+                                @call(.auto, fl, toLuaArgs);
+                            }
+                        } else {
+                            @compileError("toLua has invalid args, required fn signature: " ++ fnSignature);
+                        }
+                    },
+                    else => {
+                        @compileError("toLua is not a function, required fn signature: " ++ fnSignature);
+                    },
+                }
+            }
+        }
+
         switch (type_info) {
             .int, .comptime_int => {
                 lua.pushInteger(@intCast(value));
@@ -4536,18 +4600,66 @@ pub const Lua = opaque {
         const type_info = @typeInfo(T);
 
         if (type_info == .@"struct" or type_info == .@"union" or type_info == .@"enum") {
-            if (@hasDecl(T, "ziglua_toAny")) {
-                const fnInfo = @typeInfo(@TypeOf(T.ziglua_toAny)).@"fn";
-                switch (fnInfo.params.len) {
-                    // fn(lua_state, alloc, allow_alloc, index) -> T
-                    4 => {
-                        if (@typeInfo(fnInfo.return_type.?) == .error_union) {
-                            return try T.ziglua_toAny(lua, a, allow_alloc, index);
+            if (@hasDecl(T, "fromLua")) {
+                const fromLuaArgs = .{ lua, a, index };
+                const fnSignature = comptime fn_sign: {
+                    var b: []const u8 = "pub fn fromLua(";
+
+                    for (0..fromLuaArgs.len) |i| {
+                        b = b ++ std.fmt.comptimePrint("{s}{s}", .{ @typeName(@TypeOf(fromLuaArgs[i])), if (i == (fromLuaArgs.len - 1)) "" else ", " });
+                    }
+
+                    b = b ++ ") !" ++ @typeName(T);
+
+                    break :fn_sign b;
+                };
+
+                const fl = @field(T, "fromLua");
+                const flt = @TypeOf(fl);
+                const fli = @typeInfo(flt);
+                switch (fli) {
+                    .@"fn" => |f| {
+                        const args_ok = comptime args_ok: {
+                            const f_params = f.params;
+
+                            if (f_params.len != fromLuaArgs.len) break :args_ok false;
+
+                            for (0..fromLuaArgs.len) |i| {
+                                if (f_params[i].type != @TypeOf(fromLuaArgs[i])) break :args_ok false;
+                            }
+
+                            break :args_ok true;
+                        };
+
+                        if (args_ok) {
+                            if (f.return_type) |rt| {
+                                if (rt == T) {
+                                    return @call(.auto, fl, fromLuaArgs);
+                                } else {
+                                    const rti = @typeInfo(rt);
+                                    switch (rti) {
+                                        .error_union => {
+                                            if (rti.error_union.payload == T) {
+                                                return try @call(.auto, fl, fromLuaArgs);
+                                            } else {
+                                                @compileError("fromLua invalid return type, required fn signature: " ++ fnSignature);
+                                            }
+                                        },
+                                        else => {
+                                            @compileError("fromLua invalid return type, required fn signature: " ++ fnSignature);
+                                        },
+                                    }
+                                }
+                            } else {
+                                @compileError("fromLua require a fn signature: " ++ fnSignature);
+                            }
                         } else {
-                            return T.ziglua_toAny(lua, a, allow_alloc, index);
+                            @compileError("fromLua has invalid args, required fn signature: " ++ fnSignature);
                         }
                     },
-                    else => @compileError(@typeName(T) ++ ".ziglua_toAny has invalid signature, required: fn(lua: *Lua, alloc: ?std.mem.Allocator, comptime allow_alloc: bool, index: i32) T"),
+                    else => {
+                        @compileError("fromLua is not a function, required fn signature: " ++ fnSignature);
+                    },
                 }
             }
         }
