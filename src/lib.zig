@@ -4438,20 +4438,20 @@ pub const Lua = opaque {
                                 switch (rti) {
                                     .error_union => {
                                         if (rti.error_union.payload == void) {
-                                            try @call(.auto, fl, toLuaArgs);
+                                            return try @call(.auto, fl, toLuaArgs);
                                         } else {
                                             @compileError("toLua invalid return type, required fn signature: " ++ fnSignature);
                                         }
                                     },
                                     .void => {
-                                        @call(.auto, fl, toLuaArgs);
+                                        return @call(.auto, fl, toLuaArgs);
                                     },
                                     else => {
                                         @compileError("toLua invalid return type, required fn signature: " ++ fnSignature);
                                     },
                                 }
                             } else {
-                                @call(.auto, fl, toLuaArgs);
+                                return @call(.auto, fl, toLuaArgs);
                             }
                         } else {
                             @compileError("toLua has invalid args, required fn signature: " ++ fnSignature);
