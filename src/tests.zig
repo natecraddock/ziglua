@@ -2432,7 +2432,7 @@ test "toAny tuple from struct" {
     ));
 }
 
-test "toAny from struct with custom toAny" {
+test "toAny from struct with fromLua" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
@@ -2442,8 +2442,8 @@ test "toAny from struct with custom toAny" {
             const Self = @This();
             foo: i32,
 
-            pub fn ziglua_toAny(l: *Lua, a: ?std.mem.Allocator, comptime aa: bool, i: i32) !Self {
-                return try ziglua.Internals.toStruct(l, Self, a, aa, i);
+            pub fn fromLua(l: *Lua, a: ?std.mem.Allocator, i: i32) !Self {
+                return try ziglua.Internals.toStruct(l, Self, a, false, i);
             }
         },
     };
@@ -2460,7 +2460,6 @@ test "toAny from struct with custom toAny" {
     const lua_type = try lua.getGlobal("value");
     try testing.expect(lua_type == .table);
     const my_struct = try lua.toAny(MyType, 1);
-    lua.pop(-1);
     try testing.expect(std.meta.eql(
         my_struct,
         MyType{ .foo = true, .bar = .{ .foo = 12 } },
@@ -2689,7 +2688,7 @@ test "pushAny tuple" {
     try testing.expect(std.meta.eql(result, .{ 500, false, 600 }));
 }
 
-test "pushAny from struct with custom pushAny" {
+test "pushAny from struct with toLua" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
@@ -2698,7 +2697,7 @@ test "pushAny from struct with custom pushAny" {
         foo: i32,
         tuple: std.meta.Tuple(&.{ i32, i32 }),
 
-        pub fn ziglua_pushAny(self: *const Self, l: *Lua) !void {
+        pub fn toLua(self: Self, l: *Lua) void {
             l.newTable();
 
             inline for (@typeInfo(Self).@"struct".fields) |f| {
