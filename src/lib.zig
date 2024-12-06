@@ -585,6 +585,34 @@ pub fn Parsed(comptime T: type) type {
     };
 }
 
+const internals = [_][]const u8{ "toStruct", "toSlice", "toTuple", "toAnyInternal" };
+
+// wrap over some internal functions of the Lua struct
+pub const Internals = blk: {
+    const StructField = std.builtin.Type.StructField;
+    var fields: [internals.len]StructField = undefined;
+    for (internals, 0..) |entry, i| {
+        const F = @field(Lua, entry);
+        const T = @TypeOf(F);
+        fields[i] = .{
+            .name = @ptrCast(entry),
+            .type = T,
+            .default_value = &F,
+            .is_comptime = false,
+            .alignment = @alignOf(T),
+        };
+    }
+
+    const TT = @Type(.{ .@"struct" = .{
+        .layout = .auto,
+        .fields = &fields,
+        .decls = &.{},
+        .is_tuple = false,
+    } });
+
+    break :blk TT{};
+};
+
 /// A Zig wrapper around the Lua C API
 /// Represents a Lua state or thread and contains the entire state of the Lua interpreter
 pub const Lua = opaque {
@@ -4355,7 +4383,74 @@ pub const Lua = opaque {
     /// Works with ints, floats, booleans, structs,
     /// tagged unions, optionals, and strings
     pub fn pushAny(lua: *Lua, value: anytype) !void {
-        switch (@typeInfo(@TypeOf(value))) {
+        const T = @TypeOf(value);
+        const type_info = @typeInfo(T);
+
+        if (type_info == .@"struct" or type_info == .@"union" or type_info == .@"enum") {
+            if (@hasDecl(T, "toLua")) {
+                const toLuaArgs = .{ value, lua };
+                const fnSignature = comptime fn_sign: {
+                    var b: []const u8 = "pub fn toLua(";
+
+                    for (0..toLuaArgs.len) |i| {
+                        b = b ++ std.fmt.comptimePrint("{s}{s}", .{ @typeName(@TypeOf(toLuaArgs[i])), if (i == (toLuaArgs.len - 1)) "" else ", " });
+                    }
+
+                    b = b ++ ") !void";
+
+                    break :fn_sign b;
+                };
+
+                const fl = @field(T, "toLua");
+                const flt = @TypeOf(fl);
+                const fli = @typeInfo(flt);
+                switch (fli) {
+                    .@"fn" => |f| {
+                        const args_ok = comptime args_ok: {
+                            const f_params = f.params;
+
+                            if (f_params.len != toLuaArgs.len) break :args_ok false;
+
+                            for (0..toLuaArgs.len) |i| {
+                                if (f_params[i].type != @TypeOf(toLuaArgs[i])) break :args_ok false;
+                            }
+
+                            break :args_ok true;
+                        };
+
+                        if (args_ok) {
+                            if (f.return_type) |rt| {
+                                const rti = @typeInfo(rt);
+                                switch (rti) {
+                                    .error_union => {
+                                        if (rti.error_union.payload == void) {
+                                            return try @call(.auto, fl, toLuaArgs);
+                                        } else {
+                                            @compileError("toLua invalid return type, required fn signature: " ++ fnSignature);
+                                        }
+                                    },
+                                    .void => {
+                                        return @call(.auto, fl, toLuaArgs);
+                                    },
+                                    else => {
+                                        @compileError("toLua invalid return type, required fn signature: " ++ fnSignature);
+                                    },
+                                }
+                            } else {
+                                return @call(.auto, fl, toLuaArgs);
+                            }
+                        } else {
+                            @compileError("toLua has invalid args, required fn signature: " ++ fnSignature);
+                        }
+                    },
+                    else => {
+                        @compileError("toLua is not a function, required fn signature: " ++ fnSignature);
+                    },
+                }
+            }
+        }
+
+        switch (type_info) {
             .int, .comptime_int => {
                 lua.pushInteger(@intCast(value));
             },
@@ -4410,10 +4505,18 @@ pub const Lua = opaque {
             },
             .@"struct" => |info| {
                 lua.createTable(0, 0);
-                inline for (info.fields) |field| {
-                    try lua.pushAny(field.name);
-                    try lua.pushAny(@field(value, field.name));
-                    lua.setTable(-3);
+                if (info.is_tuple) {
+                    inline for (0..info.fields.len) |i| {
+                        try lua.pushAny(i + 1);
+                        try lua.pushAny(value[i]);
+                        lua.setTable(-3);
+                    }
+                } else {
+                    inline for (info.fields) |field| {
+                        try lua.pushAny(field.name);
+                        try lua.pushAny(@field(value, field.name));
+                        lua.setTable(-3);
+                    }
                 }
             },
             .@"union" => |info| {
@@ -4480,7 +4583,74 @@ pub const Lua = opaque {
             }
         }
 
-        switch (@typeInfo(T)) {
+        const type_info = @typeInfo(T);
+
+        if (type_info == .@"struct" or type_info == .@"union" or type_info == .@"enum") {
+            if (@hasDecl(T, "fromLua")) {
+                const fromLuaArgs = .{ lua, a, index };
+                const fnSignature = comptime fn_sign: {
+                    var b: []const u8 = "pub fn fromLua(";
+
+                    for (0..fromLuaArgs.len) |i| {
+                        b = b ++ std.fmt.comptimePrint("{s}{s}", .{ @typeName(@TypeOf(fromLuaArgs[i])), if (i == (fromLuaArgs.len - 1)) "" else ", " });
+                    }
+
+                    b = b ++ ") !" ++ @typeName(T);
+
+                    break :fn_sign b;
+                };
+
+                const fl = @field(T, "fromLua");
+                const flt = @TypeOf(fl);
+                const fli = @typeInfo(flt);
+                switch (fli) {
+                    .@"fn" => |f| {
+                        const args_ok = comptime args_ok: {
+                            const f_params = f.params;
+
+                            if (f_params.len != fromLuaArgs.len) break :args_ok false;
+
+                            for (0..fromLuaArgs.len) |i| {
+                                if (f_params[i].type != @TypeOf(fromLuaArgs[i])) break :args_ok false;
+                            }
+
+                            break :args_ok true;
+                        };
+
+                        if (args_ok) {
+                            if (f.return_type) |rt| {
+                                if (rt == T) {
+                                    return @call(.auto, fl, fromLuaArgs);
+                                } else {
+                                    const rti = @typeInfo(rt);
+                                    switch (rti) {
+                                        .error_union => {
+                                            if (rti.error_union.payload == T) {
+                                                return try @call(.auto, fl, fromLuaArgs);
+                                            } else {
+                                                @compileError("fromLua invalid return type, required fn signature: " ++ fnSignature);
+                                            }
+                                        },
+                                        else => {
+                                            @compileError("fromLua invalid return type, required fn signature: " ++ fnSignature);
+                                        },
+                                    }
+                                }
+                            } else {
+                                @compileError("fromLua require a fn signature: " ++ fnSignature);
+                            }
+                        } else {
+                            @compileError("fromLua has invalid args, required fn signature: " ++ fnSignature);
+                        }
+                    },
+                    else => {
+                        @compileError("fromLua is not a function, required fn signature: " ++ fnSignature);
+                    },
+                }
+            }
+        }
+
+        switch (type_info) {
             .int => {
                 const result = try lua.toInteger(index);
                 return @as(T, @intCast(result));
@@ -4554,7 +4724,11 @@ pub const Lua = opaque {
                 return error.LuaInvalidEnumTagName;
             },
             .@"struct" => {
-                return try lua.toStruct(T, a, allow_alloc, index);
+                if (type_info.@"struct".is_tuple) {
+                    return try lua.toTuple(T, a, allow_alloc, index);
+                } else {
+                    return try lua.toStruct(T, a, allow_alloc, index);
+                }
             },
             .@"union" => |u| {
                 if (u.tag_type == null) @compileError("Parameter type is not a tagged union");
@@ -4615,6 +4789,49 @@ pub const Lua = opaque {
             _ = lua.getTable(index);
             defer lua.pop(1);
             result[i - 1] = try lua.toAnyInternal(ChildType, a, true, -1);
+        }
+
+        return result;
+    }
+
+    /// Converts value at given index to a zig struct tuple if possible
+    fn toTuple(lua: *Lua, comptime T: type, a: ?std.mem.Allocator, comptime allow_alloc: bool, raw_index: i32) !T {
+        const stack_size_on_entry = lua.getTop();
+        defer std.debug.assert(lua.getTop() == stack_size_on_entry);
+
+        const info = @typeInfo(T).@"struct";
+        const index = lua.absIndex(raw_index);
+
+        var result: T = undefined;
+
+        if (lua.isTable(index)) {
+            lua.pushValue(index);
+            defer lua.pop(1);
+
+            inline for (info.fields, 0..) |field, i| {
+                if (lua.getMetaField(-1, "__index")) |_| {
+                    lua.pushValue(-2);
+                    lua.pushInteger(@intCast(i + 1));
+                    lua.call(.{ .args = 1, .results = 1 });
+                } else |_| {
+                    _ = lua.rawGetIndex(-1, @intCast(i + 1));
+                }
+                defer lua.pop(1);
+                result[i] = try lua.toAnyInternal(field.type, a, allow_alloc, -1);
+            }
+        } else {
+            // taking it as vararg
+            const in_range = if (raw_index < 0) (index - @as(i32, info.fields.len)) >= 0 else ((index + @as(i32, info.fields.len)) - 1) <= stack_size_on_entry;
+            if (in_range) {
+                inline for (info.fields, 0..) |field, i| {
+                    const stack_size_before_call = lua.getTop();
+                    const idx = if (raw_index < 0) index - @as(i32, @intCast(i)) else index + @as(i32, @intCast(i));
+                    result[i] = try lua.toAnyInternal(field.type, a, allow_alloc, idx);
+                    std.debug.assert(stack_size_before_call == lua.getTop());
+                }
+            } else {
+                return error.NotInRange;
+            }
         }
 
         return result;
