@@ -4384,23 +4384,6 @@ pub const Lua = opaque {
         const type_info = @typeInfo(T);
 
         if (type_info == .@"struct" or type_info == .@"union" or type_info == .@"enum") {
-            if (@hasDecl(T, "ziglua_pushAny")) {
-                const fnInfo = @typeInfo(@TypeOf(T.ziglua_pushAny)).@"fn";
-                switch (fnInfo.params.len) {
-                    // fn(self, lua) -> void
-                    2 => {
-                        if (@typeInfo(fnInfo.return_type.?) == .error_union) {
-                            return try value.ziglua_pushAny(lua);
-                        } else {
-                            return value.ziglua_pushAny(lua);
-                        }
-                    },
-                    else => @compileError(@typeName(T) ++ ".ziglua_pushAny has invalid signature, required: fn(self: T, lua: *Lua) void"),
-                }
-            }
-        }
-
-        if (type_info == .@"struct" or type_info == .@"union" or type_info == .@"enum") {
             if (@hasDecl(T, "toLua")) {
                 const toLuaArgs = .{ value, lua };
                 const fnSignature = comptime fn_sign: {
