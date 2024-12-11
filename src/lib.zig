@@ -585,34 +585,6 @@ pub fn Parsed(comptime T: type) type {
     };
 }
 
-const internals = [_][]const u8{ "toStruct", "toSlice", "toTuple", "toAnyInternal" };
-
-// wrap over some internal functions of the Lua struct
-pub const Internals = blk: {
-    const StructField = std.builtin.Type.StructField;
-    var fields: [internals.len]StructField = undefined;
-    for (internals, 0..) |entry, i| {
-        const F = @field(Lua, entry);
-        const T = @TypeOf(F);
-        fields[i] = .{
-            .name = @ptrCast(entry),
-            .type = T,
-            .default_value = &F,
-            .is_comptime = false,
-            .alignment = @alignOf(T),
-        };
-    }
-
-    const TT = @Type(.{ .@"struct" = .{
-        .layout = .auto,
-        .fields = &fields,
-        .decls = &.{},
-        .is_tuple = false,
-    } });
-
-    break :blk TT{};
-};
-
 /// A Zig wrapper around the Lua C API
 /// Represents a Lua state or thread and contains the entire state of the Lua interpreter
 pub const Lua = opaque {
@@ -4570,7 +4542,7 @@ pub const Lua = opaque {
     /// Converts the specified index of the lua stack to the specified
     /// type if possible and returns it
     /// optional allocator
-    fn toAnyInternal(lua: *Lua, comptime T: type, a: ?std.mem.Allocator, comptime allow_alloc: bool, index: i32) !T {
+    pub fn toAnyInternal(lua: *Lua, comptime T: type, a: ?std.mem.Allocator, comptime allow_alloc: bool, index: i32) !T {
         const stack_size_on_entry = lua.getTop();
         defer {
             if (lua.getTop() != stack_size_on_entry) {
@@ -4771,7 +4743,7 @@ pub const Lua = opaque {
     }
 
     /// Converts a lua array to a zig slice, memory is owned by the caller
-    fn toSlice(lua: *Lua, comptime ChildType: type, a: std.mem.Allocator, raw_index: i32) ![]ChildType {
+    pub fn toSlice(lua: *Lua, comptime ChildType: type, a: std.mem.Allocator, raw_index: i32) ![]ChildType {
         const index = lua.absIndex(raw_index);
 
         if (!lua.isTable(index)) {
@@ -4792,7 +4764,7 @@ pub const Lua = opaque {
     }
 
     /// Converts value at given index to a zig struct tuple if possible
-    fn toTuple(lua: *Lua, comptime T: type, a: ?std.mem.Allocator, comptime allow_alloc: bool, raw_index: i32) !T {
+    pub fn toTuple(lua: *Lua, comptime T: type, a: ?std.mem.Allocator, comptime allow_alloc: bool, raw_index: i32) !T {
         const stack_size_on_entry = lua.getTop();
         defer std.debug.assert(lua.getTop() == stack_size_on_entry);
 
@@ -4835,7 +4807,7 @@ pub const Lua = opaque {
     }
 
     /// Converts value at given index to a zig struct if possible
-    fn toStruct(lua: *Lua, comptime T: type, a: ?std.mem.Allocator, comptime allow_alloc: bool, raw_index: i32) !T {
+    pub fn toStruct(lua: *Lua, comptime T: type, a: ?std.mem.Allocator, comptime allow_alloc: bool, raw_index: i32) !T {
         const stack_size_on_entry = lua.getTop();
         defer std.debug.assert(lua.getTop() == stack_size_on_entry);
 
