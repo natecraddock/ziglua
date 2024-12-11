@@ -2443,7 +2443,7 @@ test "toAny from struct with fromLua" {
             foo: i32,
 
             pub fn fromLua(l: *Lua, a: ?std.mem.Allocator, i: i32) !Self {
-                return try ziglua.Internals.toStruct(l, Self, a, false, i);
+                return try l.toStruct(Self, a, false, i);
             }
         },
     };
