@@ -31,7 +31,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 
     // Generate the buildvm_arch.h file using minilua
     const dynasm_run = b.addRunArtifact(minilua);
-    dynasm_run.addFileArg(upstream.path("dynasm/dynasm.lua"));
+    dynasm_run.addFileArg(getDynasmLua(b, upstream));
 
     // TODO: Many more flags to figure out
     if (target.result.cpu.arch.endian() == .little) {
@@ -145,7 +145,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 
     buildvm_ljvm.addArg("-o");
     if (target.result.os.tag == .windows) {
-        const ljvm_ob = buildvm_ljvm.addOutputFileArg("lj_vm. o");
+        const ljvm_ob = buildvm_ljvm.addOutputFileArg("lj_vm.o");
         lib.addObjectFile(ljvm_ob);
     } else {
         const ljvm_asm = buildvm_ljvm.addOutputFileArg("lj_vm.S");
@@ -268,3 +268,34 @@ const luajit_vm = luajit_lib ++ [_][]const u8{
     "src/lib_aux.c",
     "src/lib_init.c",
 };
+
+fn getDynasmLua(b: *std.Build, upstream: *std.Build.Dependency) std.Build.LazyPath {
+    if (b.host.result.os.tag == .windows) {
+        // https://ziglang.org/learn/build-system/#mutating-source
+
+        // make modified dynasm.lua
+        const escape = b.addExecutable(.{
+            .target = b.host,
+            .name = "replace_backslash",
+            .root_source_file = b.path("build/replace_backslash.zig"),
+        });
+        const run = b.addRunArtifact(escape);
+        run.addFileArg(upstream.path("dynasm/dynasm.lua"));
+        const generated_dynasm_lua = run.addOutputFileArg("dynasm.lua");
+
+        // wf
+        // + dynasm/
+        //   + dynasm.lua: replace backslash to slash
+        //   + dasm_x64.lua
+        //   + dasm_x86.lua
+        const wf = b.addWriteFiles();
+        _ = wf.addCopyFile(generated_dynasm_lua, "dynasm/dynasm.lua");
+        _ = wf.addCopyFile(upstream.path("dynasm/dasm_x64.lua"), "dynasm/dasm_x64.lua");
+        _ = wf.addCopyFile(upstream.path("dynasm/dasm_x86.lua"), "dynasm/dasm_x86.lua");
+
+        // return modified version
+        return wf.getDirectory().path(b, "dynasm/dynasm.lua");
+    } else {
+        return upstream.path("dynasm/dynasm.lua");
+    }
+}
