@@ -8,7 +8,7 @@ const lua_setup = @import("build/lua.zig");
 const luau_setup = @import("build/luau.zig");
 const luajit_setup = @import("build/luajit.zig");
 
-pub fn build(b: *Build) void {
+pub fn build(b: *Build) !void {
     // Remove the default install and uninstall steps
     b.top_level_steps = .{};
 
@@ -18,14 +18,17 @@ pub fn build(b: *Build) void {
     const lang = b.option(Language, "lang", "Lua language version to build") orelse .lua54;
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
+    const system = b.systemIntegrationOption("lua", .{ .default = false });
 
-    if (lang == .luau and shared) {
+    if (lang == .luau and (shared or system)) {
         std.debug.panic("Luau does not support compiling or loading shared modules", .{});
     }
 
     // Zig module
     const ziglua = b.addModule("ziglua", .{
         .root_source_file = b.path("src/lib.zig"),
+        .target = if (system) target else null,
+        .optimize = if (system) optimize else null,
     });
 
     // Expose build configuration to the ziglua module
@@ -39,52 +42,85 @@ pub fn build(b: *Build) void {
         ziglua.addCMacro("LUA_VECTOR_SIZE", b.fmt("{}", .{vector_size}));
     }
 
-    const upstream = b.dependency(@tagName(lang), .{});
+    if (!system) {
+        const upstream = b.dependency(@tagName(lang), .{});
 
-    const lib = switch (lang) {
-        .luajit => luajit_setup.configure(b, target, optimize, upstream, shared),
-        .luau => luau_setup.configure(b, target, optimize, upstream, luau_use_4_vector),
-        else => lua_setup.configure(b, target, optimize, upstream, lang, shared),
-    };
+        const lib = switch (lang) {
+            .luajit => luajit_setup.configure(b, target, optimize, upstream, shared),
+            .luau => luau_setup.configure(b, target, optimize, upstream, luau_use_4_vector),
+            else => lua_setup.configure(b, target, optimize, upstream, lang, shared),
+        };
 
-    // Expose the Lua artifact, and get an install step that header translation can refer to
-    const install_lib = b.addInstallArtifact(lib, .{});
-    b.getInstallStep().dependOn(&install_lib.step);
+        // Expose the Lua artifact, and get an install step that header translation can refer to
+        const install_lib = b.addInstallArtifact(lib, .{});
+        b.getInstallStep().dependOn(&install_lib.step);
 
-    switch (lang) {
-        .luau => {
-            ziglua.addIncludePath(upstream.path("Common/include"));
-            ziglua.addIncludePath(upstream.path("Compiler/include"));
-            ziglua.addIncludePath(upstream.path("Ast/include"));
-            ziglua.addIncludePath(upstream.path("VM/include"));
-        },
-        else => ziglua.addIncludePath(upstream.path("src")),
+        switch (lang) {
+            .luau => {
+                ziglua.addIncludePath(upstream.path("Common/include"));
+                ziglua.addIncludePath(upstream.path("Compiler/include"));
+                ziglua.addIncludePath(upstream.path("Ast/include"));
+                ziglua.addIncludePath(upstream.path("VM/include"));
+            },
+            else => ziglua.addIncludePath(upstream.path("src")),
+        }
+
+        ziglua.linkLibrary(lib);
+
+        // lib must expose all headers included by these root headers
+        const c_header_path = switch (lang) {
+            .luajit => b.path("include/luajit_all.h"),
+            .luau => b.path("include/luau_all.h"),
+            else => b.path("include/lua_all.h"),
+        };
+        const c_headers = b.addTranslateC(.{
+            .root_source_file = c_header_path,
+            .target = target,
+            .optimize = optimize,
+        });
+        c_headers.addIncludePath(lib.getEmittedIncludeTree());
+        c_headers.step.dependOn(&install_lib.step);
+
+        const ziglua_c = b.addModule("ziglua-c", .{
+            .root_source_file = c_headers.getOutput(),
+            .target = c_headers.target,
+            .optimize = c_headers.optimize,
+            .link_libc = c_headers.link_libc,
+        });
+
+        ziglua.addImport("c", ziglua_c);
+    } else {
+        // system is true
+        const c_header_path = switch (lang) {
+            .luajit => b.path("include/luajit_all.h"),
+            .luau => unreachable,
+            else => b.path("include/lua_all.h"),
+        };
+        const c_headers = b.addTranslateC(.{
+            .root_source_file = c_header_path,
+            .target = target,
+            .optimize = optimize,
+        });
+        try addIncludePathsForSystem(b, c_headers, switch (lang) {
+            .luajit => "luajit",
+            .luau => unreachable,
+            else => "lua",
+        });
+
+        const ziglua_c = b.addModule("ziglua-c", .{
+            .root_source_file = c_headers.getOutput(),
+            .target = c_headers.target,
+            .optimize = c_headers.optimize,
+            .link_libc = c_headers.link_libc,
+        });
+
+        ziglua.linkSystemLibrary(switch (lang) {
+            .luajit => "luajit",
+            .luau => unreachable,
+            else => "lua",
+        }, .{ .use_pkg_config = .force });
+        ziglua.addImport("c", ziglua_c);
     }
-
-    ziglua.linkLibrary(lib);
-
-    // lib must expose all headers included by these root headers
-    const c_header_path = switch (lang) {
-        .luajit => b.path("include/luajit_all.h"),
-        .luau => b.path("include/luau_all.h"),
-        else => b.path("include/lua_all.h"),
-    };
-    const c_headers = b.addTranslateC(.{
-        .root_source_file = c_header_path,
-        .target = target,
-        .optimize = optimize,
-    });
-    c_headers.addIncludePath(lib.getEmittedIncludeTree());
-    c_headers.step.dependOn(&install_lib.step);
-
-    const ziglua_c = b.addModule("ziglua-c", .{
-        .root_source_file = c_headers.getOutput(),
-        .target = c_headers.target,
-        .optimize = c_headers.optimize,
-        .link_libc = c_headers.link_libc,
-    });
-
-    ziglua.addImport("c", ziglua_c);
 
     // Tests
     const tests = b.addTest(.{
@@ -157,4 +193,23 @@ pub fn build(b: *Build) void {
 
     const define_step = b.step("define", "Generate definitions.lua file");
     define_step.dependOn(&run_def_exe.step);
+}
+
+fn addIncludePathsForSystem(b: *std.Build, translate_c: *std.Build.Step.TranslateC, name: []const u8) !void {
+    var code: u8 = undefined;
+    const stdout = if (b.runAllowFail(&.{
+        "pkg-config",
+        name,
+        "--cflags-only-I",
+    }, &code, .Ignore)) |stdout| stdout else |err| switch (err) {
+        error.ProcessTerminated => return error.PkgConfigCrashed,
+        error.ExecNotSupported => return error.PkgConfigFailed,
+        error.ExitCodeFailure => return error.PkgConfigFailed,
+        error.FileNotFound => return error.PkgConfigNotInstalled,
+        else => return err,
+    };
+    var arg_it = std.mem.tokenizeAny(u8, stdout, " \r\n\t");
+    while (arg_it.next()) |arg| if (std.mem.startsWith(u8, arg, "-I")) {
+        translate_c.addIncludePath(.{ .cwd_relative = arg[2..] });
+    };
 }
