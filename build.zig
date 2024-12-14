@@ -101,9 +101,9 @@ pub fn build(b: *Build) !void {
         const c_module = c_headers.createModule();
         ziglua.addImport("c", c_module);
         switch (lang) {
-            .luajit => ziglua.linkSystemLibrary("luajit", .{}),
+            .luajit => ziglua.linkSystemLibrary("luajit", .{ .use_pkg_config = .force }),
             .luau => unreachable,
-            else => ziglua.linkSystemLibrary("lua", .{}),
+            else => ziglua.linkSystemLibrary("lua", .{ .use_pkg_config = .force }),
         }
     }
 
