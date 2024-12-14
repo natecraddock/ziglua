@@ -161,7 +161,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 
     lib.defineCMacro("LUAJIT_UNWIND_EXTERNAL", null);
     lib.linkSystemLibrary("unwind");
-    lib.root_module.unwind_tables = true;
+    lib.root_module.unwind_tables = .sync;
 
     lib.addIncludePath(upstream.path("src"));
     lib.addIncludePath(luajit_h.dirname());
