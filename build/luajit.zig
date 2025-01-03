@@ -11,12 +11,14 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
             .name = "lua",
             .target = target,
             .optimize = optimize,
+            .unwind_tables = .sync,
         })
     else
         b.addStaticLibrary(.{
             .name = "lua",
             .target = target,
             .optimize = optimize,
+            .unwind_tables = .sync,
         });
 
     // Compile minilua interpreter used at build time to generate files
@@ -163,9 +165,9 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 
     lib.linkLibC();
 
-    lib.defineCMacro("LUAJIT_UNWIND_EXTERNAL", null);
+    lib.root_module.addCMacro("LUAJIT_UNWIND_EXTERNAL", "");
+
     lib.linkSystemLibrary("unwind");
-    lib.root_module.unwind_tables = true;
 
     lib.addIncludePath(upstream.path("src"));
     lib.addIncludePath(luajit_h.dirname());
