@@ -4311,9 +4311,9 @@ pub const Lua = opaque {
     /// Returns if given typeinfo is a string type
     fn isTypeString(typeinfo: std.builtin.Type.Pointer) bool {
         const childinfo = @typeInfo(typeinfo.child);
-        if (typeinfo.child == u8 and typeinfo.size != .One) {
+        if (typeinfo.child == u8 and typeinfo.size != .one) {
             return true;
-        } else if (typeinfo.size == .One and childinfo == .array and childinfo.array.child == u8) {
+        } else if (typeinfo.size == .one and childinfo == .array and childinfo.array.child == u8) {
             return true;
         }
         return false;
@@ -4323,22 +4323,22 @@ pub const Lua = opaque {
     fn pushAnyString(lua: *Lua, value: anytype) !void {
         const info = @typeInfo(@TypeOf(value)).pointer;
         switch (info.size) {
-            .One => {
+            .one => {
                 const childinfo = @typeInfo(info.child).array;
                 std.debug.assert(childinfo.child == u8);
-                std.debug.assert(childinfo.sentinel != null);
+                std.debug.assert(childinfo.sentinel() != null);
 
-                const casted: *childinfo.child = @ptrCast(@constCast(childinfo.sentinel.?));
-                if (casted.* != 0) {
-                    @compileError("Sentinel of slice must be a null terminator");
+                if (childinfo.sentinel()) |sentinel| {
+                    if (sentinel != 0) {
+                        @compileError("Sentinel of slice must be a null terminator");
+                    }
                 }
                 _ = lua.pushStringZ(value);
             },
-            .C, .Many, .Slice => {
+            .c, .many, .slice => {
                 std.debug.assert(info.child == u8);
-                if (info.sentinel) |sentinel| {
-                    const casted: *info.child = @ptrCast(@constCast(sentinel));
-                    if (casted.* != 0) {
+                if (info.sentinel()) |sentinel| {
+                    if (sentinel != 0) {
                         @compileError("Sentinel of slice must be a null terminator");
                     }
                     _ = lua.pushStringZ(value);
@@ -4366,7 +4366,7 @@ pub const Lua = opaque {
                 if (comptime isTypeString(info)) {
                     try lua.pushAnyString(value);
                 } else switch (info.size) {
-                    .One => {
+                    .one => {
                         if (info.is_const) {
                             @compileLog(value);
                             @compileLog("Lua cannot guarantee that references will not be modified");
@@ -4374,7 +4374,7 @@ pub const Lua = opaque {
                         }
                         lua.pushLightUserdata(@ptrCast(value));
                     },
-                    .C, .Many, .Slice => {
+                    .c, .many, .slice => {
                         lua.createTable(0, 0);
                         for (value, 0..) |index_value, i| {
                             try lua.pushAny(i + 1);
@@ -4521,16 +4521,16 @@ pub const Lua = opaque {
                             @compileError("toAny cannot allocate memory, try using toAnyAlloc");
                         }
 
-                        if (info.sentinel != null) {
+                        if (info.sentinel() != null) {
                             return try a.?.dupeZ(u8, string[0..end]);
                         } else {
                             return try a.?.dupe(u8, string[0..end]);
                         }
                     } else {
-                        return if (info.sentinel == null) string[0..end] else string[0..end :0];
+                        return if (info.sentinel() == null) string[0..end] else string[0..end :0];
                     }
                 } else switch (info.size) {
-                    .Slice, .Many => {
+                    .slice, .many => {
                         if (!allow_alloc) {
                             @compileError("toAny cannot allocate memory, try using toAnyAlloc");
                         }
@@ -4641,8 +4641,8 @@ pub const Lua = opaque {
             const lua_field_type = lua.getTable(index);
             defer lua.pop(1);
             if (lua_field_type == .nil) {
-                if (field.default_value) |default_value| {
-                    @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
+                if (field.defaultValue()) |default| {
+                    @field(result, field.name) = default;
                 } else if (field_type_info != .optional) {
                     return error.LuaTableMissingValue;
                 }
