@@ -2591,6 +2591,20 @@ test "pushAny struct" {
     try testing.expect(value.bar == (MyType{}).bar);
 }
 
+test "pushAny anon struct" {
+    var lua = try Lua.init(testing.allocator);
+    defer lua.deinit();
+
+    const MyType = struct {
+        x: i32,
+        enable: bool,
+    };
+    try lua.pushAny(.{ .x = @as(i32, 13), .enable = true });
+    const value = try lua.toAny(MyType, -1);
+    try testing.expect(value.x == 13);
+    try testing.expect(value.enable == true);
+}
+
 test "pushAny tagged union" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
