@@ -102,7 +102,7 @@ pub fn addClass(
             try state.definitions.items[index].appendSlice("---@field ");
             try state.definitions.items[index].appendSlice(field.name);
 
-            if (field.default_value != null) {
+            if (field.defaultValue() != null) {
                 try state.definitions.items[index].appendSlice("?");
             }
             try state.definitions.items[index].appendSlice(" ");
@@ -123,13 +123,13 @@ fn luaTypeName(
             try addClass(state, T);
         },
         .pointer => |info| {
-            if (info.child == u8 and info.size == .Slice) {
+            if (info.child == u8 and info.size == .slice) {
                 try state.definitions.items[index].appendSlice("string");
             } else switch (info.size) {
-                .One => {
+                .one => {
                     try state.definitions.items[index].appendSlice("lightuserdata");
                 },
-                .C, .Many, .Slice => {
+                .c, .many, .slice => {
                     try luaTypeName(state, index, info.child);
                     try state.definitions.items[index].appendSlice("[]");
                 },

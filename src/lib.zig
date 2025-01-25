@@ -4296,12 +4296,24 @@ pub const Lua = opaque {
         if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
 
+    /// Open the vector standard library
+    ///
+    /// Only available in Luau
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `other`
+    pub fn openVector(lua: *Lua) void {
+        lua.requireF(c.LUA_VECLIBNAME, c.luaopen_vector, true);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
+    }
+
     /// Returns if given typeinfo is a string type
     fn isTypeString(typeinfo: std.builtin.Type.Pointer) bool {
         const childinfo = @typeInfo(typeinfo.child);
-        if (typeinfo.child == u8 and typeinfo.size != .One) {
+        if (typeinfo.child == u8 and typeinfo.size != .one) {
             return true;
-        } else if (typeinfo.size == .One and childinfo == .array and childinfo.array.child == u8) {
+        } else if (typeinfo.size == .one and childinfo == .array and childinfo.array.child == u8) {
             return true;
         }
         return false;
@@ -4311,22 +4323,22 @@ pub const Lua = opaque {
     fn pushAnyString(lua: *Lua, value: anytype) !void {
         const info = @typeInfo(@TypeOf(value)).pointer;
         switch (info.size) {
-            .One => {
+            .one => {
                 const childinfo = @typeInfo(info.child).array;
                 std.debug.assert(childinfo.child == u8);
-                std.debug.assert(childinfo.sentinel != null);
+                std.debug.assert(childinfo.sentinel() != null);
 
-                const casted: *childinfo.child = @ptrCast(@constCast(childinfo.sentinel.?));
-                if (casted.* != 0) {
-                    @compileError("Sentinel of slice must be a null terminator");
+                if (childinfo.sentinel()) |sentinel| {
+                    if (sentinel != 0) {
+                        @compileError("Sentinel of slice must be a null terminator");
+                    }
                 }
                 _ = lua.pushStringZ(value);
             },
-            .C, .Many, .Slice => {
+            .c, .many, .slice => {
                 std.debug.assert(info.child == u8);
-                if (info.sentinel) |sentinel| {
-                    const casted: *info.child = @ptrCast(@constCast(sentinel));
-                    if (casted.* != 0) {
+                if (info.sentinel()) |sentinel| {
+                    if (sentinel != 0) {
                         @compileError("Sentinel of slice must be a null terminator");
                     }
                     _ = lua.pushStringZ(value);
@@ -4421,7 +4433,7 @@ pub const Lua = opaque {
                 if (comptime isTypeString(info)) {
                     try lua.pushAnyString(value);
                 } else switch (info.size) {
-                    .One => {
+                    .one => {
                         if (info.is_const) {
                             @compileLog(value);
                             @compileLog("Lua cannot guarantee that references will not be modified");
@@ -4429,7 +4441,7 @@ pub const Lua = opaque {
                         }
                         lua.pushLightUserdata(@ptrCast(value));
                     },
-                    .C, .Many, .Slice => {
+                    .c, .many, .slice => {
                         lua.createTable(0, 0);
                         for (value, 0..) |index_value, i| {
                             try lua.pushAny(i + 1);
@@ -4651,16 +4663,16 @@ pub const Lua = opaque {
                             @compileError("toAny cannot allocate memory, try using toAnyAlloc");
                         }
 
-                        if (info.sentinel != null) {
+                        if (info.sentinel() != null) {
                             return try a.?.dupeZ(u8, string[0..end]);
                         } else {
                             return try a.?.dupe(u8, string[0..end]);
                         }
                     } else {
-                        return if (info.sentinel == null) string[0..end] else string[0..end :0];
+                        return if (info.sentinel() == null) string[0..end] else string[0..end :0];
                     }
                 } else switch (info.size) {
-                    .Slice, .Many => {
+                    .slice, .many => {
                         if (!allow_alloc) {
                             @compileError("toAny cannot allocate memory, try using toAnyAlloc");
                         }
@@ -4818,8 +4830,8 @@ pub const Lua = opaque {
             const lua_field_type = lua.getTable(index);
             defer lua.pop(1);
             if (lua_field_type == .nil) {
-                if (field.default_value) |default_value| {
-                    @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
+                if (field.defaultValue()) |default| {
+                    @field(result, field.name) = default;
                 } else if (field_type_info != .optional) {
                     return error.LuaTableMissingValue;
                 }
@@ -5283,16 +5295,40 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
 /// Zig wrapper for Luau lua_CompileOptions that uses the same defaults as Luau if
 /// no compile options is specified.
 pub const CompileOptions = struct {
+    /// 0. no optimization
+    /// 1. baseline optimization level that doesn't prevent debuggability
+    /// 2. includes optimizations that harm debuggability such as inlining
     optimization_level: i32 = 1,
+
+    /// 0. no debugging support
+    /// 1. line info & function names only; sufficient for backtraces
+    /// 2. full debug info with local & upvalue names; necessary for debugger
     debug_level: i32 = 1,
+
+    /// type information is used to guide native code generation decisions
+    /// information includes testable types for function arguments, locals, upvalues and some temporaries
+    ///
+    /// 0. generate for native modules
+    /// 1. generate for all modules
+    type_info_level: i32 = 0,
+
+    /// 0. no code coverage support
+    /// 1. statement coverage
+    /// 2. statement and expression coverage (verbose)
     coverage_level: i32 = 0,
-    /// global builtin to construct vectors; disabled by default (<vector_lib>.<vector_ctor>)
+
+    /// alternative global builtin to construct vectors, in addition to default builtin 'vector.create'
     vector_lib: ?[*:0]const u8 = null,
     vector_ctor: ?[*:0]const u8 = null,
-    /// vector type name for type tables; disabled by default
+
+    /// alternative vector type name for type tables, in addition to default type 'vector'
     vector_type: ?[*:0]const u8 = null,
+
     /// null-terminated array of globals that are mutable; disables the import optimization for fields accessed through these
     mutable_globals: ?[*:null]const ?[*:0]const u8 = null,
+
+    /// null-terminated array of userdata types that will be included in the type information
+    userdata_types: ?[*:null]const ?[*:0]const u8 = null,
 };
 
 /// Compile luau source into bytecode, return callee owned buffer allocated through the given allocator.
@@ -5302,10 +5338,12 @@ pub fn compile(allocator: Allocator, source: []const u8, options: CompileOptions
     var opts = c.lua_CompileOptions{
         .optimizationLevel = options.optimization_level,
         .debugLevel = options.debug_level,
+        .typeInfoLevel = options.type_info_level,
         .coverageLevel = options.coverage_level,
         .vectorLib = options.vector_lib,
         .vectorCtor = options.vector_ctor,
         .mutableGlobals = options.mutable_globals,
+        .userdataTypes = options.userdata_types,
     };
     const bytecode = c.luau_compile(source.ptr, source.len, &opts, &size);
     if (bytecode == null) return error.OutOfMemory;
