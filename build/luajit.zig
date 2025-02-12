@@ -130,9 +130,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     const buildvm_folddef = b.addRunArtifact(buildvm);
     buildvm_folddef.addArgs(&.{ "-m", "folddef", "-o" });
     const folddef_header = buildvm_folddef.addOutputFileArg("lj_folddef.h");
-    for (luajit_lib) |file| {
-        buildvm_folddef.addFileArg(upstream.path(file));
-    }
+    buildvm_folddef.addFileArg(upstream.path("src/lj_opt_fold.c"));
 
     const buildvm_ljvm = b.addRunArtifact(buildvm);
     buildvm_ljvm.addArg("-m");
