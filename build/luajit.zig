@@ -45,7 +45,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     if (target.result.ptrBitWidth() == 64) dynasm_run.addArgs(&.{ "-D", "P64" });
     dynasm_run.addArgs(&.{ "-D", "JIT", "-D", "FFI" });
 
-    if (target.result.abi.floatAbi() == .hard) {
+    if (target.result.abi.float() == .hard) {
         dynasm_run.addArgs(&.{ "-D", "FPU", "-D", "HFABI" });
     }
 
@@ -137,7 +137,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 
     if (target.result.os.tag == .windows) {
         buildvm_ljvm.addArg("peobj");
-    } else if (target.result.isDarwin()) {
+    } else if (target.result.os.tag.isDarwin()) {
         buildvm_ljvm.addArg("machasm");
     } else {
         buildvm_ljvm.addArg("elfasm");
