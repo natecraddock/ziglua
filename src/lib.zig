@@ -1,6 +1,6 @@
 //! Similar to the Lua C API documentation, each function has an indicator to describe how interacts with the stack and which errors it may return.
 //!
-//! Instead of using the form `[-o, +p, x]`, Ziglua uses the words **Pops**, **Pushes**, and **Errors** for clarity.
+//! Instead of using the form `[-o, +p, x]`, Lua_wrapper uses the words **Pops**, **Pushes**, and **Errors** for clarity.
 //!
 //! * **Pops**: how many elements the function pops from the stack.
 //! * **Pushes**: how many elements the function pushes onto the stack.
@@ -302,7 +302,7 @@ pub const DebugInfo = switch (lang) {
     .luau => DebugInfoLuau,
 };
 
-/// The superset of all errors returned from ziglua
+/// The superset of all errors returned from lua_wrapper
 pub const Error = error{
     /// A generic failure (used when a function can only fail in one way)
     LuaError,
@@ -750,7 +750,7 @@ pub const Lua = opaque {
     /// * Finally you call `Lua.call()`
     /// * `args.args` is the number of arguments that you pushed onto the stack. When the function returns, all arguments and
     /// the function value are popped and the call results are pushed onto the stack.
-    /// * The number of results is adjusted to `args.results`, unless `args.results` is `ziglua.mult_return`. In this case, all results from the function are pushed
+    /// * The number of results is adjusted to `args.results`, unless `args.results` is `lua_wrapper.mult_return`. In this case, all results from the function are pushed
     /// * Lua takes care that the returned values fit into the stack space, but it does not ensure any extra space in the stack. The function results
     /// are pushed onto the stack in direct order (the first result is pushed first), so that after the call the last result is
     /// on the top of the stack.
@@ -4903,7 +4903,7 @@ pub const Buffer = struct {
     }
 };
 
-// Helper functions to make the ziglua API easier to use
+// Helper functions to make the lua_wrapper API easier to use
 
 const Tuple = std.meta.Tuple;
 

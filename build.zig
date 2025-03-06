@@ -24,7 +24,7 @@ pub fn build(b: *Build) void {
     }
 
     // Zig module
-    const ziglua = b.addModule("ziglua", .{
+    const lua_wrapper = b.addModule("lua_wrapper", .{
         .root_source_file = b.path("src/lib.zig"),
     });
 
@@ -32,11 +32,11 @@ pub fn build(b: *Build) void {
     const config = b.addOptions();
     config.addOption(Language, "lang", lang);
     config.addOption(bool, "luau_use_4_vector", luau_use_4_vector);
-    ziglua.addOptions("config", config);
+    lua_wrapper.addOptions("config", config);
 
     if (lang == .luau) {
         const vector_size: usize = if (luau_use_4_vector) 4 else 3;
-        ziglua.addCMacro("LUA_VECTOR_SIZE", b.fmt("{}", .{vector_size}));
+        lua_wrapper.addCMacro("LUA_VECTOR_SIZE", b.fmt("{}", .{vector_size}));
     }
 
     const upstream = b.dependency(@tagName(lang), .{});
@@ -53,15 +53,15 @@ pub fn build(b: *Build) void {
 
     switch (lang) {
         .luau => {
-            ziglua.addIncludePath(upstream.path("Common/include"));
-            ziglua.addIncludePath(upstream.path("Compiler/include"));
-            ziglua.addIncludePath(upstream.path("Ast/include"));
-            ziglua.addIncludePath(upstream.path("VM/include"));
+            lua_wrapper.addIncludePath(upstream.path("Common/include"));
+            lua_wrapper.addIncludePath(upstream.path("Compiler/include"));
+            lua_wrapper.addIncludePath(upstream.path("Ast/include"));
+            lua_wrapper.addIncludePath(upstream.path("VM/include"));
         },
-        else => ziglua.addIncludePath(upstream.path("src")),
+        else => lua_wrapper.addIncludePath(upstream.path("src")),
     }
 
-    ziglua.linkLibrary(lib);
+    lua_wrapper.linkLibrary(lib);
 
     // lib must expose all headers included by these root headers
     const c_header_path = switch (lang) {
@@ -84,7 +84,7 @@ pub fn build(b: *Build) void {
         .link_libc = c_headers.link_libc,
     });
 
-    ziglua.addImport("c", ziglua_c);
+    lua_wrapper.addImport("c", ziglua_c);
 
     // Tests
     const tests = b.addTest(.{
@@ -92,7 +92,7 @@ pub fn build(b: *Build) void {
         .target = target,
         .optimize = optimize,
     });
-    tests.root_module.addImport("ziglua", ziglua);
+    tests.root_module.addImport("lua_wrapper", lua_wrapper);
 
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run ziglua tests");
@@ -115,7 +115,7 @@ pub fn build(b: *Build) void {
             .target = target,
             .optimize = optimize,
         });
-        exe.root_module.addImport("ziglua", ziglua);
+        exe.root_module.addImport("lua_wrapper", lua_wrapper);
 
         const artifact = b.addInstallArtifact(exe, .{});
         const exe_step = b.step(b.fmt("install-example-{s}", .{example[0]}), b.fmt("Install {s} example", .{example[0]}));
@@ -151,7 +151,7 @@ pub fn build(b: *Build) void {
         .name = "define-zig-types",
         .target = target,
     });
-    def_exe.root_module.addImport("ziglua", ziglua);
+    def_exe.root_module.addImport("lua_wrapper", lua_wrapper);
     var run_def_exe = b.addRunArtifact(def_exe);
     run_def_exe.addFileArg(b.path("definitions.lua"));
 
