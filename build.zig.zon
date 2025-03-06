@@ -1,5 +1,6 @@
 .{
-    .name = "ziglua",
+    .name = .ziglua,
+    .fingerprint = 0x98bbbb3e6b640f,
     .version = "0.1.0",
     .paths = .{ "build.zig", "build.zig.zon", "src", "license", "include", "build" },
 
