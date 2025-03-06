@@ -13,11 +13,11 @@ pub const Language = enum {
 };
 
 pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lang: Language, shared: bool) *Step.Compile {
-    const version = switch (lang) {
-        .lua51 => std.SemanticVersion{ .major = 5, .minor = 1, .patch = 5 },
-        .lua52 => std.SemanticVersion{ .major = 5, .minor = 2, .patch = 4 },
-        .lua53 => std.SemanticVersion{ .major = 5, .minor = 3, .patch = 6 },
-        .lua54 => std.SemanticVersion{ .major = 5, .minor = 4, .patch = 6 },
+    const version: std.SemanticVersion = switch (lang) {
+        .lua51 => .{ .major = 5, .minor = 1, .patch = 5 },
+        .lua52 => .{ .major = 5, .minor = 2, .patch = 4 },
+        .lua53 => .{ .major = 5, .minor = 3, .patch = 6 },
+        .lua54 => .{ .major = 5, .minor = 4, .patch = 7 },
         else => unreachable,
     };
 
