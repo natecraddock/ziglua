@@ -46,7 +46,7 @@ Then in your `build.zig` file you can use the dependency.
 pub fn build(b: *std.Build) void {
     // ... snip ...
 
-    const ziglua = b.dependency("ziglua", .{
+    const lua_dep = b.dependency("lua_wrapper", .{
         .target = target,
         .optimize = optimize,
     });
@@ -54,7 +54,7 @@ pub fn build(b: *std.Build) void {
     // ... snip ...
 
     // add the ziglua module and lua artifact
-    exe.root_module.addImport("ziglua", ziglua.module("ziglua"));
+    exe.root_module.addImport("ziglua", lua_dep.module("ziglua"));
 
 }
 ```
@@ -70,7 +70,7 @@ There are currently three additional options that can be passed to `b.dependency
 For example, here is a `b.dependency()` call that and links against a shared Lua 5.2 library:
 
 ```zig
-const ziglua = b.dependency("ziglua", .{
+const ziglua = b.dependency("lua_wrapper", .{
     .target = target,
     .optimize = optimize,
     .lang = .lua52,
