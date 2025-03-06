@@ -11,32 +11,32 @@
         // future.
         .lua51 = .{
             .url = "https://github.com/natecraddock/lua/archive/refs/tags/5.1.5-1.tar.gz",
-            .hash = "12203fe1feebb81635f8df5a5a7242733e441fe3f3043989c8e6b4d6720e96988813",
+            .hash = "N-V-__8AABYiDAA_4f7ruBY1-N9aWnJCcz5EH-PzBDmJyOa0",
         },
 
         .lua52 = .{
             .url = "https://www.lua.org/ftp/lua-5.2.4.tar.gz",
-            .hash = "1220d5b2b39738f0644d9ed5b7431973f1a16b937ef86d4cf85887ef3e9fda7a3379",
+            .hash = "N-V-__8AALg2DgDVsrOXOPBkTZ7Vt0MZc_Gha5N--G1M-FiH",
         },
 
         .lua53 = .{
             .url = "https://www.lua.org/ftp/lua-5.3.6.tar.gz",
-            .hash = "1220937a223531ef6b3fea8f653dc135310b0e84805e7efa148870191f5ab915c828",
+            .hash = "N-V-__8AALihEACTeiI1Me9rP-qPZT3BNTELDoSAXn76FIhw",
         },
 
         .lua54 = .{
             .url = "https://www.lua.org/ftp/lua-5.4.7.tar.gz",
-            .hash = "12206df90729936e110f5d2574437be370fc4367b5f44afcc77749ac421547bc8ff0",
+            .hash = "N-V-__8AAIMvFABt-Qcpk24RD10ldEN743D8Q2e19Er8x3dJ",
         },
 
         .luajit = .{
             .url = "https://github.com/LuaJIT/LuaJIT/archive/c525bcb9024510cad9e170e12b6209aedb330f83.tar.gz",
-            .hash = "1220ae2d84cfcc2a7aa670661491f21bbed102d335de18ce7d36866640fd9dfcc33a",
+            .hash = "N-V-__8AACcgQgCuLYTPzCp6pnBmFJHyG77RAtM13hjOfTaG",
         },
 
         .luau = .{
             .url = "https://github.com/luau-lang/luau/archive/refs/tags/0.653.tar.gz",
-            .hash = "1220c76fb74b983b0ebfdd6b3a4aa8adf0c1ff69c9b6a9e9e05f9bc6a6c57a690e23",
+            .hash = "N-V-__8AAFB1kwDHb7dLmDsOv91rOkqorfDB_2nJtqnp4F-b",
         },
     },
 }
