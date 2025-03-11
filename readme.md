@@ -46,15 +46,15 @@ Then in your `build.zig` file you can use the dependency.
 pub fn build(b: *std.Build) void {
     // ... snip ...
 
-    const lua_dep = b.dependency("lua_wrapper", .{
+    const lua_dep = b.dependency("zlua", .{
         .target = target,
         .optimize = optimize,
     });
 
     // ... snip ...
 
-    // add the lua_wrapper module and lua artifact
-    exe.root_module.addImport("lua_wrapper", lua_dep.module("lua_wrapper"));
+    // add the zlua module and lua artifact
+    exe.root_module.addImport("zlua", lua_dep.module("zlua"));
 
 }
 ```
@@ -70,7 +70,7 @@ There are currently three additional options that can be passed to `b.dependency
 For example, here is a `b.dependency()` call that and links against a shared Lua 5.2 library:
 
 ```zig
-const lua_wrapper = b.dependency("lua_wrapper", .{
+const zlua = b.dependency("zlua", .{
     .target = target,
     .optimize = optimize,
     .lang = .lua52,
@@ -78,13 +78,13 @@ const lua_wrapper = b.dependency("lua_wrapper", .{
 });
 ``````
 
-The `lua_wrapper` module will now be available in your code. Here is a simple example that pushes and inspects an integer on the Lua stack:
+The `zlua` module will now be available in your code. Here is a simple example that pushes and inspects an integer on the Lua stack:
 
 ```zig
 const std = @import("std");
-const lua_wrapper = @import("lua_wrapper");
+const zlua = @import("zlua");
 
-const Lua = lua_wrapper.Lua;
+const Lua = zlua.Lua;
 
 pub fn main() anyerror!void {
     // Create an allocator
