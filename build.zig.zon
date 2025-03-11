@@ -1,6 +1,6 @@
 .{
-    .name = .lua_wrapper,
-    .fingerprint = 0xb40fd4eedb02233b, // changing this has security and trust implications
+    .name = .zlua,
+    .fingerprint = 0xcf671dd0b696484, // changing this has security and trust implications
     .version = "0.1.0",
     .paths = .{ "build.zig", "build.zig.zon", "src", "license", "include", "build" },
 

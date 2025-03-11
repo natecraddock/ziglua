@@ -1,11 +1,11 @@
 const std = @import("std");
 const testing = std.testing;
 
-const lua_wrapper = @import("lua_wrapper");
+const zlua = @import("zlua");
 
-const Buffer = lua_wrapper.Buffer;
-const DebugInfo = lua_wrapper.DebugInfo;
-const Lua = lua_wrapper.Lua;
+const Buffer = zlua.Buffer;
+const DebugInfo = zlua.DebugInfo;
+const Lua = zlua.Lua;
 
 const expect = testing.expect;
 const expectEqual = testing.expectEqual;
@@ -17,16 +17,16 @@ fn expectStringContains(actual: []const u8, expected_contains: []const u8) !void
     return error.LuaTestExpectedStringContains;
 }
 
-/// Return true if lua_wrapper.lang matches any of the given langs
+/// Return true if zlua.lang matches any of the given langs
 inline fn langIn(langs: anytype) bool {
-    inline for (langs) |lang| if (lua_wrapper.lang == lang) return true;
+    inline for (langs) |lang| if (zlua.lang == lang) return true;
     return false;
 }
 
 test "initialization" {
     // initialize the Zig wrapper
     var lua = try Lua.init(testing.allocator);
-    try expectEqual(lua_wrapper.Status.ok, lua.status());
+    try expectEqual(zlua.Status.ok, lua.status());
     lua.deinit();
 
     // attempt to initialize the Zig wrapper with no memory
@@ -57,7 +57,7 @@ test "Zig allocator access" {
         }
     }.inner;
 
-    lua.pushFunction(lua_wrapper.wrap(inner));
+    lua.pushFunction(zlua.wrap(inner));
     lua.pushInteger(10);
     try lua.protectedCall(.{ .args = 1, .results = 1 });
 
@@ -86,14 +86,14 @@ test "standard library loading" {
         lua.openOS();
         lua.openDebug();
 
-        if (lua_wrapper.lang != .lua51 and lua_wrapper.lang != .lua53 and lua_wrapper.lang != .lua54) lua.openBit32();
+        if (zlua.lang != .lua51 and zlua.lang != .lua53 and zlua.lang != .lua54) lua.openBit32();
 
-        if (lua_wrapper.lang != .luau) {
+        if (zlua.lang != .luau) {
             lua.openPackage();
             lua.openIO();
         }
-        if (lua_wrapper.lang != .lua51 and lua_wrapper.lang != .luajit) lua.openCoroutine();
-        if (lua_wrapper.lang != .lua51 and lua_wrapper.lang != .lua52 and lua_wrapper.lang != .luajit) lua.openUtf8();
+        if (zlua.lang != .lua51 and zlua.lang != .luajit) lua.openCoroutine();
+        if (zlua.lang != .lua51 and zlua.lang != .lua52 and zlua.lang != .luajit) lua.openUtf8();
     }
 }
 
@@ -147,7 +147,7 @@ test "arithmetic (lua_arith)" {
     lua.arith(.negate);
     try expectEqual(-1, try lua.toNumber(1));
 
-    if (lua_wrapper.lang == .lua52) return;
+    if (zlua.lang == .lua52) return;
 
     lua.arith(.negate);
     lua.pushNumber(2);
@@ -263,11 +263,11 @@ test "type of and getting values" {
     try expectEqual(.string, lua.typeOf(-1));
     try expect(lua.isString(-1));
 
-    lua.pushFunction(lua_wrapper.wrap(add));
+    lua.pushFunction(zlua.wrap(add));
     try expectEqual(.function, lua.typeOf(-1));
     try expect(lua.isCFunction(-1));
     try expect(lua.isFunction(-1));
-    try expectEqual(lua_wrapper.wrap(add), try lua.toCFunction(-1));
+    try expectEqual(zlua.wrap(add), try lua.toCFunction(-1));
 
     try expectEqualStrings("hello world", lua.pushString("hello world"));
     try expectEqual(.string, lua.typeOf(-1));
@@ -298,13 +298,13 @@ test "typenames" {
     try expectEqualStrings("userdata", lua.typeName(.userdata));
     try expectEqualStrings("thread", lua.typeName(.thread));
 
-    if (lua_wrapper.lang == .luau) {
+    if (zlua.lang == .luau) {
         try expectEqualStrings("vector", lua.typeName(.vector));
     }
 }
 
 test "unsigned" {
-    if (lua_wrapper.lang != .lua52) return;
+    if (zlua.lang != .lua52) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -329,7 +329,7 @@ test "executing string contents" {
     try expectEqual(.number, try lua.getGlobal("a"));
     try expectEqual(12, try lua.toInteger(1));
 
-    try expectError(if (lua_wrapper.lang == .luau) error.LuaError else error.LuaSyntax, lua.loadString("bad syntax"));
+    try expectError(if (zlua.lang == .luau) error.LuaError else error.LuaSyntax, lua.loadString("bad syntax"));
     try lua.loadString("a = g()");
     try expectError(error.LuaRuntime, lua.protectedCall(.{}));
 }
@@ -368,7 +368,7 @@ test "stack manipulation" {
     defer lua.deinit();
 
     // TODO: combine these more
-    if (lua_wrapper.lang == .lua53 or lua_wrapper.lang == .lua54) {
+    if (zlua.lang == .lua53 or zlua.lang == .lua54) {
         var num: i32 = 1;
         while (num <= 10) : (num += 1) {
             lua.pushInteger(num);
@@ -421,7 +421,7 @@ test "stack manipulation" {
         lua.insert(1);
         try expect(lua.isNil(1));
 
-        if (lua_wrapper.lang == .lua52) {
+        if (zlua.lang == .lua52) {
             lua.copy(1, 2);
             try expectEqual(3, try lua.toInteger(3));
             try expectEqual(10, try lua.toInteger(-2));
@@ -436,7 +436,7 @@ test "calling a function" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    lua.register("zigadd", lua_wrapper.wrap(add));
+    lua.register("zigadd", zlua.wrap(add));
 
     _ = try lua.getGlobal("zigadd");
     lua.pushInteger(10);
@@ -448,7 +448,7 @@ test "calling a function" {
 }
 
 test "calling a function with cProtectedCall" {
-    if (lua_wrapper.lang != .lua51) return;
+    if (zlua.lang != .lua51) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -465,16 +465,16 @@ test "calling a function with cProtectedCall" {
 
     // cProtectedCall doesn't return values on the stack, so the test just makes
     // sure things work!
-    try lua.cProtectedCall(lua_wrapper.wrap(testFn), &value);
+    try lua.cProtectedCall(zlua.wrap(testFn), &value);
 }
 
 test "version" {
-    if (lua_wrapper.lang == .lua51 or lua_wrapper.lang == .luau or lua_wrapper.lang == .luajit) return;
+    if (zlua.lang == .lua51 or zlua.lang == .luau or zlua.lang == .luajit) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    switch (lua_wrapper.lang) {
+    switch (zlua.lang) {
         .lua52 => try expectEqual(502, lua.version(false).*),
         .lua53 => try expectEqual(503, lua.version(false).*),
         .lua54 => try expectEqual(504, lua.version()),
@@ -520,7 +520,7 @@ test "string buffers" {
     try expectEqualStrings("abcdefghijklmnopqrstuvwxyz", try lua.toString(-1));
     lua.pop(1);
 
-    if (lua_wrapper.lang == .lua51 or lua_wrapper.lang == .luajit) return;
+    if (zlua.lang == .lua51 or zlua.lang == .luajit) return;
 
     buffer.init(lua);
     b = buffer.prep();
@@ -529,14 +529,14 @@ test "string buffers" {
     try expectEqualStrings("abc", try lua.toString(-1));
     lua.pop(1);
 
-    if (lua_wrapper.lang == .luau) return;
+    if (zlua.lang == .luau) return;
 
     // TODO: maybe implement this for all langs?
     b = buffer.initSize(lua, 20);
     @memcpy(b[0..20], "a" ** 20);
     buffer.pushResultSize(20);
 
-    if (lua_wrapper.lang != .lua54) return;
+    if (zlua.lang != .lua54) return;
     try expectEqual(20, buffer.len());
     buffer.sub(10);
     try expectEqual(10, buffer.len());
@@ -588,8 +588,8 @@ test "function registration" {
 
     if (langIn(.{ .lua51, .luajit, .luau })) {
         // register all functions as part of a table
-        const funcs = [_]lua_wrapper.FnReg{
-            .{ .name = "add", .func = lua_wrapper.wrap(add) },
+        const funcs = [_]zlua.FnReg{
+            .{ .name = "add", .func = zlua.wrap(add) },
         };
         lua.newTable();
         lua.registerFns(null, &funcs);
@@ -616,9 +616,9 @@ test "function registration" {
     }
 
     // register all functions as part of a table
-    const funcs = [_]lua_wrapper.FnReg{
-        .{ .name = "add", .func = lua_wrapper.wrap(add) },
-        .{ .name = "sub", .func = lua_wrapper.wrap(sub) },
+    const funcs = [_]zlua.FnReg{
+        .{ .name = "add", .func = zlua.wrap(add) },
+        .{ .name = "sub", .func = zlua.wrap(sub) },
         .{ .name = "placeholder", .func = null },
     };
     lua.newTable();
@@ -651,14 +651,14 @@ test "function registration" {
 }
 
 test "panic fn" {
-    if (lua_wrapper.lang == .luau) return;
+    if (zlua.lang == .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
     // just test setting up the panic function
     // it uses longjmp so cannot return here to test
-    const panicFn = lua_wrapper.wrap(struct {
+    const panicFn = zlua.wrap(struct {
         fn inner(l: *Lua) i32 {
             _ = l;
             return 0;
@@ -668,14 +668,14 @@ test "panic fn" {
 }
 
 test "warn fn" {
-    if (lua_wrapper.lang != .lua54) return;
+    if (zlua.lang != .lua54) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
     lua.warning("this message is going to the void", false);
 
-    const warnFn = lua_wrapper.wrap(struct {
+    const warnFn = zlua.wrap(struct {
         fn inner(data: ?*anyopaque, msg: []const u8, to_cont: bool) void {
             _ = data;
             _ = to_cont;
@@ -696,7 +696,7 @@ test "concat" {
     _ = lua.pushStringZ(" wow!");
     lua.concat(3);
 
-    if (lua_wrapper.lang == .lua53 or lua_wrapper.lang == .lua54) {
+    if (zlua.lang == .lua53 or zlua.lang == .lua54) {
         try expectEqualStrings("hello 10.0 wow!", try lua.toString(-1));
     } else {
         try expectEqualStrings("hello 10 wow!", try lua.toString(-1));
@@ -716,21 +716,21 @@ test "garbage collector" {
     _ = lua.gcCountB();
     lua.gcStep(10);
 
-    if (lua_wrapper.lang != .lua51 and lua_wrapper.lang != .luajit) _ = lua.gcIsRunning();
+    if (zlua.lang != .lua51 and zlua.lang != .luajit) _ = lua.gcIsRunning();
 
     if (langIn(.{ .lua51, .lua52, .lua53 })) {
         _ = lua.gcSetPause(2);
         _ = lua.gcSetStepMul(2);
     }
 
-    if (lua_wrapper.lang == .lua52) {
+    if (zlua.lang == .lua52) {
         lua.gcSetGenerational();
         lua.gcSetGenerational();
-    } else if (lua_wrapper.lang == .lua54) {
+    } else if (zlua.lang == .lua54) {
         try expect(lua.gcSetGenerational(0, 10));
         try expect(lua.gcSetIncremental(0, 0, 0));
         try expect(!lua.gcSetIncremental(0, 0, 0));
-    } else if (lua_wrapper.lang == .luau) {
+    } else if (zlua.lang == .luau) {
         _ = lua.gcSetGoal(10);
         _ = lua.gcSetStepMul(2);
         _ = lua.gcSetStepSize(1);
@@ -738,7 +738,7 @@ test "garbage collector" {
 }
 
 test "extra space" {
-    if (lua_wrapper.lang != .lua53 and lua_wrapper.lang != .lua54) return;
+    if (zlua.lang != .lua53 and zlua.lang != .lua54) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -757,12 +757,12 @@ test "table access" {
     try lua.doString("a = { [1] = 'first', key = 'value', ['other one'] = 1234 }");
     _ = try lua.getGlobal("a");
 
-    if (lua_wrapper.lang == .lua53 or lua_wrapper.lang == .lua54) {
+    if (zlua.lang == .lua53 or zlua.lang == .lua54) {
         try expectEqual(.string, lua.rawGetIndex(1, 1));
         try expectEqualStrings("first", try lua.toString(-1));
     }
 
-    try expectEqual(.string, switch (lua_wrapper.lang) {
+    try expectEqual(.string, switch (zlua.lang) {
         .lua53, .lua54 => lua.getIndex(1, 1),
         else => lua.rawGetIndex(1, 1),
     });
@@ -791,7 +791,7 @@ test "table access" {
     // create a metatable (it isn't a useful one)
     lua.newTable();
 
-    lua.pushFunction(lua_wrapper.wrap(add));
+    lua.pushFunction(zlua.wrap(add));
     lua.setField(-2, "__len");
     lua.setMetatable(1);
 
@@ -811,7 +811,7 @@ test "table access" {
     var index: i32 = 1;
     while (index <= 5) : (index += 1) {
         lua.pushInteger(index);
-        if (lua_wrapper.lang == .lua53 or lua_wrapper.lang == .lua54) lua.setIndex(-2, index) else lua.rawSetIndex(-2, index);
+        if (zlua.lang == .lua53 or zlua.lang == .lua54) lua.setIndex(-2, index) else lua.rawSetIndex(-2, index);
     }
 
     if (!langIn(.{ .lua51, .luajit, .luau })) {
@@ -827,14 +827,14 @@ test "table access" {
 }
 
 test "conversions" {
-    if (lua_wrapper.lang != .lua53 and lua_wrapper.lang != .lua54) return;
+    if (zlua.lang != .lua53 and zlua.lang != .lua54) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
     // number conversion
     try expectEqual(3, Lua.numberToInteger(3.14));
-    try expectError(error.LuaError, Lua.numberToInteger(@as(lua_wrapper.Number, @floatFromInt(lua_wrapper.max_integer)) + 10));
+    try expectError(error.LuaError, Lua.numberToInteger(@as(zlua.Number, @floatFromInt(zlua.max_integer)) + 10));
 
     // string conversion
     try lua.stringToNumber("1");
@@ -861,7 +861,7 @@ test "absIndex" {
 }
 
 test "dump and load" {
-    if (lua_wrapper.lang == .luau) return;
+    if (zlua.lang == .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -884,14 +884,14 @@ test "dump and load" {
     defer buffer.deinit();
 
     // save the function as a binary chunk in the buffer
-    if (lua_wrapper.lang == .lua53 or lua_wrapper.lang == .lua54) {
-        try lua.dump(lua_wrapper.wrap(writer), &buffer, false);
+    if (zlua.lang == .lua53 or zlua.lang == .lua54) {
+        try lua.dump(zlua.wrap(writer), &buffer, false);
     } else {
-        try lua.dump(lua_wrapper.wrap(writer), &buffer);
+        try lua.dump(zlua.wrap(writer), &buffer);
     }
 
     // clear the stack
-    if (lua_wrapper.lang == .lua54) {
+    if (zlua.lang == .lua54) {
         try lua.closeThread(lua);
     } else lua.setTop(0);
 
@@ -904,10 +904,10 @@ test "dump and load" {
     }.inner;
 
     // now load the function back onto the stack
-    if (lua_wrapper.lang == .lua51 or lua_wrapper.lang == .luajit) {
-        try lua.load(lua_wrapper.wrap(reader), &buffer, "function");
+    if (zlua.lang == .lua51 or zlua.lang == .luajit) {
+        try lua.load(zlua.wrap(reader), &buffer, "function");
     } else {
-        try lua.load(lua_wrapper.wrap(reader), &buffer, "function", .binary);
+        try lua.load(zlua.wrap(reader), &buffer, "function", .binary);
     }
     try expectEqual(.function, lua.typeOf(-1));
 
@@ -946,21 +946,21 @@ test "userdata and uservalues" {
     };
 
     // create a Lua-owned pointer to a Data with 2 associated user values
-    var data = if (lua_wrapper.lang == .lua54) lua.newUserdata(Data, 2) else lua.newUserdata(Data);
+    var data = if (zlua.lang == .lua54) lua.newUserdata(Data, 2) else lua.newUserdata(Data);
     data.val = 1;
     @memcpy(&data.code, "abcd");
 
     try expectEqual(data, try lua.toUserdata(Data, 1));
     try expectEqual(@as(*const anyopaque, @ptrCast(data)), try lua.toPointer(1));
 
-    if (lua_wrapper.lang == .lua52 or lua_wrapper.lang == .lua53) {
+    if (zlua.lang == .lua52 or zlua.lang == .lua53) {
         // assign the associated user value
         lua.pushNil();
         try lua.setUserValue(1);
 
         _ = lua.getUserValue(1);
         try expectEqual(.nil, lua.typeOf(-1));
-    } else if (lua_wrapper.lang == .lua54) {
+    } else if (zlua.lang == .lua54) {
         // assign the user values
         lua.pushNumber(1234.56);
         try lua.setUserValue(1, 1);
@@ -996,7 +996,7 @@ test "upvalues" {
 
     // Initialize the counter at 0
     lua.pushInteger(0);
-    lua.pushClosure(lua_wrapper.wrap(counter), 1);
+    lua.pushClosure(zlua.wrap(counter), 1);
     lua.setGlobal("counter");
 
     // call the function repeatedly, each time ensuring the result increases by one
@@ -1048,15 +1048,15 @@ test "registry" {
 
     // store a string in the registry
     _ = lua.pushStringZ("hello there");
-    lua.rawSetPtr(lua_wrapper.registry_index, key);
+    lua.rawSetPtr(zlua.registry_index, key);
 
     // get key from the registry
-    _ = lua.rawGetPtr(lua_wrapper.registry_index, key);
+    _ = lua.rawGetPtr(zlua.registry_index, key);
     try expectEqualStrings("hello there", try lua.toString(-1));
 }
 
 test "closing vars" {
-    if (lua_wrapper.lang != .lua54) return;
+    if (zlua.lang != .lua54) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -1100,12 +1100,12 @@ test "raise error" {
         }
     }.inner;
 
-    lua.pushFunction(lua_wrapper.wrap(makeError));
+    lua.pushFunction(zlua.wrap(makeError));
     try expectError(error.LuaRuntime, lua.protectedCall(.{}));
     try expectEqualStrings("makeError made an error", try lua.toString(-1));
 }
 
-fn continuation(l: *Lua, status: lua_wrapper.Status, ctx: isize) i32 {
+fn continuation(l: *Lua, status: zlua.Status, ctx: isize) i32 {
     _ = status;
 
     if (ctx == 5) {
@@ -1114,12 +1114,12 @@ fn continuation(l: *Lua, status: lua_wrapper.Status, ctx: isize) i32 {
     } else {
         // yield the current context value
         l.pushInteger(ctx);
-        return l.yieldCont(1, ctx + 1, lua_wrapper.wrap(continuation));
+        return l.yieldCont(1, ctx + 1, zlua.wrap(continuation));
     }
 }
 
 test "yielding" {
-    if (lua_wrapper.lang != .lua53 and lua_wrapper.lang != .lua54) return;
+    if (zlua.lang != .lua53 and zlua.lang != .lua54) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -1133,12 +1133,12 @@ test "yielding" {
     }.inner;
 
     var thread = lua.newThread();
-    thread.pushFunction(lua_wrapper.wrap(willYield));
+    thread.pushFunction(zlua.wrap(willYield));
 
     try expect(!lua.isYieldable());
 
     var i: i32 = 0;
-    if (lua_wrapper.lang == .lua54) {
+    if (zlua.lang == .lua54) {
         try expect(thread.isYieldable());
 
         var results: i32 = undefined;
@@ -1172,12 +1172,12 @@ fn continuation52(l: *Lua) !i32 {
     } else {
         // yield the current context value
         l.pushInteger(ctx);
-        return l.yieldCont(1, ctx + 1, lua_wrapper.wrap(continuation52));
+        return l.yieldCont(1, ctx + 1, zlua.wrap(continuation52));
     }
 }
 
 test "yielding Lua 5.2" {
-    if (lua_wrapper.lang != .lua52) return;
+    if (zlua.lang != .lua52) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -1191,7 +1191,7 @@ test "yielding Lua 5.2" {
     }.inner;
 
     var thread = lua.newThread();
-    thread.pushFunction(lua_wrapper.wrap(willYield));
+    thread.pushFunction(zlua.wrap(willYield));
 
     var i: i32 = 0;
     while (i < 5) : (i += 1) {
@@ -1204,20 +1204,20 @@ test "yielding Lua 5.2" {
 }
 
 test "yielding no continuation" {
-    if (lua_wrapper.lang != .lua51 and lua_wrapper.lang != .luau) return;
+    if (zlua.lang != .lua51 and zlua.lang != .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
     var thread = lua.newThread();
-    const func = lua_wrapper.wrap(struct {
+    const func = zlua.wrap(struct {
         fn inner(l: *Lua) i32 {
             l.pushInteger(1);
             return l.yield(1);
         }
     }.inner);
     thread.pushFunction(func);
-    if (lua_wrapper.lang == .luau) {
+    if (zlua.lang == .luau) {
         _ = try thread.resumeThread(null, 0);
     } else {
         _ = try thread.resumeThread(0);
@@ -1227,7 +1227,7 @@ test "yielding no continuation" {
 }
 
 test "resuming" {
-    if (lua_wrapper.lang == .lua54) return;
+    if (zlua.lang == .lua54) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -1250,11 +1250,11 @@ test "resuming" {
 
     var i: i32 = 1;
     while (i <= 5) : (i += 1) {
-        try expectEqual(.yield, if (lua_wrapper.lang == .lua51 or lua_wrapper.lang == .luajit) try thread.resumeThread(0) else try thread.resumeThread(lua, 0));
+        try expectEqual(.yield, if (zlua.lang == .lua51 or zlua.lang == .luajit) try thread.resumeThread(0) else try thread.resumeThread(lua, 0));
         try expectEqual(i, thread.toInteger(-1));
         lua.pop(lua.getTop());
     }
-    try expectEqual(.ok, if (lua_wrapper.lang == .lua51 or lua_wrapper.lang == .luajit) try thread.resumeThread(0) else try thread.resumeThread(lua, 0));
+    try expectEqual(.ok, if (zlua.lang == .lua51 or zlua.lang == .luajit) try thread.resumeThread(0) else try thread.resumeThread(lua, 0));
     try expectEqualStrings("done", try thread.toString(-1));
 }
 
@@ -1262,14 +1262,14 @@ test "aux check functions" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    const function = lua_wrapper.wrap(struct {
+    const function = zlua.wrap(struct {
         fn inner(l: *Lua) i32 {
             l.checkAny(1);
             _ = l.checkInteger(2);
             _ = l.checkNumber(3);
             _ = l.checkString(4);
             l.checkType(5, .boolean);
-            _ = if (lua_wrapper.lang == .lua52) l.checkUnsigned(6);
+            _ = if (zlua.lang == .lua52) l.checkUnsigned(6);
             return 0;
         }
     }.inner);
@@ -1314,7 +1314,7 @@ test "aux check functions" {
         lua.pop(-1);
     };
 
-    if (lua_wrapper.lang == .lua52) {
+    if (zlua.lang == .lua52) {
         lua.pushFunction(function);
         lua.pushNil();
         lua.pushInteger(3);
@@ -1329,12 +1329,12 @@ test "aux check functions" {
 
     lua.pushFunction(function);
     // test pushFail here (currently acts the same as pushNil)
-    if (lua_wrapper.lang == .lua54) lua.pushFail() else lua.pushNil();
+    if (zlua.lang == .lua54) lua.pushFail() else lua.pushNil();
     lua.pushInteger(3);
     lua.pushNumber(4);
     _ = lua.pushString("hello world");
     lua.pushBoolean(true);
-    if (lua_wrapper.lang == .lua52) {
+    if (zlua.lang == .lua52) {
         lua.pushUnsigned(1);
         try lua.protectedCall(.{ .args = 6 });
     } else try lua.protectedCall(.{ .args = 5 });
@@ -1344,7 +1344,7 @@ test "aux opt functions" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    const function = lua_wrapper.wrap(struct {
+    const function = zlua.wrap(struct {
         fn inner(l: *Lua) !i32 {
             try expectEqual(10, l.optInteger(1) orelse 10);
             try expectEqualStrings("zig", l.optString(2) orelse "zig");
@@ -1375,7 +1375,7 @@ test "checkOption" {
         three,
     };
 
-    const function = lua_wrapper.wrap(struct {
+    const function = zlua.wrap(struct {
         fn inner(l: *Lua) i32 {
             const option = l.checkOption(Variant, 1, .one);
             l.pushInteger(switch (option) {
@@ -1419,7 +1419,7 @@ test "checkOption" {
 }
 
 test "get global fail" {
-    if (lua_wrapper.lang != .lua54) return;
+    if (zlua.lang != .lua54) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -1428,7 +1428,7 @@ test "get global fail" {
 }
 
 test "globalSub" {
-    if (lua_wrapper.lang == .luau) return;
+    if (zlua.lang == .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -1438,16 +1438,16 @@ test "globalSub" {
 }
 
 test "loadBuffer" {
-    if (lua_wrapper.lang == .luau) return;
+    if (zlua.lang == .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    if (lua_wrapper.lang == .lua51 or lua_wrapper.lang == .luajit) {
+    if (zlua.lang == .lua51 or zlua.lang == .luajit) {
         _ = try lua.loadBuffer("global = 10", "chunkname");
     } else _ = try lua.loadBuffer("global = 10", "chunkname", .text);
 
-    try lua.protectedCall(.{ .args = 0, .results = lua_wrapper.mult_return });
+    try lua.protectedCall(.{ .args = 0, .results = zlua.mult_return });
     _ = try lua.getGlobal("global");
     try expectEqual(10, try lua.toInteger(-1));
 }
@@ -1456,7 +1456,7 @@ test "where" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    const whereFn = lua_wrapper.wrap(struct {
+    const whereFn = zlua.wrap(struct {
         fn inner(l: *Lua) i32 {
             l.where(1);
             return 1;
@@ -1476,26 +1476,26 @@ test "where" {
 }
 
 test "ref" {
-    if (lua_wrapper.lang == .luau) return;
+    if (zlua.lang == .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
     lua.pushNil();
-    try expectError(error.LuaError, lua.ref(lua_wrapper.registry_index));
+    try expectError(error.LuaError, lua.ref(zlua.registry_index));
     try expectEqual(0, lua.getTop());
 
     _ = lua.pushString("Hello there");
-    const ref = try lua.ref(lua_wrapper.registry_index);
+    const ref = try lua.ref(zlua.registry_index);
 
-    _ = lua.rawGetIndex(lua_wrapper.registry_index, ref);
+    _ = lua.rawGetIndex(zlua.registry_index, ref);
     try expectEqualStrings("Hello there", try lua.toString(-1));
 
-    lua.unref(lua_wrapper.registry_index, ref);
+    lua.unref(zlua.registry_index, ref);
 }
 
 test "ref luau" {
-    if (lua_wrapper.lang != .luau) return;
+    if (zlua.lang != .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -1509,7 +1509,7 @@ test "ref luau" {
     _ = lua.pushString("Hello there");
     const ref = try lua.ref(2);
 
-    _ = lua.rawGetIndex(lua_wrapper.registry_index, ref);
+    _ = lua.rawGetIndex(zlua.registry_index, ref);
     try expectEqualStrings("Hello there", try lua.toString(-1));
 
     lua.unref(ref);
@@ -1537,7 +1537,7 @@ test "metatables" {
     if (!langIn(.{ .lua51, .luajit, .luau })) {
         lua.setMetatableRegistry("mt");
     } else {
-        _ = lua.getField(lua_wrapper.registry_index, "mt");
+        _ = lua.getField(zlua.registry_index, "mt");
         lua.setMetatable(-2);
     }
 
@@ -1549,7 +1549,7 @@ test "args and errors" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    const argCheck = lua_wrapper.wrap(struct {
+    const argCheck = zlua.wrap(struct {
         fn inner(l: *Lua) i32 {
             l.argCheck(false, 1, "error!");
             return 0;
@@ -1559,7 +1559,7 @@ test "args and errors" {
     lua.pushFunction(argCheck);
     try expectError(error.LuaRuntime, lua.protectedCall(.{}));
 
-    const raisesError = lua_wrapper.wrap(struct {
+    const raisesError = zlua.wrap(struct {
         fn inner(l: *Lua) i32 {
             l.raiseErrorStr("some error %s!", .{"zig"});
             unreachable;
@@ -1570,9 +1570,9 @@ test "args and errors" {
     try expectError(error.LuaRuntime, lua.protectedCall(.{}));
     try expectEqualStrings("some error zig!", try lua.toString(-1));
 
-    if (lua_wrapper.lang != .lua54) return;
+    if (zlua.lang != .lua54) return;
 
-    const argExpected = lua_wrapper.wrap(struct {
+    const argExpected = zlua.wrap(struct {
         fn inner(l: *Lua) i32 {
             l.argExpected(false, 1, "string");
             return 0;
@@ -1589,7 +1589,7 @@ test "traceback" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
 
-    const tracebackFn = lua_wrapper.wrap(struct {
+    const tracebackFn = zlua.wrap(struct {
         fn inner(l: *Lua) i32 {
             l.traceback(l, "", 1);
             return 1;
@@ -1634,7 +1634,7 @@ test "userdata" {
     const Type = struct { a: i32, b: f32 };
     try lua.newMetatable("Type");
 
-    const checkUdata = lua_wrapper.wrap(struct {
+    const checkUdata = zlua.wrap(struct {
         fn inner(l: *Lua) i32 {
             const ptr = l.checkUserdata(Type, 1, "Type");
             if (ptr.a != 1234) {
@@ -1652,9 +1652,9 @@ test "userdata" {
     lua.pushFunction(checkUdata);
 
     {
-        var t = if (lua_wrapper.lang == .lua54) lua.newUserdata(Type, 0) else lua.newUserdata(Type);
+        var t = if (zlua.lang == .lua54) lua.newUserdata(Type, 0) else lua.newUserdata(Type);
         if (langIn(.{ .lua51, .luajit, .luau })) {
-            _ = lua.getField(lua_wrapper.registry_index, "Type");
+            _ = lua.getField(zlua.registry_index, "Type");
             lua.setMetatable(-2);
         } else lua.setMetatableRegistry("Type");
 
@@ -1668,7 +1668,7 @@ test "userdata" {
 
     if (langIn(.{ .lua51, .luajit, .luau })) return;
 
-    const testUdata = lua_wrapper.wrap(struct {
+    const testUdata = zlua.wrap(struct {
         fn inner(l: *Lua) !i32 {
             const ptr = try l.testUserdata(Type, 1, "Type");
             if (ptr.a != 1234) {
@@ -1686,7 +1686,7 @@ test "userdata" {
     lua.pushFunction(testUdata);
 
     {
-        var t = if (lua_wrapper.lang == .lua54) lua.newUserdata(Type, 0) else lua.newUserdata(Type);
+        var t = if (zlua.lang == .lua54) lua.newUserdata(Type, 0) else lua.newUserdata(Type);
         lua.setMetatableRegistry("Type");
         t.a = 1234;
         t.b = 3.14;
@@ -1698,7 +1698,7 @@ test "userdata" {
 }
 
 test "userdata slices" {
-    const Integer = lua_wrapper.Integer;
+    const Integer = zlua.Integer;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -1706,9 +1706,9 @@ test "userdata slices" {
     try lua.newMetatable("FixedArray");
 
     // create an array of 10
-    const slice = if (lua_wrapper.lang == .lua54) lua.newUserdataSlice(Integer, 10, 0) else lua.newUserdataSlice(Integer, 10);
+    const slice = if (zlua.lang == .lua54) lua.newUserdataSlice(Integer, 10, 0) else lua.newUserdataSlice(Integer, 10);
     if (langIn(.{ .lua51, .luajit, .luau })) {
-        _ = lua.getField(lua_wrapper.registry_index, "FixedArray");
+        _ = lua.getField(zlua.registry_index, "FixedArray");
         lua.setMetatable(-2);
     } else lua.setMetatableRegistry("FixedArray");
 
@@ -1731,14 +1731,14 @@ test "userdata slices" {
         }
     }.inner;
 
-    lua.pushFunction(lua_wrapper.wrap(udataFn));
+    lua.pushFunction(zlua.wrap(udataFn));
     lua.pushValue(2);
 
     try lua.protectedCall(.{ .args = 1 });
 }
 
 test "function environments" {
-    if (lua_wrapper.lang != .lua51 and lua_wrapper.lang != .luau) return;
+    if (zlua.lang != .lua51 and zlua.lang != .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -1772,7 +1772,7 @@ test "function environments" {
 }
 
 test "objectLen" {
-    if (lua_wrapper.lang != .lua51 and lua_wrapper.lang != .luau) return;
+    if (zlua.lang != .lua51 and zlua.lang != .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -1822,12 +1822,12 @@ test "debug interface" {
 
     // create a hook
     const hook = struct {
-        fn inner(l: *Lua, event: lua_wrapper.Event, i: *DebugInfo) !void {
+        fn inner(l: *Lua, event: zlua.Event, i: *DebugInfo) !void {
             switch (event) {
                 .call => {
-                    if (lua_wrapper.lang == .lua54) l.getInfo(.{ .l = true, .r = true }, i) else l.getInfo(.{ .l = true }, i);
+                    if (zlua.lang == .lua54) l.getInfo(.{ .l = true, .r = true }, i) else l.getInfo(.{ .l = true }, i);
                     if (i.current_line.? != 2) std.debug.panic("Expected line to be 2", .{});
-                    _ = if (lua_wrapper.lang == .lua54) try l.getLocal(i, i.first_transfer) else try l.getLocal(i, 1);
+                    _ = if (zlua.lang == .lua54) try l.getLocal(i, i.first_transfer) else try l.getLocal(i, 1);
                     if ((try l.toNumber(-1)) != 3) std.debug.panic("Expected x to equal 3", .{});
                 },
                 .line => if (i.current_line.? == 4) {
@@ -1836,9 +1836,9 @@ test "debug interface" {
                     _ = try l.setLocal(i, 2);
                 },
                 .ret => {
-                    if (lua_wrapper.lang == .lua54) l.getInfo(.{ .l = true, .r = true }, i) else l.getInfo(.{ .l = true }, i);
+                    if (zlua.lang == .lua54) l.getInfo(.{ .l = true, .r = true }, i) else l.getInfo(.{ .l = true }, i);
                     if (i.current_line.? != 4) std.debug.panic("Expected line to be 4", .{});
-                    _ = if (lua_wrapper.lang == .lua54) try l.getLocal(i, i.first_transfer) else try l.getLocal(i, 1);
+                    _ = if (zlua.lang == .lua54) try l.getLocal(i, i.first_transfer) else try l.getLocal(i, 1);
                     if ((try l.toNumber(-1)) != 3) std.debug.panic("Expected result to equal 3", .{});
                 },
                 else => unreachable,
@@ -1848,12 +1848,12 @@ test "debug interface" {
 
     // run the hook when a function is called
     try expectEqual(null, lua.getHook());
-    try expectEqual(lua_wrapper.HookMask{}, lua.getHookMask());
+    try expectEqual(zlua.HookMask{}, lua.getHookMask());
     try expectEqual(0, lua.getHookCount());
 
-    lua.setHook(lua_wrapper.wrap(hook), .{ .call = true, .line = true, .ret = true }, 0);
-    try expectEqual(lua_wrapper.wrap(hook), lua.getHook());
-    try expectEqual(lua_wrapper.HookMask{ .call = true, .line = true, .ret = true }, lua.getHookMask());
+    lua.setHook(zlua.wrap(hook), .{ .call = true, .line = true, .ret = true }, 0);
+    try expectEqual(zlua.wrap(hook), lua.getHook());
+    try expectEqual(zlua.HookMask{ .call = true, .line = true, .ret = true }, lua.getHookMask());
 
     _ = try lua.getGlobal("f");
     lua.pushNumber(3);
@@ -1861,7 +1861,7 @@ test "debug interface" {
 }
 
 test "debug interface Lua 5.1 and Luau" {
-    if (lua_wrapper.lang != .lua51 and lua_wrapper.lang != .luau) return;
+    if (zlua.lang != .lua51 and zlua.lang != .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -1877,7 +1877,7 @@ test "debug interface Lua 5.1 and Luau" {
 
     var info: DebugInfo = undefined;
 
-    if (lua_wrapper.lang == .lua51) {
+    if (zlua.lang == .lua51) {
         lua.getInfo(.{
             .@">" = true,
             .l = true,
@@ -1899,7 +1899,7 @@ test "debug interface Lua 5.1 and Luau" {
     const len = std.mem.len(@as([*:0]u8, @ptrCast(&info.short_src)));
     try expectEqual(1, info.first_line_defined);
 
-    if (lua_wrapper.lang == .luau) {
+    if (zlua.lang == .luau) {
         try expectEqual(1, info.current_line);
         try expectEqualStrings("[string \"...\"]", info.short_src[0..len]);
         return;
@@ -1912,7 +1912,7 @@ test "debug interface Lua 5.1 and Luau" {
 
     // create a hook
     const hook = struct {
-        fn inner(l: *Lua, event: lua_wrapper.Event, i: *DebugInfo) !void {
+        fn inner(l: *Lua, event: zlua.Event, i: *DebugInfo) !void {
             switch (event) {
                 .call => {
                     l.getInfo(.{ .l = true }, i);
@@ -1937,13 +1937,13 @@ test "debug interface Lua 5.1 and Luau" {
     }.inner;
 
     // run the hook when a function is called
-    try expectEqual(@as(?lua_wrapper.CHookFn, null), lua.getHook());
-    try expectEqual(lua_wrapper.HookMask{}, lua.getHookMask());
+    try expectEqual(@as(?zlua.CHookFn, null), lua.getHook());
+    try expectEqual(zlua.HookMask{}, lua.getHookMask());
     try expectEqual(@as(i32, 0), lua.getHookCount());
 
-    lua.setHook(lua_wrapper.wrap(hook), .{ .call = true, .line = true, .ret = true }, 0);
-    try expectEqual(@as(?lua_wrapper.CHookFn, lua_wrapper.wrap(hook)), lua.getHook());
-    try expectEqual(lua_wrapper.HookMask{ .call = true, .line = true, .ret = true }, lua.getHookMask());
+    lua.setHook(zlua.wrap(hook), .{ .call = true, .line = true, .ret = true }, 0);
+    try expectEqual(@as(?zlua.CHookFn, zlua.wrap(hook)), lua.getHook());
+    try expectEqual(zlua.HookMask{ .call = true, .line = true, .ret = true }, lua.getHookMask());
 
     _ = try lua.getGlobal("f");
     lua.pushNumber(3);
@@ -1968,7 +1968,7 @@ test "debug upvalues" {
     try expectError(error.LuaError, lua.getUpvalue(1, 2));
 
     // inspect the upvalue (should be x)
-    try expectEqualStrings(if (lua_wrapper.lang == .luau) "" else "x", try lua.getUpvalue(-1, 1));
+    try expectEqualStrings(if (zlua.lang == .luau) "" else "x", try lua.getUpvalue(-1, 1));
     try expectEqual(1, try lua.toNumber(-1));
     lua.pop(1);
 
@@ -1977,7 +1977,7 @@ test "debug upvalues" {
     _ = try lua.setUpvalue(-2, 1);
 
     // test a bad index (the valid one's result is unpredicable)
-    if (lua_wrapper.lang == .lua54) try expectError(error.LuaError, lua.upvalueId(-1, 2));
+    if (zlua.lang == .lua54) try expectError(error.LuaError, lua.upvalueId(-1, 2));
 
     // call the new function (should return 7)
     lua.pushNumber(2);
@@ -2001,7 +2001,7 @@ test "debug upvalues" {
 }
 
 test "getstack" {
-    if (lua_wrapper.lang == .luau) return;
+    if (zlua.lang == .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -2018,7 +2018,7 @@ test "getstack" {
         }
     }.inner;
 
-    lua.pushFunction(lua_wrapper.wrap(function));
+    lua.pushFunction(zlua.wrap(function));
     lua.setGlobal("f");
 
     try lua.doString(
@@ -2030,7 +2030,7 @@ test "getstack" {
 }
 
 test "compile and run bytecode" {
-    if (lua_wrapper.lang != .luau) return;
+    if (zlua.lang != .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -2038,7 +2038,7 @@ test "compile and run bytecode" {
 
     // Load bytecode
     const src = "return 133";
-    const bc = try lua_wrapper.compile(testing.allocator, src, lua_wrapper.CompileOptions{});
+    const bc = try zlua.compile(testing.allocator, src, zlua.CompileOptions{});
     defer testing.allocator.free(bc);
 
     try lua.loadBytecode("...", bc);
@@ -2048,13 +2048,13 @@ test "compile and run bytecode" {
 
     // Try mutable globals.  Calls to mutable globals should produce longer bytecode.
     const src2 = "Foo.print()\nBar.print()";
-    const bc1 = try lua_wrapper.compile(testing.allocator, src2, lua_wrapper.CompileOptions{});
+    const bc1 = try zlua.compile(testing.allocator, src2, zlua.CompileOptions{});
     defer testing.allocator.free(bc1);
 
-    const options = lua_wrapper.CompileOptions{
+    const options = zlua.CompileOptions{
         .mutable_globals = &[_:null]?[*:0]const u8{ "Foo", "Bar" },
     };
-    const bc2 = try lua_wrapper.compile(testing.allocator, src2, options);
+    const bc2 = try zlua.compile(testing.allocator, src2, options);
     defer testing.allocator.free(bc2);
     // A really crude check for changed bytecode.  Better would be to match
     // produced bytecode in text format, but the API doesn't support it.
@@ -2062,7 +2062,7 @@ test "compile and run bytecode" {
 }
 
 test "userdata dtor" {
-    if (lua_wrapper.lang != .luau) return;
+    if (zlua.lang != .luau) return;
     var gc_hits: i32 = 0;
 
     const Data = struct {
@@ -2079,7 +2079,7 @@ test "userdata dtor" {
         var lua = try Lua.init(testing.allocator);
         defer lua.deinit(); // forces dtors to be called at the latest
 
-        var data = lua.newUserdataDtor(Data, lua_wrapper.wrap(Data.dtor));
+        var data = lua.newUserdataDtor(Data, zlua.wrap(Data.dtor));
         data.gc_hits_ptr = &gc_hits;
         try expectEqual(@as(*anyopaque, @ptrCast(data)), try lua.toPointer(1));
         try expectEqual(0, gc_hits);
@@ -2092,7 +2092,7 @@ test "userdata dtor" {
 }
 
 test "tagged userdata" {
-    if (lua_wrapper.lang != .luau) return;
+    if (zlua.lang != .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit(); // forces dtors to be called at the latest
@@ -2130,7 +2130,7 @@ fn vectorCtor(l: *Lua) !i32 {
     const x = try l.toNumber(1);
     const y = try l.toNumber(2);
     const z = try l.toNumber(3);
-    if (lua_wrapper.luau_vector_size == 4) {
+    if (zlua.luau_vector_size == 4) {
         const w = l.optNumber(4, 0);
         l.pushVector(@floatCast(x), @floatCast(y), @floatCast(z), @floatCast(w));
     } else {
@@ -2140,12 +2140,12 @@ fn vectorCtor(l: *Lua) !i32 {
 }
 
 test "luau vectors" {
-    if (lua_wrapper.lang != .luau) return;
+    if (zlua.lang != .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
     lua.openLibs();
-    lua.register("vector", lua_wrapper.wrap(vectorCtor));
+    lua.register("vector", zlua.wrap(vectorCtor));
 
     try lua.doString(
         \\function test()
@@ -2160,10 +2160,10 @@ test "luau vectors" {
     var v = try lua.toVector(-1);
     try testing.expectEqualSlices(f32, &[3]f32{ 10, 14, 18 }, v[0..3]);
 
-    if (lua_wrapper.luau_vector_size == 3) lua.pushVector(1, 2, 3) else lua.pushVector(1, 2, 3, 4);
+    if (zlua.luau_vector_size == 3) lua.pushVector(1, 2, 3) else lua.pushVector(1, 2, 3, 4);
     try expect(lua.isVector(-1));
     v = try lua.toVector(-1);
-    const expected = if (lua_wrapper.luau_vector_size == 3) [3]f32{ 1, 2, 3 } else [4]f32{ 1, 2, 3, 4 };
+    const expected = if (zlua.luau_vector_size == 3) [3]f32{ 1, 2, 3 } else [4]f32{ 1, 2, 3, 4 };
     try expectEqual(expected, v);
     try expectEqualStrings("vector", lua.typeNameIndex(-1));
 
@@ -2172,15 +2172,15 @@ test "luau vectors" {
 }
 
 test "luau 4-vectors" {
-    if (lua_wrapper.lang != .luau) return;
+    if (zlua.lang != .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
     lua.openLibs();
-    lua.register("vector", lua_wrapper.wrap(vectorCtor));
+    lua.register("vector", zlua.wrap(vectorCtor));
 
     // More specific 4-vector tests
-    if (lua_wrapper.luau_vector_size == 4) {
+    if (zlua.luau_vector_size == 4) {
         try lua.doString(
             \\local a = vector(1, 2, 3, 4)
             \\local b = vector(5, 6, 7, 8)
@@ -2192,7 +2192,7 @@ test "luau 4-vectors" {
 }
 
 test "useratom" {
-    if (lua_wrapper.lang != .luau) return;
+    if (zlua.lang != .luau) return;
 
     const useratomCb = struct {
         pub fn inner(str: []const u8) i16 {
@@ -2207,7 +2207,7 @@ test "useratom" {
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
-    lua.setUserAtomCallbackFn(lua_wrapper.wrap(useratomCb));
+    lua.setUserAtomCallbackFn(zlua.wrap(useratomCb));
 
     _ = lua.pushStringZ("unknownatom");
     _ = lua.pushStringZ("method_one");
@@ -2229,7 +2229,7 @@ test "useratom" {
 }
 
 test "namecall" {
-    if (lua_wrapper.lang != .luau) return;
+    if (zlua.lang != .luau) return;
 
     const funcs = struct {
         const dot_idx: i32 = 0;
@@ -2271,14 +2271,14 @@ test "namecall" {
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
-    lua.setUserAtomCallbackFn(lua_wrapper.wrap(funcs.useratomCb));
+    lua.setUserAtomCallbackFn(zlua.wrap(funcs.useratomCb));
 
-    lua.register("vector", lua_wrapper.wrap(vectorCtor));
+    lua.register("vector", zlua.wrap(vectorCtor));
     lua.pushVector(0, 0, 0);
 
     try lua.newMetatable("vector");
     _ = lua.pushStringZ("__namecall");
-    lua.pushFunctionNamed(lua_wrapper.wrap(funcs.vectorNamecall), "vector_namecall");
+    lua.pushFunctionNamed(zlua.wrap(funcs.vectorNamecall), "vector_namecall");
     lua.setTable(-3);
 
     lua.setReadonly(-1, true);
@@ -2796,7 +2796,7 @@ test "loadFile binary mode" {
 }
 
 test "doFile" {
-    if (lua_wrapper.lang == .luau) return;
+    if (zlua.lang == .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -2853,12 +2853,12 @@ test "define" {
 
     const a = std.testing.allocator;
 
-    var state = lua_wrapper.def.DefineState.init(a);
+    var state = zlua.def.DefineState.init(a);
     defer state.deinit();
 
     const to_define: []const type = &.{ T, TestType, Foo };
     inline for (to_define) |my_type| {
-        _ = try lua_wrapper.def.addClass(&state, my_type);
+        _ = try zlua.def.addClass(&state, my_type);
     }
 
     var buffer: [10000]u8 = .{0} ** 10000;
@@ -2874,7 +2874,7 @@ test "define" {
 }
 
 test "interrupt" {
-    if (lua_wrapper.lang != .luau) return;
+    if (zlua.lang != .luau) return;
 
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -2895,7 +2895,7 @@ test "interrupt" {
         \\   return a + b
         \\end
     );
-    lua.setInterruptCallbackFn(lua_wrapper.wrap(interrupt_handler.inner));
+    lua.setInterruptCallbackFn(zlua.wrap(interrupt_handler.inner));
 
     const expected_err = lua.doString(
         \\c = add(1, 2)
@@ -2923,7 +2923,7 @@ test "error union for CFn" {
     }.inner;
 
     // This will fail because there is no argument passed
-    lua.pushFunction(lua_wrapper.wrap(fails));
+    lua.pushFunction(zlua.wrap(fails));
     lua.protectedCall(.{}) catch {
         // Get the error string
         try expectEqualStrings("MissingInteger", try lua.toString(-1));
