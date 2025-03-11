@@ -1,5 +1,5 @@
 const std = @import("std");
-const lua_wrapper = @import("lua_wrapper");
+const zlua = @import("zlua");
 
 const T = struct { foo: i32 };
 const MyEnum = enum { asdf, fdsa, qwer, rewq };
@@ -10,5 +10,5 @@ const Foo = struct { far: MyEnum, near: SubType };
 
 pub fn main() !void {
     const output_file_path = std.mem.sliceTo(std.os.argv[1], 0);
-    try lua_wrapper.define(std.heap.c_allocator, output_file_path, &.{ T, TestType, Foo });
+    try zlua.define(std.heap.c_allocator, output_file_path, &.{ T, TestType, Foo });
 }

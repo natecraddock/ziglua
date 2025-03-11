@@ -1,11 +1,11 @@
 //! Registering a Zig function to be called from Lua
 
 const std = @import("std");
-const lua_wrapper = @import("lua_wrapper");
+const zlua = @import("zlua");
 
 // It can be convenient to store a short reference to the Lua struct when
 // it is used multiple times throughout a file.
-const Lua = lua_wrapper.Lua;
+const Lua = zlua.Lua;
 
 // A Zig function called by Lua must accept a single *Lua parameter and must return an i32 (an error union is allowed)
 // This is the Zig equivalent of the lua_CFunction typedef int (*lua_CFunction) (lua_State *L) in the C API
@@ -26,10 +26,10 @@ pub fn main() anyerror!void {
     defer lua.deinit();
 
     // Push the adder function to the Lua stack.
-    // Here we use lua_wrapper.wrap() to convert from a Zig function to the lua_CFunction required by Lua.
+    // Here we use zlua.wrap() to convert from a Zig function to the lua_CFunction required by Lua.
     // This could be done automatically by pushFunction(), but that would require the parameter to be comptime-known.
-    // The call to lua_wrapper.wrap() is slightly more verbose, but has the benefit of being more flexible.
-    lua.pushFunction(lua_wrapper.wrap(adder));
+    // The call to zlua.wrap() is slightly more verbose, but has the benefit of being more flexible.
+    lua.pushFunction(zlua.wrap(adder));
 
     // Push the arguments onto the stack
     lua.pushInteger(10);
@@ -47,7 +47,7 @@ pub fn main() anyerror!void {
     std.debug.print("the result: {}\n", .{lua.toInteger(-1) catch unreachable});
 
     // We can also register the function to a global and run from a Lua "program"
-    lua.pushFunction(lua_wrapper.wrap(adder));
+    lua.pushFunction(zlua.wrap(adder));
     lua.setGlobal("add");
 
     // We need to open the base library so the global print() is available
