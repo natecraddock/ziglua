@@ -4699,7 +4699,7 @@ pub const Lua = opaque {
                 inline for (info.@"fn".params, 0..) |param, i| {
                     const param_info = @typeInfo(param.type.?);
                     //only use the overhead of creating the arena allocator if needed
-                    if (comptime param_info == .pointer and param_info.pointer.size != .One) {
+                    if (comptime param_info == .pointer and param_info.pointer.size != .one) {
                         const parsed = lua.toAnyAlloc(param.type.?, (i + 1)) catch |err| {
                             lua.raiseErrorStr(@errorName(err), .{});
                         };
