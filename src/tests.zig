@@ -2656,6 +2656,10 @@ fn bar(a: i32, b: i32) !i32 {
     return a + b;
 }
 
+fn baz(a: []const u8) usize {
+    return a.len;
+}
+
 test "autoPushFunction" {
     var lua = try Lua.init(testing.allocator);
     defer lua.deinit();
@@ -2667,6 +2671,9 @@ test "autoPushFunction" {
     lua.autoPushFunction(bar);
     lua.setGlobal("bar");
 
+    lua.autoPushFunction(baz);
+    lua.setGlobal("baz");
+
     try lua.doString(
         \\result = foo(1, 2)
     );
@@ -2674,10 +2681,15 @@ test "autoPushFunction" {
         \\local status, result = pcall(bar, 1, 2)
     );
 
+    try lua.doString(
+        \\result = baz("test")
+    );
+
     //automatic api construction
     const my_api = .{
         .foo = foo,
         .bar = bar,
+        .baz = baz,
     };
 
     try lua.pushAny(my_api);
