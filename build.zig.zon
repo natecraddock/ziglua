@@ -12,31 +12,37 @@
         .lua51 = .{
             .url = "https://github.com/natecraddock/lua/archive/refs/tags/5.1.5-1.tar.gz",
             .hash = "N-V-__8AABYiDAA_4f7ruBY1-N9aWnJCcz5EH-PzBDmJyOa0",
+            .lazy = true,
         },
 
         .lua52 = .{
             .url = "https://www.lua.org/ftp/lua-5.2.4.tar.gz",
             .hash = "N-V-__8AALg2DgDVsrOXOPBkTZ7Vt0MZc_Gha5N--G1M-FiH",
+            .lazy = true,
         },
 
         .lua53 = .{
             .url = "https://www.lua.org/ftp/lua-5.3.6.tar.gz",
             .hash = "N-V-__8AALihEACTeiI1Me9rP-qPZT3BNTELDoSAXn76FIhw",
+            .lazy = true,
         },
 
         .lua54 = .{
             .url = "https://www.lua.org/ftp/lua-5.4.7.tar.gz",
             .hash = "N-V-__8AAIMvFABt-Qcpk24RD10ldEN743D8Q2e19Er8x3dJ",
+            .lazy = true,
         },
 
         .luajit = .{
             .url = "https://github.com/LuaJIT/LuaJIT/archive/c525bcb9024510cad9e170e12b6209aedb330f83.tar.gz",
             .hash = "N-V-__8AACcgQgCuLYTPzCp6pnBmFJHyG77RAtM13hjOfTaG",
+            .lazy = true,
         },
 
         .luau = .{
             .url = "https://github.com/luau-lang/luau/archive/refs/tags/0.653.tar.gz",
             .hash = "N-V-__8AAFB1kwDHb7dLmDsOv91rOkqorfDB_2nJtqnp4F-b",
+            .lazy = true,
         },
     },
 }
