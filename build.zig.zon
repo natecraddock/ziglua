@@ -29,14 +29,15 @@
             .hash = "N-V-__8AAIMvFABt-Qcpk24RD10ldEN743D8Q2e19Er8x3dJ",
         },
 
-        .luajit = .{
-            .url = "https://github.com/LuaJIT/LuaJIT/archive/c525bcb9024510cad9e170e12b6209aedb330f83.tar.gz",
-            .hash = "N-V-__8AACcgQgCuLYTPzCp6pnBmFJHyG77RAtM13hjOfTaG",
-        },
-
         .luau = .{
             .url = "https://github.com/luau-lang/luau/archive/refs/tags/0.653.tar.gz",
             .hash = "N-V-__8AAFB1kwDHb7dLmDsOv91rOkqorfDB_2nJtqnp4F-b",
+        },
+
+        // renamed so the build option name can be luajit
+        .luajit = .{
+            .url = "git+https://github.com/sackosoft/zig-luajit-build?ref=v1.1.3#8bb843189b32ada74741c51b7f88c32f45f5f7f2",
+            .hash = "luajit_build-1.1.3-HFjoU2o7AABpwlsfVuxG9YbpjRYmD4LwVa2WPCod3YKC",
         },
     },
 }
