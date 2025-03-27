@@ -622,10 +622,8 @@ pub const Lua = opaque {
     /// Initialize a Lua state with the given allocator. Use `Lua.deinit()` to close the state and free memory.
     ///
     /// Creates a new independent state and returns its main thread.
-    /// Returns NULL if it cannot create the state (due to lack of memory).
-    /// The argument f is the allocator function; Lua will do all memory allocation
-    /// for this state through this function (see lua_Alloc). The second argument,
-    /// ud, is an opaque pointer that Lua passes to the allocator in every call.
+    /// Returns an error if it cannot create the state (due to lack of memory).
+    /// Lua will do all memory allocation for this state through the passed Allocator (see lua_Alloc).
     ///
     /// * Pops:   `0`
     /// * Pushes: `0`
@@ -640,7 +638,6 @@ pub const Lua = opaque {
         const allocator_ptr = try a.create(Allocator);
         allocator_ptr.* = a;
 
-        // @constCast() is safe here because Lua does not mutate the pointer internally
         if (c.lua_newstate(alloc, allocator_ptr)) |state| {
             return @ptrCast(state);
         } else return error.OutOfMemory;
