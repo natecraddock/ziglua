@@ -10,8 +10,8 @@
         // the moment. Maybe there will be a way to apply a patch with the build system in the
         // future.
         .lua51 = .{
-            .url = "https://github.com/natecraddock/lua/archive/refs/tags/5.1.5-1.tar.gz",
-            .hash = "N-V-__8AABYiDAA_4f7ruBY1-N9aWnJCcz5EH-PzBDmJyOa0",
+            .url = "https://www.lua.org/ftp/lua-5.1.5.tar.gz",
+            .hash = "N-V-__8AABAhDAAIlXL7OA-0Z5sWQh_FOFGoImvOvJzkRGOg",
             .lazy = true,
         },
 
