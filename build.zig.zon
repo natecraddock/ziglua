@@ -2,7 +2,7 @@
     .name = .zlua,
     .fingerprint = 0xcf671dd0b696484, // changing this has security and trust implications
     .version = "0.1.0",
-    .paths = .{ "build.zig", "build.zig.zon", "src", "license", "include", "build" },
+    .paths = .{ "build.zig", "build.zig.zon", "src", "license", "build" },
 
     .dependencies = .{
         // We do not use the lua.org version of Lua 5.1.5 because there is a known security issue

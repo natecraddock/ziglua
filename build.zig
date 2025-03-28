@@ -64,9 +64,9 @@ pub fn build(b: *Build) void {
 
         // lib must expose all headers included by these root headers
         const c_header_path = switch (lang) {
-            .luajit => b.path("include/luajit_all.h"),
-            .luau => b.path("include/luau_all.h"),
-            else => b.path("include/lua_all.h"),
+            .luajit => b.path("build/include/luajit_all.h"),
+            .luau => b.path("build/include/luau_all.h"),
+            else => b.path("build/include/lua_all.h"),
         };
         const c_headers = b.addTranslateC(.{
             .root_source_file = c_header_path,
