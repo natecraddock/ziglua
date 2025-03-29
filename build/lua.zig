@@ -71,6 +71,12 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
         .flags = &flags,
     });
 
+    // Patch ldo.c for Lua 5.1
+    if (lang == .lua51) {
+        const patched = patchFile(b, target, lib, upstream.path("src/ldo.c"), b.path("build/lua-5.1.patch"));
+        lib.addCSourceFile(.{ .file = patched, .flags = &flags });
+    }
+
     lib.linkLibC();
 
     lib.installHeader(upstream.path("src/lua.h"), "lua.h");
@@ -81,11 +87,33 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     return lib;
 }
 
+fn patchFile(
+    b: *Build,
+    target: Build.ResolvedTarget,
+    lib: *Step.Compile,
+    file: Build.LazyPath,
+    patch_file: Build.LazyPath,
+) Build.LazyPath {
+    const patch = b.addExecutable(.{
+        .name = "patch",
+        .root_source_file = b.path("build/patch.zig"),
+        .target = target,
+    });
+
+    const patch_run = b.addRunArtifact(patch);
+    patch_run.addFileArg(file);
+    patch_run.addFileArg(patch_file);
+    const out = patch_run.addOutputFileArg("ldo.c");
+
+    lib.step.dependOn(&patch_run.step);
+
+    return out;
+}
+
 const lua_base_source_files = [_][]const u8{
     "src/lapi.c",
     "src/lcode.c",
     "src/ldebug.c",
-    "src/ldo.c",
     "src/ldump.c",
     "src/lfunc.c",
     "src/lgc.c",
@@ -114,12 +142,14 @@ const lua_base_source_files = [_][]const u8{
 };
 
 const lua_52_source_files = lua_base_source_files ++ [_][]const u8{
+    "src/ldo.c",
     "src/lctype.c",
     "src/lbitlib.c",
     "src/lcorolib.c",
 };
 
 const lua_53_source_files = lua_base_source_files ++ [_][]const u8{
+    "src/ldo.c",
     "src/lctype.c",
     "src/lbitlib.c",
     "src/lcorolib.c",
@@ -127,6 +157,7 @@ const lua_53_source_files = lua_base_source_files ++ [_][]const u8{
 };
 
 const lua_54_source_files = lua_base_source_files ++ [_][]const u8{
+    "src/ldo.c",
     "src/lctype.c",
     "src/lcorolib.c",
     "src/lutf8lib.c",
