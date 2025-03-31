@@ -1,0 +1,6 @@
+*.zig text eol=lf
+*.zon text eol=lf
+*.lua text eol=lf
+*.cpp text eol=lf
+*.h text eol=lf
+*.patch text eol=lf
