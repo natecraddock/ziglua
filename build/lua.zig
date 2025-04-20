@@ -52,6 +52,9 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 
         // Enable api check
         if (optimize == .Debug) "-DLUA_USE_APICHECK" else "",
+
+        // Build as DLL for windows if shared
+        if (target.result.os.tag == .windows and shared) "-DLUA_BUILD_AS_DLL" else "",
     };
 
     const lua_source_files = switch (lang) {
