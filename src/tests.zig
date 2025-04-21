@@ -25,7 +25,7 @@ inline fn langIn(langs: anytype) bool {
 
 test "initialization" {
     // initialize the Zig wrapper
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     try expectEqual(zlua.Status.ok, lua.status());
     lua.deinit();
 
@@ -34,7 +34,7 @@ test "initialization" {
 }
 
 test "Zig allocator access" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const inner = struct {
@@ -67,7 +67,7 @@ test "Zig allocator access" {
 test "standard library loading" {
     // open all standard libraries
     {
-        var lua = try Lua.init(testing.allocator);
+        const lua: *Lua = try .init(testing.allocator);
         defer lua.deinit();
         lua.openLibs();
     }
@@ -76,7 +76,7 @@ test "standard library loading" {
     // these functions are only useful if you want to load the standard
     // packages into a non-standard table
     {
-        var lua = try Lua.init(testing.allocator);
+        const lua: *Lua = try .init(testing.allocator);
         defer lua.deinit();
 
         lua.openBase();
@@ -98,7 +98,7 @@ test "standard library loading" {
 }
 
 test "number conversion success and failure" {
-    const lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     _ = lua.pushString("1234.5678");
@@ -119,7 +119,7 @@ test "number conversion success and failure" {
 test "arithmetic (lua_arith)" {
     if (!langIn(.{ .lua52, .lua53, .lua54 })) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     lua.pushNumber(10);
@@ -184,7 +184,7 @@ test "arithmetic (lua_arith)" {
 }
 
 test "compare" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     lua.pushNumber(1);
@@ -219,7 +219,7 @@ const add = struct {
 }.addInner;
 
 test "type of and getting values" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     lua.pushNil();
@@ -284,7 +284,7 @@ test "type of and getting values" {
 }
 
 test "typenames" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     try expectEqualStrings("no value", lua.typeName(.none));
@@ -306,7 +306,7 @@ test "typenames" {
 test "unsigned" {
     if (zlua.lang != .lua52) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     lua.pushUnsigned(123456);
@@ -317,7 +317,7 @@ test "unsigned" {
 }
 
 test "executing string contents" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
     lua.openLibs();
 
@@ -335,7 +335,7 @@ test "executing string contents" {
 }
 
 test "filling and checking the stack" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     try expectEqual(0, lua.getTop());
@@ -364,7 +364,7 @@ test "filling and checking the stack" {
 }
 
 test "stack manipulation" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     // TODO: combine these more
@@ -433,7 +433,7 @@ test "stack manipulation" {
 }
 
 test "calling a function" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     lua.register("zigadd", zlua.wrap(add));
@@ -450,7 +450,7 @@ test "calling a function" {
 test "calling a function with cProtectedCall" {
     if (zlua.lang != .lua51) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     var value: i32 = 1234;
@@ -471,7 +471,7 @@ test "calling a function with cProtectedCall" {
 test "version" {
     if (zlua.lang == .lua51 or zlua.lang == .luau or zlua.lang == .luajit) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     switch (zlua.lang) {
@@ -485,7 +485,7 @@ test "version" {
 }
 
 test "string buffers" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     var buffer: Buffer = undefined;
@@ -549,7 +549,7 @@ test "string buffers" {
 test "global table" {
     if (langIn(.{ .lua51, .luajit, .luau })) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     // open some libs so we can inspect them
@@ -583,7 +583,7 @@ const sub = struct {
 }.subInner;
 
 test "function registration" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     if (langIn(.{ .lua51, .luajit, .luau })) {
@@ -653,7 +653,7 @@ test "function registration" {
 test "panic fn" {
     if (zlua.lang == .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     // just test setting up the panic function
@@ -670,7 +670,7 @@ test "panic fn" {
 test "warn fn" {
     if (zlua.lang != .lua54) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     lua.warning("this message is going to the void", false);
@@ -688,7 +688,7 @@ test "warn fn" {
 }
 
 test "concat" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     _ = lua.pushStringZ("hello ");
@@ -704,7 +704,7 @@ test "concat" {
 }
 
 test "garbage collector" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     // because the garbage collector is an opaque, unmanaged
@@ -740,7 +740,7 @@ test "garbage collector" {
 test "extra space" {
     if (zlua.lang != .lua53 and zlua.lang != .lua54) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const space: *align(1) usize = @ptrCast(lua.getExtraSpace().ptr);
@@ -751,7 +751,7 @@ test "extra space" {
 }
 
 test "table access" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     try lua.doString("a = { [1] = 'first', key = 'value', ['other one'] = 1234 }");
@@ -829,7 +829,7 @@ test "table access" {
 test "conversions" {
     if (zlua.lang != .lua53 and zlua.lang != .lua54) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     // number conversion
@@ -851,7 +851,7 @@ test "conversions" {
 }
 
 test "absIndex" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     lua.setTop(2);
@@ -863,7 +863,7 @@ test "absIndex" {
 test "dump and load" {
     if (zlua.lang == .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     // store a function in a global
@@ -880,7 +880,7 @@ test "dump and load" {
         }
     }.inner;
 
-    var buffer = std.ArrayList(u8).init(testing.allocator);
+    var buffer: std.ArrayList(u8) = .init(testing.allocator);
     defer buffer.deinit();
 
     // save the function as a binary chunk in the buffer
@@ -922,7 +922,7 @@ test "dump and load" {
 }
 
 test "threads" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     var new_thread = lua.newThread();
@@ -937,7 +937,7 @@ test "threads" {
 }
 
 test "userdata and uservalues" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const Data = struct {
@@ -979,7 +979,7 @@ test "userdata and uservalues" {
 }
 
 test "upvalues" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     // counter from PIL
@@ -1010,7 +1010,7 @@ test "upvalues" {
 }
 
 test "table traversal" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     try lua.doString("t = { key = 'value', second = true, third = 1 }");
@@ -1041,7 +1041,7 @@ test "table traversal" {
 test "registry" {
     if (langIn(.{ .lua51, .luajit, .luau })) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const key = "mykey";
@@ -1058,7 +1058,7 @@ test "registry" {
 test "closing vars" {
     if (zlua.lang != .lua54) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     lua.openBase();
@@ -1089,7 +1089,7 @@ test "closing vars" {
 }
 
 test "raise error" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const makeError = struct {
@@ -1121,7 +1121,7 @@ fn continuation(l: *Lua, status: zlua.Status, ctx: isize) i32 {
 test "yielding" {
     if (zlua.lang != .lua53 and zlua.lang != .lua54) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     // here we create some zig functions that will run 5 times, continutally
@@ -1179,7 +1179,7 @@ fn continuation52(l: *Lua) !i32 {
 test "yielding Lua 5.2" {
     if (zlua.lang != .lua52) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     // here we create some zig functions that will run 5 times, continutally
@@ -1206,7 +1206,7 @@ test "yielding Lua 5.2" {
 test "yielding no continuation" {
     if (zlua.lang != .lua51 and zlua.lang != .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     var thread = lua.newThread();
@@ -1229,7 +1229,7 @@ test "yielding no continuation" {
 test "resuming" {
     if (zlua.lang == .lua54) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     // here we create a Lua function that will run 5 times, continutally
@@ -1259,7 +1259,7 @@ test "resuming" {
 }
 
 test "aux check functions" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const function = zlua.wrap(struct {
@@ -1341,7 +1341,7 @@ test "aux check functions" {
 }
 
 test "aux opt functions" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const function = zlua.wrap(struct {
@@ -1366,7 +1366,7 @@ test "aux opt functions" {
 }
 
 test "checkOption" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const Variant = enum {
@@ -1421,7 +1421,7 @@ test "checkOption" {
 test "get global fail" {
     if (zlua.lang != .lua54) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     try expectError(error.LuaError, lua.getGlobal("foo"));
@@ -1430,7 +1430,7 @@ test "get global fail" {
 test "globalSub" {
     if (zlua.lang == .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     _ = lua.globalSub("-gity -!", "-", "zig");
@@ -1440,7 +1440,7 @@ test "globalSub" {
 test "loadBuffer" {
     if (zlua.lang == .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     if (zlua.lang == .lua51 or zlua.lang == .luajit) {
@@ -1453,7 +1453,7 @@ test "loadBuffer" {
 }
 
 test "where" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const whereFn = zlua.wrap(struct {
@@ -1478,7 +1478,7 @@ test "where" {
 test "ref" {
     if (zlua.lang == .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     lua.pushNil();
@@ -1497,7 +1497,7 @@ test "ref" {
 test "ref luau" {
     if (zlua.lang != .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     lua.pushNil();
@@ -1516,7 +1516,7 @@ test "ref luau" {
 }
 
 test "metatables" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     try lua.doString("f = function() return 10 end");
@@ -1546,7 +1546,7 @@ test "metatables" {
 }
 
 test "args and errors" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const argCheck = zlua.wrap(struct {
@@ -1586,7 +1586,7 @@ test "args and errors" {
 test "traceback" {
     if (langIn(.{ .lua51, .luajit, .luau })) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const tracebackFn = zlua.wrap(struct {
@@ -1607,7 +1607,7 @@ test "traceback" {
 test "getSubtable" {
     if (langIn(.{ .lua51, .luajit, .luau })) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     try lua.doString(
@@ -1628,7 +1628,7 @@ test "getSubtable" {
 }
 
 test "userdata" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const Type = struct { a: i32, b: f32 };
@@ -1700,7 +1700,7 @@ test "userdata" {
 test "userdata slices" {
     const Integer = zlua.Integer;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     try lua.newMetatable("FixedArray");
@@ -1740,7 +1740,7 @@ test "userdata slices" {
 test "function environments" {
     if (zlua.lang != .lua51 and zlua.lang != .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     try lua.doString("function test() return x end");
@@ -1774,7 +1774,7 @@ test "function environments" {
 test "objectLen" {
     if (zlua.lang != .lua51 and zlua.lang != .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     _ = lua.pushStringZ("lua");
@@ -1786,7 +1786,7 @@ test "objectLen" {
 test "debug interface" {
     if (langIn(.{ .lua51, .luajit, .luau })) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     try lua.doString(
@@ -1863,7 +1863,7 @@ test "debug interface" {
 test "debug interface Lua 5.1 and Luau" {
     if (zlua.lang != .lua51 and zlua.lang != .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     try lua.doString(
@@ -1951,7 +1951,7 @@ test "debug interface Lua 5.1 and Luau" {
 }
 
 test "debug upvalues" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     try lua.doString(
@@ -2003,7 +2003,7 @@ test "debug upvalues" {
 test "getstack" {
     if (zlua.lang == .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     try expectError(error.LuaError, lua.getStack(1));
@@ -2032,7 +2032,7 @@ test "getstack" {
 test "compile and run bytecode" {
     if (zlua.lang != .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
     lua.openLibs();
 
@@ -2076,7 +2076,7 @@ test "userdata dtor" {
 
     // create a Lua-owned pointer to a Data, configure Data with a destructor.
     {
-        var lua = try Lua.init(testing.allocator);
+        const lua: *Lua = try .init(testing.allocator);
         defer lua.deinit(); // forces dtors to be called at the latest
 
         var data = lua.newUserdataDtor(Data, zlua.wrap(Data.dtor));
@@ -2094,7 +2094,7 @@ test "userdata dtor" {
 test "tagged userdata" {
     if (zlua.lang != .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit(); // forces dtors to be called at the latest
 
     const Data = struct {
@@ -2142,7 +2142,7 @@ fn vectorCtor(l: *Lua) !i32 {
 test "luau vectors" {
     if (zlua.lang != .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
     lua.openLibs();
     lua.register("vector", zlua.wrap(vectorCtor));
@@ -2174,7 +2174,7 @@ test "luau vectors" {
 test "luau 4-vectors" {
     if (zlua.lang != .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
     lua.openLibs();
     lua.register("vector", zlua.wrap(vectorCtor));
@@ -2205,7 +2205,7 @@ test "useratom" {
         }
     }.inner;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
     lua.setUserAtomCallbackFn(zlua.wrap(useratomCb));
 
@@ -2269,7 +2269,7 @@ test "namecall" {
         }
     };
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
     lua.setUserAtomCallbackFn(zlua.wrap(funcs.useratomCb));
 
@@ -2304,7 +2304,7 @@ test "namecall" {
 }
 
 test "toAny" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     //int
@@ -2364,7 +2364,7 @@ test "toAny" {
 }
 
 test "toAny struct" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const MyType = struct {
@@ -2383,7 +2383,7 @@ test "toAny struct" {
 }
 
 test "toAny tuple from vararg" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const Tuple = std.meta.Tuple(&.{ i32, bool, i32 });
@@ -2406,7 +2406,7 @@ test "toAny tuple from vararg" {
 }
 
 test "toAny tuple from struct" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const MyType = struct {
@@ -2433,7 +2433,7 @@ test "toAny tuple from struct" {
 }
 
 test "toAny from struct with fromLua" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const MyType = struct {
@@ -2467,7 +2467,7 @@ test "toAny from struct with fromLua" {
 }
 
 test "toAny mutable string" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     //[] u8
@@ -2481,7 +2481,7 @@ test "toAny mutable string" {
 }
 
 test "toAny mutable string in struct" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const MyType = struct {
@@ -2507,7 +2507,7 @@ test "toAny mutable string in struct" {
 }
 
 test "toAny struct recursive" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const MyType = struct {
@@ -2534,7 +2534,7 @@ test "toAny struct recursive" {
 }
 
 test "toAny tagged union" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const MyType = union(enum) {
@@ -2570,7 +2570,7 @@ test "toAny tagged union" {
 }
 
 test "toAny slice" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const program =
@@ -2587,7 +2587,7 @@ test "toAny slice" {
 }
 
 test "toAny array" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const arr: [5]?u32 = .{ 1, 2, null, 4, 5 };
@@ -2601,7 +2601,7 @@ test "toAny array" {
 }
 
 test "toAny vector" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const vec = @Vector(4, bool){ true, false, false, true };
@@ -2615,7 +2615,7 @@ test "toAny vector" {
 }
 
 test "pushAny" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     //int
@@ -2660,7 +2660,7 @@ test "pushAny" {
 }
 
 test "pushAny struct" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const MyType = struct {
@@ -2676,7 +2676,7 @@ test "pushAny struct" {
 }
 
 test "pushAny tuple" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const Tuple = std.meta.Tuple(&.{ i32, bool, i32 });
@@ -2689,7 +2689,7 @@ test "pushAny tuple" {
 }
 
 test "pushAny from struct with toLua" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const MyType = struct {
@@ -2719,7 +2719,7 @@ test "pushAny from struct with toLua" {
 }
 
 test "pushAny tagged union" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const MyType = union(enum) {
@@ -2741,7 +2741,7 @@ test "pushAny tagged union" {
 }
 
 test "pushAny toAny slice/array/vector" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     var my_array = [_]u32{ 1, 2, 3, 4, 5 };
@@ -2774,7 +2774,7 @@ fn baz(a: []const u8) usize {
 }
 
 test "autoPushFunction" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
     lua.openLibs();
 
@@ -2814,7 +2814,7 @@ test "autoPushFunction" {
 }
 
 test "autoCall" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const program =
@@ -2838,7 +2838,7 @@ test "autoCall" {
 }
 
 test "autoCall stress test" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const program =
@@ -2879,7 +2879,7 @@ test "autoCall stress test" {
 }
 
 test "get set" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     try lua.set("hello", true);
@@ -2893,7 +2893,7 @@ test "get set" {
 }
 
 test "array of strings" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const program =
@@ -2913,7 +2913,7 @@ test "array of strings" {
 test "loadFile binary mode" {
     if (langIn(.{ .lua51, .luajit, .luau })) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     // Should fail to load a lua file as a binary file
@@ -2923,7 +2923,7 @@ test "loadFile binary mode" {
 test "doFile" {
     if (zlua.lang == .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     // should set the variable GLOBAL to "testing"
@@ -3001,7 +3001,7 @@ test "define" {
 test "interrupt" {
     if (zlua.lang != .luau) return;
 
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const interrupt_handler = struct {
@@ -3036,7 +3036,7 @@ test "interrupt" {
 }
 
 test "error union for CFn" {
-    var lua = try Lua.init(testing.allocator);
+    const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
     const fails = struct {

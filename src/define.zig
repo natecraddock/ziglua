@@ -11,8 +11,8 @@ pub const DefineState = struct {
     pub fn init(alloc: std.mem.Allocator) DefineState {
         return DefineState{
             .allocator = alloc,
-            .database = Database.init(alloc),
-            .definitions = std.ArrayList(String).init(alloc),
+            .database = .init(alloc),
+            .definitions = .init(alloc),
         };
     }
 
@@ -30,7 +30,7 @@ pub fn define(
     absolute_output_path: []const u8,
     comptime to_define: []const type,
 ) !void {
-    var state = DefineState.init(alloc);
+    var state: DefineState = .init(alloc);
     defer state.deinit();
 
     inline for (to_define) |T| {
