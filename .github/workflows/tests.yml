@@ -11,6 +11,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        zig: ["0.14.0", "0.15.0-dev.375+8f8f37fb0"]
+
     runs-on: ${{matrix.os}}
 
     steps:
@@ -20,7 +22,7 @@ jobs:
     - name: Setup Zig
       uses: mlugg/setup-zig@v1
       with:
-        version: 0.15.0-dev.375+8f8f37fb0
+        version: ${{ matrix.zig }}
 
     - name: Run tests
       run: make test

@@ -613,8 +613,12 @@ pub const Lua = opaque {
         } else if (nsize == 0) {
             return null;
         } else {
+            const builtin = @import("builtin"); // FIXME: remove when zig-0.15 is released and 0.14 can be dropped
             // ptr is null, allocate a new block of memory
-            const new_ptr = allocator_ptr.alignedAlloc(u8, .fromByteUnits(alignment), nsize) catch return null;
+            const new_ptr = (if (builtin.zig_version.major == 0 and builtin.zig_version.minor < 15)
+                allocator_ptr.alignedAlloc(u8, alignment, nsize)
+            else
+                allocator_ptr.alignedAlloc(u8, .fromByteUnits(alignment), nsize)) catch return null;
             return new_ptr.ptr;
         }
     }
