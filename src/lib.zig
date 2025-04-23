@@ -727,6 +727,8 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_atpanic
     pub fn atPanic(lua: *Lua, panic_fn: CFn) ?CFn {
+        if (lang == .luau) @compileError(@src().fn_name ++ " is not implemented in Luau.");
+
         return c.lua_atpanic(@ptrCast(lua), panic_fn);
     }
 
@@ -964,6 +966,7 @@ pub const Lua = opaque {
     pub const dump = switch (lang) {
         .lua53, .lua54 => dump53,
         else => dump51,
+        .luau => @compileError("Not implemented in Luau."),
     };
 
     /// Returns `true` if the two values in acceptable indices `index1` and `index2` are equal, following the semantics of the Lua `==`
@@ -1296,11 +1299,13 @@ pub const Lua = opaque {
 
     /// Only available in Luau
     pub fn setReadonly(lua: *Lua, idx: i32, enabled: bool) void {
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         c.lua_setreadonly(@ptrCast(lua), idx, @intFromBool(enabled));
     }
 
     /// Only available in Luau
     pub fn getReadonly(lua: *Lua, idx: i32) bool {
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         return c.lua_getreadonly(@ptrCast(lua), idx) != 0;
     }
 
@@ -1470,6 +1475,7 @@ pub const Lua = opaque {
     /// * Errors: `never`
     ///
     pub fn isVector(lua: *Lua, index: i32) bool {
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         return c.lua_isvector(@as(*LuaState, @ptrCast(lua)), index);
     }
 
@@ -1891,6 +1897,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushcclosure
     pub fn pushClosureNamed(lua: *Lua, c_fn: CFn, debugname: [:0]const u8, n: i32) void {
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         c.lua_pushcclosurek(@ptrCast(lua), c_fn, debugname, n, null);
     }
 
@@ -1914,6 +1921,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushcfunction
     pub fn pushFunctionNamed(lua: *Lua, c_fn: CFn, debugname: [:0]const u8) void {
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         c.lua_pushcclosurek(@ptrCast(lua), c_fn, debugname, 0, null);
     }
 
@@ -2103,7 +2111,10 @@ pub const Lua = opaque {
     /// Pushes a floating point 3-vector (or 4-vector if configured) `v` onto the stack
     ///
     /// Only available in Luau
-    pub const pushVector = if (luau_vector_size == 3) pushVector3 else pushVector4;
+    pub const pushVector = switch (lang) {
+        .luau => if (luau_vector_size == 3) pushVector3 else pushVector4,
+        else => @compileError("pushVector is only available in Luau."),
+    };
 
     /// Returns true if the two values in indices `index1` and `index2` are primitively equal
     /// (that is, equal without calling the `__eq` metamethod). Otherwise returns false.
@@ -2483,6 +2494,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn setUserdataTag(lua: *Lua, index: i32, tag: i32) void {
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         std.debug.assert((tag >= 0 and tag < c.LUA_UTAG_LIMIT)); // Luau will do the same assert, this is easier to debug
         c.lua_setuserdatatag(@ptrCast(lua), index, tag);
     }
@@ -2734,6 +2746,7 @@ pub const Lua = opaque {
 
     /// Only available in Luau
     pub fn toUserdataTagged(lua: *Lua, comptime T: type, index: i32, tag: i32) !*T {
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         if (c.lua_touserdatatagged(@ptrCast(lua), index, tag)) |ptr| return @ptrCast(@alignCast(ptr));
         return error.LuaError;
     }
@@ -2743,6 +2756,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn toVector(lua: *Lua, index: i32) ![luau_vector_size]f32 {
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         const res = c.lua_tovector(@ptrCast(lua), index);
         if (res) |r| {
             switch (luau_vector_size) {
@@ -2759,6 +2773,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn toStringAtom(lua: *Lua, index: i32) !struct { i32, [:0]const u8 } {
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         var atom: c_int = undefined;
         if (c.lua_tostringatom(@ptrCast(lua), index, &atom)) |ptr| {
             return .{ atom, std.mem.span(ptr) };
@@ -2771,6 +2786,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn namecallAtom(lua: *Lua) !struct { i32, [:0]const u8 } {
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         var atom: c_int = undefined;
         if (c.lua_namecallatom(@ptrCast(lua), &atom)) |ptr| {
             return .{ atom, std.mem.span(ptr) };
@@ -3200,6 +3216,7 @@ pub const Lua = opaque {
 
     /// Only available in Luau
     pub fn setInterruptCallbackFn(lua: *Lua, cb: ?CInterruptCallbackFn) void {
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         if (c.lua_callbacks(@ptrCast(lua))) |cb_struct| {
             cb_struct.*.interrupt = cb;
         }
@@ -3207,6 +3224,7 @@ pub const Lua = opaque {
 
     /// Only available in Luau
     pub fn setUserAtomCallbackFn(lua: *Lua, cb: CUserAtomCallbackFn) void {
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         if (c.lua_callbacks(@ptrCast(lua))) |cb_struct| {
             cb_struct.*.useratom = cb;
         }
@@ -3471,6 +3489,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn checkVector(lua: *Lua, arg: i32) [luau_vector_size]f32 {
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         const vec = lua.toVector(arg) catch {
             lua.typeError(arg, lua.typeName(LuaType.vector));
         };
@@ -3550,7 +3569,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn raiseInterruptErrorStr(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
-        if (lang != .luau) return;
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         c.lua_rawcheckstack(@ptrCast(lua), 1);
         lua.raiseErrorStr(fmt, args);
         unreachable;
@@ -3644,6 +3663,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_gsub
     pub fn globalSub(lua: *Lua, str: [:0]const u8, pat: [:0]const u8, rep: [:0]const u8) []const u8 {
+        if (lang == .luau) @compileError(@src().fn_name ++ " is not available in Luau.");
         const s = c.luaL_gsub(@ptrCast(lua), str.ptr, pat.ptr, rep.ptr);
         const l = lua.rawLen(-1);
         return s[0..l];
@@ -4205,6 +4225,7 @@ pub const Lua = opaque {
     /// * Pushes: `0`
     /// * Errors: `other`
     pub fn openPackage(lua: *Lua) void {
+        if (lang == .luau) @compileError(@src().fn_name ++ " is not available in Luau.");
         lua.requireF(c.LUA_LOADLIBNAME, c.luaopen_package, true);
         if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
@@ -4259,6 +4280,7 @@ pub const Lua = opaque {
     /// * Pushes: `0`
     /// * Errors: `other`
     pub fn openIO(lua: *Lua) void {
+        if (lang == .luau) @compileError(@src().fn_name ++ " is not available in Luau.");
         lua.requireF(c.LUA_IOLIBNAME, c.luaopen_io, true);
         if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
@@ -4301,6 +4323,7 @@ pub const Lua = opaque {
     /// * Pushes: `0`
     /// * Errors: `other`
     pub fn openVector(lua: *Lua) void {
+        if (lang == .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         lua.requireF(c.LUA_VECLIBNAME, c.luaopen_vector, true);
         if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
     }
