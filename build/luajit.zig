@@ -28,7 +28,13 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
         .optimize = .ReleaseSafe,
     });
     minilua.linkLibC();
-    minilua.root_module.sanitize_c = false;
+    // FIXME: remove branch when zig-0.15 is released and 0.14 can be dropped
+    const builtin = @import("builtin");
+    if (builtin.zig_version.major == 0 and builtin.zig_version.minor < 15) {
+        minilua.root_module.sanitize_c = false;
+    } else {
+        minilua.root_module.sanitize_c = .off;
+    }
     minilua.addCSourceFile(.{ .file = upstream.path("src/host/minilua.c") });
 
     // Generate the buildvm_arch.h file using minilua
@@ -79,7 +85,12 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
         .optimize = .ReleaseSafe,
     });
     buildvm.linkLibC();
-    buildvm.root_module.sanitize_c = false;
+    // FIXME: remove branch when zig-0.15 is released and 0.14 can be dropped
+    if (builtin.zig_version.major == 0 and builtin.zig_version.minor < 15) {
+        buildvm.root_module.sanitize_c = false;
+    } else {
+        buildvm.root_module.sanitize_c = .off;
+    }
 
     // Needs to run after the buildvm_arch.h and luajit.h files are generated
     buildvm.step.dependOn(&dynasm_run.step);
@@ -183,7 +194,12 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
         .files = &luajit_vm,
     });
 
-    lib.root_module.sanitize_c = false;
+    // FIXME: remove branch when zig-0.15 is released and 0.14 can be dropped
+    if (builtin.zig_version.major == 0 and builtin.zig_version.minor < 15) {
+        lib.root_module.sanitize_c = false;
+    } else {
+        lib.root_module.sanitize_c = .off;
+    }
 
     lib.installHeader(upstream.path("src/lua.h"), "lua.h");
     lib.installHeader(upstream.path("src/lualib.h"), "lualib.h");
