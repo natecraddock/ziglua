@@ -108,6 +108,7 @@ pub fn build(b: *Build) void {
     var common_examples = [_]struct { []const u8, []const u8 }{
         .{ "interpreter", "examples/interpreter.zig" },
         .{ "zig-function", "examples/zig-fn.zig" },
+        .{ "multithreaded", "examples/multithreaded.zig" },
     };
     const luau_examples = [_]struct { []const u8, []const u8 }{
         .{ "luau-bytecode", "examples/luau-bytecode.zig" },
