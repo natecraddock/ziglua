@@ -3,6 +3,8 @@ const std = @import("std");
 const Build = std.Build;
 const Step = std.Build.Step;
 
+const applyPatchToFile = @import("utils.zig").applyPatchToFile;
+
 pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, shared: bool) *Step.Compile {
     // TODO: extract this to the main build function because it is shared between all specialized build functions
 
@@ -24,7 +26,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     // Compile minilua interpreter used at build time to generate files
     const minilua = b.addExecutable(.{
         .name = "minilua",
-        .target = target, // TODO ensure this is the host
+        .target = b.graph.host, // Use host target for cross build
         .optimize = .ReleaseSafe,
     });
     minilua.linkLibC();
@@ -39,7 +41,28 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 
     // Generate the buildvm_arch.h file using minilua
     const dynasm_run = b.addRunArtifact(minilua);
-    dynasm_run.addFileArg(upstream.path("dynasm/dynasm.lua"));
+
+    if (b.graph.host.result.os.tag == .windows) {
+        // Patch windows cross build for LuaJIT
+        const sourceDynasmFile = upstream.path("dynasm/dynasm.lua");
+        const destDynasmFile = upstream.path("dynasm/dynasm-patched.lua");
+        const patchDynasm = applyPatchToFile(b, b.graph.host, sourceDynasmFile, b.path("build/luajit.patch"), "dynasm-patched.lua");
+
+        const copyPatchedDynasm = b.addSystemCommand(&[_][]const u8{
+            "cmd",
+        });
+        copyPatchedDynasm.addArgs(&.{ "/q", "/c", "copy" });
+        copyPatchedDynasm.step.dependOn(&patchDynasm.run.step);
+        copyPatchedDynasm.addFileArg(patchDynasm.output);
+        copyPatchedDynasm.addFileArg(destDynasmFile);
+
+        dynasm_run.step.dependOn(&patchDynasm.run.step);
+        dynasm_run.step.dependOn(&copyPatchedDynasm.step);
+
+        dynasm_run.addFileArg(destDynasmFile);
+    } else {
+        dynasm_run.addFileArg(upstream.path("dynasm/dynasm.lua"));
+    }
 
     // TODO: Many more flags to figure out
     if (target.result.cpu.arch.endian() == .little) {
@@ -53,6 +76,10 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 
     if (target.result.abi.float() == .hard) {
         dynasm_run.addArgs(&.{ "-D", "FPU", "-D", "HFABI" });
+    }
+
+    if (target.result.cpu.arch == .aarch64 or target.result.cpu.arch == .aarch64_be) {
+        dynasm_run.addArgs(&.{ "-D", "DUALNUM" });
     }
 
     if (target.result.os.tag == .windows) dynasm_run.addArgs(&.{ "-D", "WIN" });
@@ -81,7 +108,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     // Compile the buildvm executable used to generate other files
     const buildvm = b.addExecutable(.{
         .name = "buildvm",
-        .target = target, // TODO ensure this is the host
+        .target = b.graph.host, // Use host target for cross build
         .optimize = .ReleaseSafe,
     });
     buildvm.linkLibC();
@@ -96,12 +123,18 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     buildvm.step.dependOn(&dynasm_run.step);
     buildvm.step.dependOn(&genversion_run.step);
 
+    const buildvm_c_flags = switch (target.result.cpu.arch) {
+        .aarch64, .aarch64_be => &[_][]const u8{ "-DLUAJIT_TARGET=LUAJIT_ARCH_arm64", "-DLJ_ARCH_HASFPU=1", "-DLJ_ABI_SOFTFP=0" },
+        else => &[_][]const u8{},
+    };
+
     buildvm.addCSourceFiles(.{
         .root = .{ .dependency = .{
             .dependency = upstream,
             .sub_path = "",
         } },
         .files = &.{ "src/host/buildvm_asm.c", "src/host/buildvm_fold.c", "src/host/buildvm_lib.c", "src/host/buildvm_peobj.c", "src/host/buildvm.c" },
+        .flags = buildvm_c_flags,
     });
 
     buildvm.addIncludePath(upstream.path("src"));
@@ -156,7 +189,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 
     buildvm_ljvm.addArg("-o");
     if (target.result.os.tag == .windows) {
-        const ljvm_ob = buildvm_ljvm.addOutputFileArg("lj_vm. o");
+        const ljvm_ob = buildvm_ljvm.addOutputFileArg("lj_vm.o");
         lib.addObjectFile(ljvm_ob);
     } else {
         const ljvm_asm = buildvm_ljvm.addOutputFileArg("lj_vm.S");
@@ -208,6 +241,11 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     lib.installHeader(luajit_h, "luajit.h");
 
     return lib;
+}
+
+fn getPath(lazy_path: Build.LazyPath, src_builder: *Build, asking_step: ?*Step) []const u8 {
+    const p = lazy_path.getPath3(src_builder, asking_step);
+    return src_builder.pathResolve(&.{ p.root_dir.path orelse ".", p.sub_path });
 }
 
 const luajit_lib = [_][]const u8{
