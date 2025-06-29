@@ -16,7 +16,7 @@ pub fn build(b: *Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const lang = b.option(Language, "lang", "Lua language version to build") orelse .lua54;
-    const library_name = b.option([]const u8, "library_name", "Library name for lua linking, default is `lua`") orelse null;
+    const library_name = b.option([]const u8, "library_name", "Library name for lua linking, default is `lua`") orelse "lua";
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
 
@@ -32,7 +32,6 @@ pub fn build(b: *Build) void {
     // Expose build configuration to the ziglua module
     const config = b.addOptions();
     config.addOption(Language, "lang", lang);
-    config.addOption(?[]const u8, "library_name", library_name);
     config.addOption(bool, "luau_use_4_vector", luau_use_4_vector);
     zlua.addOptions("config", config);
 
