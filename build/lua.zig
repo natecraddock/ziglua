@@ -12,7 +12,7 @@ pub const Language = enum {
     luau,
 };
 
-pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lang: Language, shared: bool) *Step.Compile {
+pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lang: Language, shared: bool, library_name: []const u8) *Step.Compile {
     const version: std.SemanticVersion = switch (lang) {
         .lua51 => .{ .major = 5, .minor = 1, .patch = 5 },
         .lua52 => .{ .major = 5, .minor = 2, .patch = 4 },
@@ -23,14 +23,14 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 
     const lib = if (shared)
         b.addSharedLibrary(.{
-            .name = "lua",
+            .name = library_name,
             .target = target,
             .optimize = optimize,
             .version = version,
         })
     else
         b.addStaticLibrary(.{
-            .name = "lua",
+            .name = library_name,
             .target = target,
             .optimize = optimize,
             .version = version,

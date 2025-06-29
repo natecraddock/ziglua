@@ -16,6 +16,7 @@ pub fn build(b: *Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const lang = b.option(Language, "lang", "Lua language version to build") orelse .lua54;
+    const library_name = b.option([]const u8, "library_name", "Library name for lua linking, default is `lua`") orelse "lua";
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
 
@@ -43,7 +44,7 @@ pub fn build(b: *Build) void {
         const lib = switch (lang) {
             .luajit => luajit_setup.configure(b, target, optimize, upstream, shared),
             .luau => luau_setup.configure(b, target, optimize, upstream, luau_use_4_vector),
-            else => lua_setup.configure(b, target, optimize, upstream, lang, shared),
+            else => lua_setup.configure(b, target, optimize, upstream, lang, shared, library_name),
         };
 
         // Expose the Lua artifact, and get an install step that header translation can refer to
