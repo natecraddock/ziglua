@@ -19,9 +19,14 @@ pub fn build(b: *Build) void {
     const library_name = b.option([]const u8, "library_name", "Library name for lua linking, default is `lua`") orelse "lua";
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
+    const lua_user_h = b.option(Build.LazyPath, "lua_user_h", "Lazy path to user supplied c header file") orelse null;
 
     if (lang == .luau and shared) {
         std.debug.panic("Luau does not support compiling or loading shared modules", .{});
+    }
+
+    if (lua_user_h != null and (lang == .luajit or lang == .luau)) {
+        std.debug.panic("Only basic lua supports a user provided header file", .{});
     }
 
     // Zig module
@@ -44,7 +49,7 @@ pub fn build(b: *Build) void {
         const lib = switch (lang) {
             .luajit => luajit_setup.configure(b, target, optimize, upstream, shared),
             .luau => luau_setup.configure(b, target, optimize, upstream, luau_use_4_vector),
-            else => lua_setup.configure(b, target, optimize, upstream, lang, shared, library_name),
+            else => lua_setup.configure(b, target, optimize, upstream, lang, shared, library_name, lua_user_h),
         };
 
         // Expose the Lua artifact, and get an install step that header translation can refer to
@@ -103,6 +108,7 @@ pub fn build(b: *Build) void {
     var common_examples = [_]struct { []const u8, []const u8 }{
         .{ "interpreter", "examples/interpreter.zig" },
         .{ "zig-function", "examples/zig-fn.zig" },
+        .{ "multithreaded", "examples/multithreaded.zig" },
     };
     const luau_examples = [_]struct { []const u8, []const u8 }{
         .{ "luau-bytecode", "examples/luau-bytecode.zig" },
