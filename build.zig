@@ -49,7 +49,12 @@ pub fn build(b: *Build) void {
         const lib = switch (lang) {
             .luajit => luajit_setup.configure(b, target, optimize, upstream, shared),
             .luau => luau_setup.configure(b, target, optimize, upstream, luau_use_4_vector),
-            else => lua_setup.configure(b, target, optimize, upstream, lang, shared, library_name, lua_user_h),
+            else => lua_setup.configure(b, target, optimize, upstream, .{
+                .lang = lang,
+                .shared = shared,
+                .library_name = library_name,
+                .lua_user_h = lua_user_h,
+            }),
         };
 
         // Expose the Lua artifact, and get an install step that header translation can refer to

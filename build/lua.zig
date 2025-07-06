@@ -12,7 +12,25 @@ pub const Language = enum {
     luau,
 };
 
-pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lang: Language, shared: bool, library_name: []const u8, lua_user_h: ?Build.LazyPath) *Step.Compile {
+pub const Options = struct {
+    lang: Language,
+    shared: bool,
+    library_name: []const u8,
+    lua_user_h: ?Build.LazyPath,
+};
+
+pub fn configure(
+    b: *Build,
+    target: Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    upstream: *Build.Dependency,
+    opts: Options,
+) *Step.Compile {
+    const lang = opts.lang;
+    const library_name = opts.library_name;
+    const lua_user_h = opts.lua_user_h;
+    const shared = opts.shared;
+
     const version: std.SemanticVersion = switch (lang) {
         .lua51 => .{ .major = 5, .minor = 1, .patch = 5 },
         .lua52 => .{ .major = 5, .minor = 2, .patch = 4 },
