@@ -1,7 +1,0 @@
-[makefile]
-indent_style = tab
-
-[*.yml]
-indent_style = space
-indent_size = 2
-tab_width = 2
