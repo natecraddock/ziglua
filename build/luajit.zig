@@ -123,9 +123,9 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     buildvm.step.dependOn(&dynasm_run.step);
     buildvm.step.dependOn(&genversion_run.step);
 
-    const buildvm_c_flags = switch (target.result.cpu.arch) {
-        .aarch64, .aarch64_be => &[_][]const u8{ "-DLUAJIT_TARGET=LUAJIT_ARCH_arm64", "-DLJ_ARCH_HASFPU=1", "-DLJ_ABI_SOFTFP=0" },
-        else => &[_][]const u8{},
+    const buildvm_c_flags: []const []const u8 = switch (target.result.cpu.arch) {
+        .aarch64, .aarch64_be => &.{ "-DLUAJIT_TARGET=LUAJIT_ARCH_arm64", "-DLJ_ARCH_HASFPU=1", "-DLJ_ABI_SOFTFP=0" },
+        else => &.{},
     };
 
     buildvm.addCSourceFiles(.{
@@ -241,11 +241,6 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     lib.installHeader(luajit_h, "luajit.h");
 
     return lib;
-}
-
-fn getPath(lazy_path: Build.LazyPath, src_builder: *Build, asking_step: ?*Step) []const u8 {
-    const p = lazy_path.getPath3(src_builder, asking_step);
-    return src_builder.pathResolve(&.{ p.root_dir.path orelse ".", p.sub_path });
 }
 
 const luajit_lib = [_][]const u8{
