@@ -35,7 +35,7 @@ pub fn configure(
         .lua51 => .{ .major = 5, .minor = 1, .patch = 5 },
         .lua52 => .{ .major = 5, .minor = 2, .patch = 4 },
         .lua53 => .{ .major = 5, .minor = 3, .patch = 6 },
-        .lua54 => .{ .major = 5, .minor = 4, .patch = 7 },
+        .lua54 => .{ .major = 5, .minor = 4, .patch = 8 },
         else => unreachable,
     };
 
