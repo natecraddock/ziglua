@@ -1,0 +1,18 @@
+# Patch for cross build on windows
+#  C:\Users\runneradmin\AppData\Local\zig\o\2f9fc57e5a283abd5bd9f55a5d990f42/buildvm_arch.h:8:12: error: \U used with no following hex digits
+# #line 1 "C:\Users\runneradmin\AppData\Local\zig\p\N-V-__8AACcgQgCuLYTPzCp6pnBmFJHyG77RAtM13hjOfTaG\src\vm_arm64.dasc"
+#            ^~~
+# C:\Users\runneradmin\AppData\Local\zig\p\N-V-__8AACcgQgCuLYTPzCp6pnBmFJHyG77RAtM13hjOfTaG\src/host/buildvm.c:75:10: note: in file included from C:\Users\runneradmin\AppData\Local\zig\p\N-V-__8AACcgQgCuLYTPzCp6pnBmFJHyG77RAtM13hjOfTaG\src/host/buildvm.c:75:
+# #include "buildvm_arch.h"
+--- a/dynasm/dynasm.lua
++++ b/dynasm/dynasm.lua
+@@ -85,7 +85,8 @@ end
+ -- Resync CPP line numbers.
+ local function wsync()
+   if g_synclineno ~= g_lineno and g_opt.cpp then
+-    wline("#line "..g_lineno..' "'..g_fname..'"')
++    local fname = gsub(g_fname, "\\", "/")
++    wline("#line "..g_lineno..' "'..fname..'"')
+     g_synclineno = g_lineno
+   end
+ end

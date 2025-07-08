@@ -3,6 +3,8 @@ const std = @import("std");
 const Build = std.Build;
 const Step = std.Build.Step;
 
+const applyPatchToFile = @import("utils.zig").applyPatchToFile;
+
 pub const Language = enum {
     lua51,
     lua52,
@@ -98,8 +100,11 @@ pub fn configure(
 
     // Patch ldo.c for Lua 5.1
     if (lang == .lua51) {
-        const patched = patchFile(b, target, lib, upstream.path("src/ldo.c"), b.path("build/lua-5.1.patch"));
-        lib.addCSourceFile(.{ .file = patched, .flags = &flags });
+        const patched = applyPatchToFile(b, b.graph.host, upstream.path("src/ldo.c"), b.path("build/lua-5.1.patch"), "ldo.c");
+
+        lib.step.dependOn(&patched.run.step);
+
+        lib.addCSourceFile(.{ .file = patched.output, .flags = &flags });
     }
 
     lib.linkLibC();
@@ -115,29 +120,6 @@ pub fn configure(
     }
 
     return lib;
-}
-
-fn patchFile(
-    b: *Build,
-    target: Build.ResolvedTarget,
-    lib: *Step.Compile,
-    file: Build.LazyPath,
-    patch_file: Build.LazyPath,
-) Build.LazyPath {
-    const patch = b.addExecutable(.{
-        .name = "patch",
-        .root_source_file = b.path("build/patch.zig"),
-        .target = target,
-    });
-
-    const patch_run = b.addRunArtifact(patch);
-    patch_run.addFileArg(file);
-    patch_run.addFileArg(patch_file);
-    const out = patch_run.addOutputFileArg("ldo.c");
-
-    lib.step.dependOn(&patch_run.step);
-
-    return out;
 }
 
 const lua_base_source_files = [_][]const u8{
