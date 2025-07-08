@@ -19,5 +19,8 @@ test_cross:
 	zig build -Dlang=luajit -Dtarget=aarch64-linux
 	zig build -Dlang=luajit -Dtarget=aarch64-linux-gnu
 
+	zig build -Dlang=luajit -Dtarget=aarch64-macos
+	zig build -Dlang=luajit -Dtarget=x86_64-macos
+
 docs:
 	zig build docs
