@@ -17,9 +17,7 @@ pub fn main() !void {
     const patch_file = patch_file: {
         const patch_file = try std.fs.cwd().openFile(patch_file_path, .{ .mode = .read_only });
         defer patch_file.close();
-        var patch_buf: [4096]u8 = undefined;
-        var reader = patch_file.reader(&patch_buf);
-        break :patch_file try reader.interface.allocRemaining(allocator, .unlimited);
+        break :patch_file try patch_file.readToEndAlloc(allocator, std.math.maxInt(usize));
     };
     const chunk_details = Chunk.init(allocator, patch_file, 0) orelse @panic("No chunk data found");
 
@@ -41,35 +39,26 @@ pub fn main() !void {
 
         switch (state) {
             .copy => {
-                _ = try reader.interface.streamDelimiterEnding(&writer.interface, '\n');
-                _ = reader.interface.takeByte() catch |err| switch (err) {
+                _ = reader.interface.streamDelimiter(&writer.interface, '\n') catch |err| switch (err) {
                     error.EndOfStream => {
                         try writer.end();
                         return;
                     },
                     else => return err,
                 };
+                reader.interface.toss(1);
                 try writer.interface.writeByte('\n');
             },
             .chunk => {
                 const chunk = chunk_details.lines[line_number - chunk_details.src];
                 switch (chunk.action) {
                     .remove => {
-                        const line = reader.interface.takeDelimiterExclusive('\n') catch |err| switch (err) {
-                            error.EndOfStream => return,
-                            else => return err,
-                        };
+                        const line = try reader.interface.takeDelimiterExclusive('\n');
                         if (!std.mem.eql(u8, chunk.buf, line)) @panic("Failed to apply patch");
                     },
                     .keep => {
-                        const line = reader.interface.takeDelimiterExclusive('\n') catch |err| switch (err) {
-                            error.EndOfStream => return,
-                            else => return err,
-                        };
-                        if (!std.mem.eql(u8, chunk.buf, line)) {
-                            std.debug.print("exp {s}\ngot {s}\n", .{ chunk.buf, line });
-                            @panic("Failed to apply patch");
-                        }
+                        const line = try reader.interface.takeDelimiterExclusive('\n');
+                        if (!std.mem.eql(u8, chunk.buf, line)) @panic("Failed to apply patch");
                         try writer.interface.writeAll(line);
                         try writer.interface.writeByte('\n');
                     },
@@ -83,14 +72,6 @@ pub fn main() !void {
             },
         }
     }
-}
-
-fn getLine(allocator: Allocator, file: File) ?[]u8 {
-    var buffer: [4096]u8 = undefined;
-    return file.reader(&buffer).readUntilDelimiterAlloc(allocator, '\n', std.math.maxInt(usize)) catch |err| switch (err) {
-        error.EndOfStream => return null,
-        else => @panic("Error"),
-    };
 }
 
 const State = enum { copy, chunk };

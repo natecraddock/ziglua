@@ -25,9 +25,9 @@ jobs:
         uses: actions/checkout@v3
       - name: Setup Pages
         uses: actions/configure-pages@v5
-      - uses: mlugg/setup-zig@v1
+      - uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.0-dev.1034+bd97b6618
+          version: master
       - run: make docs
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
