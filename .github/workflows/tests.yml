@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        zig: ["0.14.0", "0.15.0-dev.441+c1649d586"]
+        zig: ["0.14.0", "0.15.0-dev.1034+bd97b6618"]
 
     runs-on: ${{matrix.os}}
 
@@ -31,7 +31,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        zig: ["0.14.0", "0.15.0-dev.441+c1649d586"]
+        zig: ["0.14.0", "0.15.0-dev.1034+bd97b6618"]
 
     runs-on: ${{matrix.os}}
 

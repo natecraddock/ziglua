@@ -20,15 +20,19 @@ pub fn main() anyerror!void {
     // Open all Lua standard libraries
     lua.openLibs();
 
-    var stdin = std.io.getStdIn().reader();
-    var stdout = std.io.getStdOut().writer();
+    var in_buf: [4096]u8 = undefined;
+    var out_buf: [4096]u8 = undefined;
+    var stdin_file = std.fs.File.stdin().reader(&in_buf);
+    const stdin = &stdin_file.interface;
+    var stdout_file = std.fs.File.stdout().writer(&out_buf);
+    const stdout = &stdout_file.interface;
 
     var buffer: [256]u8 = undefined;
     while (true) {
-        _ = try stdout.write("> ");
+        _ = try stdout.writeAll("> ");
 
         // Read a line of input
-        const len = try stdin.read(&buffer);
+        const len = try stdin.readSliceShort(&buffer);
         if (len == 0) break; // EOF
         if (len >= buffer.len - 1) {
             try stdout.print("error: line too long!\n", .{});
