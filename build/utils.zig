@@ -17,8 +17,10 @@ pub fn applyPatchToFile(
 ) PatchFile {
     const patch = b.addExecutable(.{
         .name = "patch",
-        .root_source_file = b.path("build/patch.zig"),
-        .target = target,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("build/patch.zig"),
+            .target = target,
+        }),
     });
 
     const patch_run = b.addRunArtifact(patch);

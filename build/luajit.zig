@@ -8,26 +8,25 @@ const applyPatchToFile = @import("utils.zig").applyPatchToFile;
 pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, shared: bool) *Step.Compile {
     // TODO: extract this to the main build function because it is shared between all specialized build functions
 
-    const lib: *Step.Compile = if (shared)
-        b.addSharedLibrary(.{
-            .name = "lua",
-            .target = target,
-            .optimize = optimize,
-            .unwind_tables = .sync,
-        })
-    else
-        b.addStaticLibrary(.{
-            .name = "lua",
-            .target = target,
-            .optimize = optimize,
-            .unwind_tables = .sync,
-        });
+    const lib = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .unwind_tables = .sync,
+    });
+    const library = b.addLibrary(.{
+        .name = "lua",
+        .root_module = lib,
+        .linkage = if (shared) .dynamic else .static,
+    });
 
     // Compile minilua interpreter used at build time to generate files
-    const minilua = b.addExecutable(.{
-        .name = "minilua",
+    const minilua_mod = b.createModule(.{
         .target = b.graph.host, // Use host target for cross build
         .optimize = .ReleaseSafe,
+    });
+    const minilua = b.addExecutable(.{
+        .name = "minilua",
+        .root_module = minilua_mod,
     });
     minilua.linkLibC();
     // FIXME: remove branch when zig-0.15 is released and 0.14 can be dropped
@@ -106,10 +105,13 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     const luajit_h = genversion_run.addOutputFileArg("luajit.h");
 
     // Compile the buildvm executable used to generate other files
-    const buildvm = b.addExecutable(.{
-        .name = "buildvm",
+    const vm_mod = b.createModule(.{
         .target = b.graph.host, // Use host target for cross build
         .optimize = .ReleaseSafe,
+    });
+    const buildvm = b.addExecutable(.{
+        .name = "buildvm",
+        .root_module = vm_mod,
     });
     buildvm.linkLibC();
     // FIXME: remove branch when zig-0.15 is released and 0.14 can be dropped
@@ -197,27 +199,27 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     }
 
     // Finally build LuaJIT after generating all the files
-    lib.step.dependOn(&genversion_run.step);
-    lib.step.dependOn(&buildvm_bcdef.step);
-    lib.step.dependOn(&buildvm_ffdef.step);
-    lib.step.dependOn(&buildvm_libdef.step);
-    lib.step.dependOn(&buildvm_recdef.step);
-    lib.step.dependOn(&buildvm_folddef.step);
-    lib.step.dependOn(&buildvm_ljvm.step);
+    library.step.dependOn(&genversion_run.step);
+    library.step.dependOn(&buildvm_bcdef.step);
+    library.step.dependOn(&buildvm_ffdef.step);
+    library.step.dependOn(&buildvm_libdef.step);
+    library.step.dependOn(&buildvm_recdef.step);
+    library.step.dependOn(&buildvm_folddef.step);
+    library.step.dependOn(&buildvm_ljvm.step);
 
-    lib.linkLibC();
+    library.linkLibC();
 
-    lib.root_module.addCMacro("LUAJIT_UNWIND_EXTERNAL", "");
+    lib.addCMacro("LUAJIT_UNWIND_EXTERNAL", "");
 
-    lib.linkSystemLibrary("unwind");
+    lib.linkSystemLibrary("unwind", .{});
 
-    lib.addIncludePath(upstream.path("src"));
-    lib.addIncludePath(luajit_h.dirname());
-    lib.addIncludePath(bcdef_header.dirname());
-    lib.addIncludePath(ffdef_header.dirname());
-    lib.addIncludePath(libdef_header.dirname());
-    lib.addIncludePath(recdef_header.dirname());
-    lib.addIncludePath(folddef_header.dirname());
+    library.addIncludePath(upstream.path("src"));
+    library.addIncludePath(luajit_h.dirname());
+    library.addIncludePath(bcdef_header.dirname());
+    library.addIncludePath(ffdef_header.dirname());
+    library.addIncludePath(libdef_header.dirname());
+    library.addIncludePath(recdef_header.dirname());
+    library.addIncludePath(folddef_header.dirname());
 
     lib.addCSourceFiles(.{
         .root = .{ .dependency = .{
@@ -229,18 +231,18 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 
     // FIXME: remove branch when zig-0.15 is released and 0.14 can be dropped
     if (builtin.zig_version.major == 0 and builtin.zig_version.minor < 15) {
-        lib.root_module.sanitize_c = false;
+        lib.sanitize_c = false;
     } else {
-        lib.root_module.sanitize_c = .off;
+        lib.sanitize_c = .off;
     }
 
-    lib.installHeader(upstream.path("src/lua.h"), "lua.h");
-    lib.installHeader(upstream.path("src/lualib.h"), "lualib.h");
-    lib.installHeader(upstream.path("src/lauxlib.h"), "lauxlib.h");
-    lib.installHeader(upstream.path("src/luaconf.h"), "luaconf.h");
-    lib.installHeader(luajit_h, "luajit.h");
+    library.installHeader(upstream.path("src/lua.h"), "lua.h");
+    library.installHeader(upstream.path("src/lualib.h"), "lualib.h");
+    library.installHeader(upstream.path("src/lauxlib.h"), "lauxlib.h");
+    library.installHeader(upstream.path("src/luaconf.h"), "luaconf.h");
+    library.installHeader(luajit_h, "luajit.h");
 
-    return lib;
+    return library;
 }
 
 const luajit_lib = [_][]const u8{
