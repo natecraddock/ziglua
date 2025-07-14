@@ -76,7 +76,7 @@ pub const ArithOperator = switch (lang) {
 
 /// Type for C functions
 /// See https://www.lua.org/manual/5.4/manual.html#lua_CFunction for the protocol
-pub const CFn = *const fn (state: ?*LuaState) callconv(.C) c_int;
+pub const CFn = *const fn (state: ?*LuaState) callconv(.c) c_int;
 
 /// Operations supported by `Lua.compare()`
 pub const CompareOperator = enum(u2) {
@@ -86,13 +86,13 @@ pub const CompareOperator = enum(u2) {
 };
 
 /// Type for C userdata destructors
-pub const CUserdataDtorFn = *const fn (userdata: *anyopaque) callconv(.C) void;
+pub const CUserdataDtorFn = *const fn (userdata: *anyopaque) callconv(.c) void;
 
 /// Type for C interrupt callback
-pub const CInterruptCallbackFn = *const fn (state: ?*LuaState, gc: c_int) callconv(.C) void;
+pub const CInterruptCallbackFn = *const fn (state: ?*LuaState, gc: c_int) callconv(.c) void;
 
 /// Type for C useratom callback
-pub const CUserAtomCallbackFn = *const fn (str: [*c]const u8, len: usize) callconv(.C) i16;
+pub const CUserAtomCallbackFn = *const fn (str: [*c]const u8, len: usize) callconv(.c) i16;
 
 /// The internal Lua debug structure
 const Debug = c.lua_Debug;
@@ -357,7 +357,7 @@ pub const FnReg = struct {
 pub const globals_index = c.LUA_GLOBALSINDEX;
 
 /// Type for debugging hook functions
-pub const CHookFn = *const fn (state: ?*LuaState, ar: ?*Debug) callconv(.C) void;
+pub const CHookFn = *const fn (state: ?*LuaState, ar: ?*Debug) callconv(.c) void;
 
 /// Specifies on which events the hook will be called
 pub const HookMask = packed struct {
@@ -401,7 +401,7 @@ pub const Integer = c.lua_Integer;
 pub const Context = isize;
 
 /// Type for continuation functions
-pub const CContFn = *const fn (state: ?*LuaState, status: c_int, ctx: Context) callconv(.C) c_int;
+pub const CContFn = *const fn (state: ?*LuaState, status: c_int, ctx: Context) callconv(.c) c_int;
 
 pub const Libs51 = packed struct {
     base: bool = false,
@@ -499,7 +499,7 @@ pub const mult_return = c.LUA_MULTRET;
 pub const Number = c.lua_Number;
 
 /// The type of the reader function used by `Lua.load()`
-pub const CReaderFn = *const fn (state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.C) [*c]const u8;
+pub const CReaderFn = *const fn (state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.c) [*c]const u8;
 
 /// The possible status of a call to `Lua.resumeThread`
 pub const ResumeStatus = enum(u1) {
@@ -563,12 +563,12 @@ pub const Unsigned = c.lua_Unsigned;
 
 /// The type of warning functions used by Lua to emit warnings
 pub const CWarnFn = switch (lang) {
-    .lua54 => *const fn (data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.C) void,
+    .lua54 => *const fn (data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.c) void,
     else => @compileError("CWarnFn not defined"),
 };
 
 /// The type of the writer function used by `Lua.dump()`
-pub const CWriterFn = *const fn (state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int;
+pub const CWriterFn = *const fn (state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.c) c_int;
 
 /// For bundling a parsed value with an arena allocator
 /// Copied from std.json.Parsed
@@ -592,7 +592,7 @@ pub const Lua = opaque {
 
     /// Allows Lua to allocate memory using a Zig allocator passed in via data.
     /// See https://www.lua.org/manual/5.4/manual.html#lua_Alloc for more details
-    fn alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.C) ?*align(alignment) anyopaque {
+    fn alloc(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.c) ?*align(alignment) anyopaque {
         // just like malloc() returns a pointer "which is suitably aligned for any built-in type",
         // the memory allocated by this function should also be aligned for any type that Lua may
         // desire to allocate. use the largest alignment for the target
@@ -5163,7 +5163,7 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
         // CFn
         Tuple(&.{*Lua}) => {
             return struct {
-                fn inner(state: ?*LuaState) callconv(.C) c_int {
+                fn inner(state: ?*LuaState) callconv(.c) c_int {
                     // this is called by Lua, state should never be null
                     var lua: *Lua = @ptrCast(state.?);
                     if (has_error_union) {
@@ -5179,7 +5179,7 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
         // CHookFn
         Tuple(&.{ *Lua, Event, *DebugInfo }) => {
             return struct {
-                fn inner(state: ?*LuaState, ar: ?*Debug) callconv(.C) void {
+                fn inner(state: ?*LuaState, ar: ?*Debug) callconv(.c) void {
                     // this is called by Lua, state should never be null
                     var lua: *Lua = @ptrCast(state.?);
                     var debug_info: DebugInfo = .{
@@ -5202,7 +5202,7 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
         // CContFn
         Tuple(&.{ *Lua, Status, Context }) => {
             return struct {
-                fn inner(state: ?*LuaState, status: c_int, ctx: Context) callconv(.C) c_int {
+                fn inner(state: ?*LuaState, status: c_int, ctx: Context) callconv(.c) c_int {
                     // this is called by Lua, state should never be null
                     var lua: *Lua = @ptrCast(state.?);
                     if (has_error_union) {
@@ -5218,7 +5218,7 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
         // CReaderFn
         Tuple(&.{ *Lua, *anyopaque }) => {
             return struct {
-                fn inner(state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.C) [*c]const u8 {
+                fn inner(state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.c) [*c]const u8 {
                     // this is called by Lua, state should never be null
                     var lua: *Lua = @ptrCast(state.?);
                     if (has_error_union) {
@@ -5247,7 +5247,7 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
         // CUserdataDtorFn
         Tuple(&.{*anyopaque}) => {
             return struct {
-                fn inner(userdata: *anyopaque) callconv(.C) void {
+                fn inner(userdata: *anyopaque) callconv(.c) void {
                     return @call(.always_inline, function, .{userdata});
                 }
             }.inner;
@@ -5255,7 +5255,7 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
         // CInterruptCallbackFn
         Tuple(&.{ *Lua, i32 }) => {
             return struct {
-                fn inner(state: ?*LuaState, gc: c_int) callconv(.C) void {
+                fn inner(state: ?*LuaState, gc: c_int) callconv(.c) void {
                     // this is called by Lua, state should never be null
                     var lua: *Lua = @ptrCast(state.?);
                     if (has_error_union) {
@@ -5271,7 +5271,7 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
         // CUserAtomCallbackFn
         Tuple(&.{[]const u8}) => {
             return struct {
-                fn inner(str: [*c]const u8, len: usize) callconv(.C) i16 {
+                fn inner(str: [*c]const u8, len: usize) callconv(.c) i16 {
                     if (str) |s| {
                         const buf = s[0..len];
                         return @call(.always_inline, function, .{buf});
@@ -5283,7 +5283,7 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
         // CWarnFn
         Tuple(&.{ ?*anyopaque, []const u8, bool }) => {
             return struct {
-                fn inner(data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.C) void {
+                fn inner(data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.c) void {
                     // warning messages emitted from Lua should be null-terminated for display
                     const message = std.mem.span(@as([*:0]const u8, @ptrCast(msg)));
                     @call(.always_inline, function, .{ data, message, to_cont != 0 });
@@ -5293,7 +5293,7 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
         // CWriterFn
         Tuple(&.{ *Lua, []const u8, *anyopaque }) => {
             return struct {
-                fn inner(state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.C) c_int {
+                fn inner(state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.c) c_int {
                     // this is called by Lua, state should never be null
                     var lua: *Lua = @ptrCast(state.?);
                     const buffer = @as([*]const u8, @ptrCast(buf))[0..size];
@@ -5382,7 +5382,7 @@ pub fn exportFn(comptime name: []const u8, comptime func: anytype) CFn {
     if (lang == .luau) @compileError("Luau does not support compiling or loading shared modules");
 
     return struct {
-        fn luaopen(state: ?*LuaState) callconv(.C) c_int {
+        fn luaopen(state: ?*LuaState) callconv(.c) c_int {
             const declaration = comptime wrap(func);
 
             return @call(.always_inline, declaration, .{state});
