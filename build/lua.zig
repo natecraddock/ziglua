@@ -41,20 +41,16 @@ pub fn configure(
         else => unreachable,
     };
 
-    const lib = if (shared)
-        b.addSharedLibrary(.{
-            .name = library_name,
-            .target = target,
-            .optimize = optimize,
-            .version = version,
-        })
-    else
-        b.addStaticLibrary(.{
-            .name = library_name,
-            .target = target,
-            .optimize = optimize,
-            .version = version,
-        });
+    const lib = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+    });
+    const library = b.addLibrary(.{
+        .name = library_name,
+        .version = version,
+        .linkage = if (shared) .dynamic else .static,
+        .root_module = lib,
+    });
 
     lib.addIncludePath(upstream.path("src"));
 
@@ -102,24 +98,24 @@ pub fn configure(
     if (lang == .lua51) {
         const patched = applyPatchToFile(b, b.graph.host, upstream.path("src/ldo.c"), b.path("build/lua-5.1.patch"), "ldo.c");
 
-        lib.step.dependOn(&patched.run.step);
+        library.step.dependOn(&patched.run.step);
 
         lib.addCSourceFile(.{ .file = patched.output, .flags = &flags });
     }
 
-    lib.linkLibC();
+    library.linkLibC();
 
-    lib.installHeader(upstream.path("src/lua.h"), "lua.h");
-    lib.installHeader(upstream.path("src/lualib.h"), "lualib.h");
-    lib.installHeader(upstream.path("src/lauxlib.h"), "lauxlib.h");
-    lib.installHeader(upstream.path("src/luaconf.h"), "luaconf.h");
+    library.installHeader(upstream.path("src/lua.h"), "lua.h");
+    library.installHeader(upstream.path("src/lualib.h"), "lualib.h");
+    library.installHeader(upstream.path("src/lauxlib.h"), "lauxlib.h");
+    library.installHeader(upstream.path("src/luaconf.h"), "luaconf.h");
 
     if (lua_user_h) |user_h| {
-        lib.addIncludePath(user_h.dirname());
-        lib.installHeader(user_h, user_header);
+        library.addIncludePath(user_h.dirname());
+        library.installHeader(user_h, user_header);
     }
 
-    return lib;
+    return library;
 }
 
 const lua_base_source_files = [_][]const u8{

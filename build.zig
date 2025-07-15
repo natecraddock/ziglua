@@ -99,9 +99,11 @@ pub fn build(b: *Build) void {
 
     // Tests
     const tests = b.addTest(.{
-        .root_source_file = b.path("src/tests.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/tests.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     tests.root_module.addImport("zlua", zlua);
 
@@ -123,9 +125,11 @@ pub fn build(b: *Build) void {
     for (examples) |example| {
         const exe = b.addExecutable(.{
             .name = example[0],
-            .root_source_file = b.path(example[1]),
-            .target = target,
-            .optimize = optimize,
+            .root_module = b.createModule(.{
+                .root_source_file = b.path(example[1]),
+                .target = target,
+                .optimize = optimize,
+            }),
         });
         exe.root_module.addImport("zlua", zlua);
 
@@ -143,9 +147,11 @@ pub fn build(b: *Build) void {
 
     const docs = b.addObject(.{
         .name = "ziglua",
-        .root_source_file = b.path("src/lib.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/lib.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     const install_docs = b.addInstallDirectory(.{
@@ -159,9 +165,11 @@ pub fn build(b: *Build) void {
 
     // definitions example
     const def_exe = b.addExecutable(.{
-        .root_source_file = b.path("examples/define-exe.zig"),
         .name = "define-zig-types",
-        .target = target,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/define-exe.zig"),
+            .target = target,
+        }),
     });
     def_exe.root_module.addImport("zlua", zlua);
     var run_def_exe = b.addRunArtifact(def_exe);

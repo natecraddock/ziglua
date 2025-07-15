@@ -4,11 +4,15 @@ const Build = std.Build;
 const Step = std.Build.Step;
 
 pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, luau_use_4_vector: bool) *Step.Compile {
-    const lib = b.addStaticLibrary(.{
-        .name = "luau",
+    const lib = b.createModule(.{
         .target = target,
         .optimize = optimize,
+    });
+    const library = b.addLibrary(.{
+        .name = "luau",
+        .linkage = .static,
         .version = std.SemanticVersion{ .major = 0, .minor = 653, .patch = 0 },
+        .root_module = lib,
     });
 
     lib.addIncludePath(upstream.path("Common/include"));
@@ -33,14 +37,14 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
         .flags = &flags,
     });
     lib.addCSourceFile(.{ .file = b.path("src/luau.cpp"), .flags = &flags });
-    lib.linkLibCpp();
+    library.linkLibCpp();
 
-    lib.installHeader(upstream.path("VM/include/lua.h"), "lua.h");
-    lib.installHeader(upstream.path("VM/include/lualib.h"), "lualib.h");
-    lib.installHeader(upstream.path("VM/include/luaconf.h"), "luaconf.h");
-    lib.installHeader(upstream.path("Compiler/include/luacode.h"), "luacode.h");
+    library.installHeader(upstream.path("VM/include/lua.h"), "lua.h");
+    library.installHeader(upstream.path("VM/include/lualib.h"), "lualib.h");
+    library.installHeader(upstream.path("VM/include/luaconf.h"), "luaconf.h");
+    library.installHeader(upstream.path("Compiler/include/luacode.h"), "luacode.h");
 
-    return lib;
+    return library;
 }
 
 const luau_source_files = [_][]const u8{

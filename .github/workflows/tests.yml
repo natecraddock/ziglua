@@ -11,7 +11,6 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        zig: ["0.14.0", "0.15.0-dev.441+c1649d586"]
 
     runs-on: ${{matrix.os}}
 
@@ -20,9 +19,9 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Setup Zig
-      uses: mlugg/setup-zig@v1
+      uses: mlugg/setup-zig@v2
       with:
-        version: ${{ matrix.zig }}
+        version: master
 
     - name: Run tests
       run: make test
@@ -31,7 +30,6 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        zig: ["0.14.0", "0.15.0-dev.441+c1649d586"]
 
     runs-on: ${{matrix.os}}
 
@@ -40,9 +38,9 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Setup Zig
-      uses: mlugg/setup-zig@v1
+      uses: mlugg/setup-zig@v2
       with:
-        version: ${{ matrix.zig }}
+        version: master
 
     - name: Run tests
       run: make test_cross

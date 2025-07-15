@@ -14,15 +14,22 @@ pub fn main() !void {
     const patch_file_path = args[2];
     const output_path = args[3];
 
-    const patch_file = try std.fs.openFileAbsolute(patch_file_path, .{ .mode = .read_only });
-    defer patch_file.close();
-    const chunk_details = Chunk.next(allocator, patch_file) orelse @panic("No chunk data found");
+    const patch_file = patch_file: {
+        const patch_file = try std.fs.cwd().openFile(patch_file_path, .{ .mode = .read_only });
+        defer patch_file.close();
+        break :patch_file try patch_file.readToEndAlloc(allocator, std.math.maxInt(usize));
+    };
+    const chunk_details = Chunk.init(allocator, patch_file, 0) orelse @panic("No chunk data found");
 
-    const file = try std.fs.openFileAbsolute(file_path, .{ .mode = .read_only });
+    const file = try std.fs.cwd().openFile(file_path, .{ .mode = .read_only });
     defer file.close();
+    var in_buf: [4096]u8 = undefined;
+    var reader = file.reader(&in_buf);
 
-    const output = try std.fs.createFileAbsolute(output_path, .{});
+    const output = try std.fs.cwd().createFile(output_path, .{});
     defer output.close();
+    var out_buf: [4096]u8 = undefined;
+    var writer = output.writer(&out_buf);
 
     var state: State = .copy;
 
@@ -32,26 +39,32 @@ pub fn main() !void {
 
         switch (state) {
             .copy => {
-                const line = getLine(allocator, file) orelse return;
-                _ = try output.write(line);
-                _ = try output.write("\n");
+                _ = reader.interface.streamDelimiter(&writer.interface, '\n') catch |err| switch (err) {
+                    error.EndOfStream => {
+                        try writer.end();
+                        return;
+                    },
+                    else => return err,
+                };
+                reader.interface.toss(1);
+                try writer.interface.writeByte('\n');
             },
             .chunk => {
                 const chunk = chunk_details.lines[line_number - chunk_details.src];
                 switch (chunk.action) {
                     .remove => {
-                        const line = getLine(allocator, file) orelse return;
+                        const line = try reader.interface.takeDelimiterExclusive('\n');
                         if (!std.mem.eql(u8, chunk.buf, line)) @panic("Failed to apply patch");
                     },
                     .keep => {
-                        const line = getLine(allocator, file) orelse return;
+                        const line = try reader.interface.takeDelimiterExclusive('\n');
                         if (!std.mem.eql(u8, chunk.buf, line)) @panic("Failed to apply patch");
-                        _ = try output.write(line);
-                        _ = try output.write("\n");
+                        try writer.interface.writeAll(line);
+                        try writer.interface.writeByte('\n');
                     },
                     .add => {
-                        _ = try output.write(chunk.buf);
-                        _ = try output.write("\n");
+                        try writer.interface.writeAll(chunk.buf);
+                        try writer.interface.writeByte('\n');
                     },
                 }
 
@@ -59,13 +72,6 @@ pub fn main() !void {
             },
         }
     }
-}
-
-fn getLine(allocator: Allocator, file: File) ?[]u8 {
-    return file.reader().readUntilDelimiterAlloc(allocator, '\n', std.math.maxInt(usize)) catch |err| switch (err) {
-        error.EndOfStream => return null,
-        else => @panic("Error"),
-    };
 }
 
 const State = enum { copy, chunk };
@@ -82,9 +88,9 @@ const Chunk = struct {
         buf: []const u8,
     };
 
-    fn next(allocator: Allocator, file: File) ?Chunk {
-        while (true) {
-            const line = getLine(allocator, file) orelse return null;
+    fn init(arena: std.mem.Allocator, contents: []const u8, pos: usize) ?Chunk {
+        var it = std.mem.tokenizeScalar(u8, contents[pos..], '\n');
+        while (it.next()) |line| {
             if (std.mem.startsWith(u8, line, "@@")) {
                 const end = std.mem.indexOfPosLinear(u8, line, 3, "@@").?;
                 const details = line[4 .. end - 2];
@@ -95,7 +101,7 @@ const Chunk = struct {
 
                 var lines: std.ArrayListUnmanaged(Line) = .empty;
                 while (true) {
-                    const diff_line = getLine(allocator, file) orelse break;
+                    const diff_line = it.next() orelse break;
                     if (std.mem.startsWith(u8, diff_line, "@@")) break;
 
                     const action: Line.Action = switch (diff_line[0]) {
@@ -105,16 +111,17 @@ const Chunk = struct {
                         else => @panic("Bad patch file"),
                     };
 
-                    lines.append(allocator, .{ .action = action, .buf = diff_line[1..] }) catch unreachable;
+                    lines.append(arena, .{ .action = action, .buf = diff_line[1..] }) catch unreachable;
                 }
 
                 return .{
-                    .lines = lines.toOwnedSlice(allocator) catch unreachable,
+                    .lines = lines.toOwnedSlice(arena) catch unreachable,
                     .src = src,
                     .dst = dst,
                 };
             }
         }
+        return null;
     }
 
     fn getLineNumber(buf: []const u8) usize {
