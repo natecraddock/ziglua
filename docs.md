@@ -103,3 +103,35 @@ This is a macro for `lua_pushstring`, so use `Lua.pushString()` instead.
 ### `pcall`
 
 Both `lua_pcall` and `lua_pcallk` are expanded to `protectedCall` and `protectedCallCont` for readability.
+
+## Compile Shared Module
+
+Thanks to **Shared Module** we can write our code in `zig`, and compile it into a small library file, which can be imported in a `*.lua` file.
+
+The point of **Shared Module** is to not drag the entire lua source code along with you.
+It is assumed that lua functions already exist in an external library file (for example `*.so` or `*.dll`),
+and we need to make dynamic links (import) of the external library.
+
+```zig
+const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    // ... snip ...
+
+    const library_name: []const u8 = "lua54";
+
+    const lua_dep = b.dependency("zlua", .{
+        .target = target,
+        .optimize = .ReleaseFast,
+        .lang = .lua54,
+        .shared = true, // set to `true` to dynamically link the Lua source code (useful for creating shared modules)
+        .library_name = library_name, // change lua library name for linkage
+    });
+
+    libraryLua.root_module.addImport("zlua", lua_dep.module("zlua"));
+
+    b.installArtifact(libraryLua);
+}
+```
+
+A detailed full example can be found at `examples/shared-module-template`.

@@ -1,0 +1,21 @@
+.{
+    // create a fresh zon file using `zig fetch --save git+https://github.com/natecraddock/ziglua`
+    .name = .ziglua,
+    .version = "0.0.0",
+    .fingerprint = 0x98bbbba34dcf48,
+    .minimum_zig_version = "0.14.0",
+    .dependencies = .{
+        .zlua = .{
+            .url = "git+https://github.com/natecraddock/ziglua#b1fa62844dafb782219631d88b7fc70e0b7cfe37",
+            .hash = "zlua-0.1.0-hGRpCxwbBQCft7Dgs_DsO0OGBbCUGgXn_mQd5c382Jn5",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        // For example...
+        //"LICENSE",
+        //"README.md",
+    },
+}

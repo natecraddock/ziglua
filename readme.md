@@ -64,7 +64,8 @@ This will compile the Lua C sources and link with your project.
 There are currently three additional options that can be passed to `b.dependency()`:
 
 * `.lang`: Set the Lua language to build and embed. Defaults to `.lua54`. Possible values are `.lua51`, `.lua52`, `.lua53`, `.lua54`, and `luau`.
-* `.shared`: Defaults to `false` for embedding in a Zig program. Set to `true` to dynamically link the Lua source code (useful for creating shared modules).
+* `.shared`: Defaults to `false` for embedding in a Zig program. Set to `true` to dynamically link the Lua source code (useful for creating shared modules). See [docs.md](https://github.com/natecraddock/ziglua/blob/main/docs.md) chapter `Compile Shared Module`
+* `.library_name`: defaults to `lua`. Only for `.lang` with `lua5*`. See [docs.md](https://github.com/natecraddock/ziglua/blob/main/docs.md) chapter `Compile Shared Module`
 * `luau_use_4_vector`: defaults to false. Set to true to use 4-vectors instead of the default 3-vector in Luau.
 * `lua_user_h`: defaults to null. Provide a path to an additional header file for the Lua compilation. Must be set to to `examples/user.h` in order to run the multithreaded example.
 
