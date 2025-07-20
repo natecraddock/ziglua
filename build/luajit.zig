@@ -127,6 +127,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 
     const buildvm_c_flags: []const []const u8 = switch (target.result.cpu.arch) {
         .aarch64, .aarch64_be => &.{ "-DLUAJIT_TARGET=LUAJIT_ARCH_arm64", "-DLJ_ARCH_HASFPU=1", "-DLJ_ABI_SOFTFP=0" },
+        .x86_64 => &.{ "-DLUAJIT_TARGET=LUAJIT_ARCH_X64" },
         else => &.{},
     };
 
