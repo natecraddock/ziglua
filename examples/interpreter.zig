@@ -20,33 +20,37 @@ pub fn main() anyerror!void {
     // Open all Lua standard libraries
     lua.openLibs();
 
-    var in_buf: [4096]u8 = undefined;
+    var in_buf: [1024]u8 = undefined;
     var out_buf: [4096]u8 = undefined;
     var stdin_file = std.fs.File.stdin().reader(&in_buf);
     const stdin = &stdin_file.interface;
     var stdout_file = std.fs.File.stdout().writer(&out_buf);
     const stdout = &stdout_file.interface;
 
-    var buffer: [256]u8 = undefined;
     while (true) {
         _ = try stdout.writeAll("> ");
+        try stdout.flush();
 
         // Read a line of input
-        const len = try stdin.readSliceShort(&buffer);
-        if (len == 0) break; // EOF
-        if (len >= buffer.len - 1) {
+        const line = stdin.takeDelimiterInclusive('\n') catch |err| switch (err) {
+            error.EndOfStream => break,
+            else => return err,
+        };
+        if (line.len == 0) break; // EOF
+        if (@intFromPtr(line.ptr) + line.len >= @intFromPtr(&in_buf) + in_buf.len) {
             try stdout.print("error: line too long!\n", .{});
             continue;
         }
 
         // Ensure the buffer is null-terminated so the Lua API can read the length
-        buffer[len] = 0;
+        line.ptr[line.len] = 0;
 
         // Compile a line of Lua code
-        lua.loadString(buffer[0..len :0]) catch {
+        lua.loadString(line.ptr[0..line.len :0]) catch {
             // If there was an error, Lua will place an error string on the top of the stack.
             // Here we print out the string to inform the user of the issue.
             try stdout.print("{s}\n", .{lua.toString(-1) catch unreachable});
+            try stdout.flush();
 
             // Remove the error from the stack and go back to the prompt
             lua.pop(1);
@@ -57,6 +61,7 @@ pub fn main() anyerror!void {
         lua.protectedCall(.{}) catch {
             // Error handling here is the same as above.
             try stdout.print("{s}\n", .{lua.toString(-1) catch unreachable});
+            try stdout.flush();
             lua.pop(1);
         };
     }
