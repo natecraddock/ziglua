@@ -2035,6 +2035,18 @@ pub const Lua = opaque {
         c.lua_pushnil(@ptrCast(lua));
     }
 
+    /// Pushes a numeric type with value `n` onto the stack
+    /// The conversion from the type of `n` to `Integer` or `Number`
+    /// is performed with `@_Cast` so will assert in modes with runtime safety enabled.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `1`
+    /// * Errors: `never`
+    pub fn pushNumeric(lua: *Lua, n: anytype) void {
+        if (@typeInfo(@TypeOf(n)) == .int) return lua.pushInteger(@intCast(n));
+        lua.pushNumber(@floatCast(n));
+    }
+
     /// Pushes a float with value `n` onto the stack
     ///
     /// * Pops:   `0`
@@ -2592,6 +2604,19 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_toclose
     pub fn toClose(lua: *Lua, index: i32) void {
         c.lua_toclose(@ptrCast(lua), index);
+    }
+
+    /// Converts the Lua value at the given `index` to a numeric type;
+    /// if T is an integer type, the Lua value is converted to an integer.
+    /// The conversion from `Integer` or `Number` to T is performed with `@_Cast`,
+    /// which will assert in builds with runtime safety enabled
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `never`
+    pub fn toNumeric(lua: *Lua, comptime T: type, index: i32) !T {
+        if (@typeInfo(T) == .int) return @intCast(try lua.toInteger(index));
+        return @floatCast(try lua.toNumber(index));
     }
 
     /// Converts the Lua value at the given `index` to a signed integer
@@ -3340,6 +3365,19 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkany
     pub fn checkAny(lua: *Lua, arg: i32) void {
         c.luaL_checkany(@ptrCast(lua), arg);
+    }
+
+    /// Checks whether the function argument `arg` is a numeric type and converts it to type T
+    ///
+    /// The conversion is done with `@intCast` for numeric types,
+    /// so causes an assertion in modes with runtime safety enabled.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    pub fn checkNumeric(lua: *Lua, comptime T: type, arg: i32) T {
+        if (@typeInfo(T) == .int) return @intCast(lua.checkInteger(arg));
+        return @floatCast(lua.checkNumber(arg));
     }
 
     /// Checks whether the function argument `arg` is a number and returns this number cast to an i32

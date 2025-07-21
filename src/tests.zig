@@ -3055,3 +3055,13 @@ test "error union for CFn" {
         try expectEqualStrings("MissingInteger", try lua.toString(-1));
     };
 }
+
+test "pushNumeric and toNumeric" {
+    const lua: *Lua = try .init(testing.allocator);
+    defer lua.deinit();
+
+    const num: u32 = 100;
+    lua.pushNumeric(num);
+    const pull = lua.toNumeric(u32, lua.getTop());
+    try std.testing.expectEqual(num, pull);
+}
