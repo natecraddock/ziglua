@@ -1,5 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
+const ArrayList = std.ArrayListUnmanaged; // delete this once 0.14 support is no longer necessary
 
 const zlua = @import("zlua");
 
@@ -874,14 +875,14 @@ test "dump and load" {
     const writer = struct {
         fn inner(l: *Lua, buf: []const u8, data: *anyopaque) bool {
             _ = l;
-            var arr: *std.ArrayList(u8) = @ptrCast(@alignCast(data));
-            arr.appendSlice(buf) catch return false;
+            var arr: *ArrayList(u8) = @ptrCast(@alignCast(data));
+            arr.appendSlice(std.testing.allocator, buf) catch return false;
             return true;
         }
     }.inner;
 
-    var buffer: std.ArrayList(u8) = .init(testing.allocator);
-    defer buffer.deinit();
+    var buffer: ArrayList(u8) = .empty;
+    defer buffer.deinit(std.testing.allocator);
 
     // save the function as a binary chunk in the buffer
     if (zlua.lang == .lua53 or zlua.lang == .lua54) {
@@ -898,7 +899,7 @@ test "dump and load" {
     const reader = struct {
         fn inner(l: *Lua, data: *anyopaque) ?[]const u8 {
             _ = l;
-            const arr: *std.ArrayList(u8) = @ptrCast(@alignCast(data));
+            const arr: *ArrayList(u8) = @ptrCast(@alignCast(data));
             return arr.items;
         }
     }.inner;
@@ -2978,12 +2979,12 @@ test "define" {
 
     const a = std.testing.allocator;
 
-    var state = zlua.def.DefineState.init(a);
-    defer state.deinit();
+    var state: zlua.def.DefineState = .empty;
+    defer state.deinit(a);
 
     const to_define: []const type = &.{ T, TestType, Foo };
     inline for (to_define) |my_type| {
-        _ = try zlua.def.addClass(&state, my_type);
+        _ = try zlua.def.addClass(&state, a, my_type);
     }
 
     var buffer: [10000]u8 = .{0} ** 10000;
