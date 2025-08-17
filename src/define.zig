@@ -1,37 +1,36 @@
 const std = @import("std");
+const ArrayList = std.ArrayListUnmanaged; // this should be deleted when zig 0.14 support is no longer necessary
+const StringHashMap = std.StringHashMapUnmanaged; // this should be deleted when zig 0.14 support is no longer necessary
 
-const String = std.ArrayList(u8);
-const Database = std.StringHashMap(void);
+const String = ArrayList(u8);
+const Database = StringHashMap(void);
 
 pub const DefineState = struct {
-    allocator: std.mem.Allocator,
     database: Database,
-    definitions: std.ArrayList(String),
+    definitions: ArrayList(String),
 
-    pub fn init(alloc: std.mem.Allocator) DefineState {
-        return DefineState{
-            .allocator = alloc,
-            .database = .init(alloc),
-            .definitions = .init(alloc),
-        };
-    }
+    pub const empty: DefineState = .{
+        .database = .empty,
+        .definitions = .empty,
+    };
 
-    pub fn deinit(self: *@This()) void {
-        for (self.definitions.items) |def| {
-            def.deinit();
+    pub fn deinit(self: *DefineState, gpa: std.mem.Allocator) void {
+        for (self.definitions.items) |*def| {
+            def.deinit(gpa);
         }
-        defer self.database.deinit();
-        defer self.definitions.deinit();
+        self.database.deinit(gpa);
+        self.definitions.deinit(gpa);
+        self.* = undefined;
     }
 };
 
 pub fn define(
-    alloc: std.mem.Allocator,
+    gpa: std.mem.Allocator,
     absolute_output_path: []const u8,
     comptime to_define: []const type,
 ) !void {
-    var state: DefineState = .init(alloc);
-    defer state.deinit();
+    var state: DefineState = .empty;
+    defer state.deinit(gpa);
 
     inline for (to_define) |T| {
         _ = try addClass(&state, T);
@@ -66,100 +65,104 @@ fn name(comptime T: type) []const u8 {
 
 fn addEnum(
     state: *DefineState,
+    gpa: std.mem.Allocator,
     comptime T: type,
 ) !void {
     if (state.database.contains(@typeName(T)) == false) {
-        try state.database.put(@typeName(T), {});
-        try state.definitions.append(String.init(state.allocator));
-        const index = state.definitions.items.len - 1;
+        try state.database.put(gpa, @typeName(T), {});
+        const item = try state.definitions.addOne(gpa);
+        item.* = .empty;
 
-        try state.definitions.items[index].appendSlice("---@alias ");
-        try state.definitions.items[index].appendSlice(name(T));
-        try state.definitions.items[index].appendSlice("\n");
+        try item.appendSlice(gpa, "---@alias ");
+        try item.appendSlice(gpa, name(T));
+        try item.appendSlice(gpa, "\n");
 
         inline for (@typeInfo(T).@"enum".fields) |field| {
-            try state.definitions.items[index].appendSlice("---|\' \"");
-            try state.definitions.items[index].appendSlice(field.name);
-            try state.definitions.items[index].appendSlice("\" \'\n");
+            try item.appendSlice(gpa, "---|\' \"");
+            try item.appendSlice(gpa, field.name);
+            try item.appendSlice(gpa, "\" \'\n");
         }
     }
 }
 
 pub fn addClass(
     state: *DefineState,
+    gpa: std.mem.Allocator,
     comptime T: type,
 ) !void {
     if (state.database.contains(@typeName(T)) == false) {
-        try state.database.put(@typeName(T), {});
-        try state.definitions.append(String.init(state.allocator));
-        const index = state.definitions.items.len - 1;
+        try state.database.put(gpa, @typeName(T), {});
+        const item = try state.definitions.addOne(gpa);
+        const idx = state.definitions.items.len - 1;
+        item.* = .empty;
 
-        try state.definitions.items[index].appendSlice("---@class (exact) ");
-        try state.definitions.items[index].appendSlice(name(T));
-        try state.definitions.items[index].appendSlice("\n");
+        try item.appendSlice(gpa, "---@class (exact) ");
+        try item.appendSlice(gpa, name(T));
+        try item.appendSlice(gpa, "\n");
 
         inline for (@typeInfo(T).@"struct".fields) |field| {
-            try state.definitions.items[index].appendSlice("---@field ");
-            try state.definitions.items[index].appendSlice(field.name);
+            try item.appendSlice(gpa, "---@field ");
+            try item.appendSlice(gpa, field.name);
 
             if (field.defaultValue() != null) {
-                try state.definitions.items[index].appendSlice("?");
+                try item.appendSlice(gpa, "?");
             }
-            try state.definitions.items[index].appendSlice(" ");
-            try luaTypeName(state, index, field.type);
-            try state.definitions.items[index].appendSlice("\n");
+            try item.appendSlice(gpa, " ");
+            try luaTypeName(state, gpa, idx, field.type);
+            try state.definitions.items[idx].appendSlice(gpa, "\n");
         }
     }
 }
 
 fn luaTypeName(
     state: *DefineState,
+    gpa: std.mem.Allocator,
     index: usize,
     comptime T: type,
 ) !void {
     switch (@typeInfo(T)) {
         .@"struct" => {
-            try state.definitions.items[index].appendSlice(name(T));
-            try addClass(state, T);
+            try state.definitions.items[index].appendSlice(gpa, name(T));
+            try addClass(state, gpa, T);
         },
         .pointer => |info| {
             if (info.child == u8 and info.size == .slice) {
-                try state.definitions.items[index].appendSlice("string");
+                try state.definitions.items[index].appendSlice(gpa, "string");
             } else switch (info.size) {
                 .one => {
-                    try state.definitions.items[index].appendSlice("lightuserdata");
+                    try state.definitions.items[index].appendSlice(gpa, "lightuserdata");
                 },
                 .c, .many, .slice => {
-                    try luaTypeName(state, index, info.child);
-                    try state.definitions.items[index].appendSlice("[]");
+                    try luaTypeName(state, gpa, index, info.child);
+                    try state.definitions.items[index].appendSlice(gpa, "[]");
                 },
             }
         },
         .array => |info| {
-            try luaTypeName(state, index, info.child);
-            try state.definitions.items[index].appendSlice("[]");
+            try luaTypeName(state, gpa, index, info.child);
+            try state.definitions.items[index].appendSlice(gpa, "[]");
         },
 
         .vector => |info| {
-            try luaTypeName(state, index, info.child);
-            try state.definitions.items[index].appendSlice("[]");
+            try luaTypeName(state, gpa, index, info.child);
+            try state.definitions.items[index].appendSlice(gpa, "[]");
         },
         .optional => |info| {
-            try luaTypeName(state, index, info.child);
-            try state.definitions.items[index].appendSlice(" | nil");
+            try luaTypeName(state, gpa, index, info.child);
+            try state.definitions.items[index].appendSlice(gpa, " | nil");
         },
         .@"enum" => {
-            try state.definitions.items[index].appendSlice(name(T));
-            try addEnum(state, T);
+            try state.definitions.items[index].appendSlice(gpa, name(T));
+            try addEnum(state, gpa, T);
         },
         .int => {
-            try state.definitions.items[index].appendSlice("integer");
+            try state.definitions.items[index].appendSlice(gpa, "integer");
         },
         .float => {
-            try state.definitions.items[index].appendSlice("number");
+            try state.definitions.items[index].appendSlice(gpa, "number");
         },
         .bool => {
-            try state.definitions.items[index].appendSlice("boolean");
+            try state.definitions.items[index].appendSlice(gpa, "boolean");
         },
         else => {
             @compileLog(T);

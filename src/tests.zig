@@ -875,7 +875,7 @@ test "dump and load" {
     const writer = struct {
         fn inner(l: *Lua, buf: []const u8, data: *anyopaque) bool {
             _ = l;
-            var arr: ArrayList(u8) = @ptrCast(@alignCast(data));
+            var arr: *ArrayList(u8) = @ptrCast(@alignCast(data));
             arr.appendSlice(std.testing.allocator, buf) catch return false;
             return true;
         }
@@ -2979,12 +2979,12 @@ test "define" {
 
     const a = std.testing.allocator;
 
-    var state = zlua.def.DefineState.init(a);
-    defer state.deinit();
+    var state: zlua.def.DefineState = .empty;
+    defer state.deinit(a);
 
     const to_define: []const type = &.{ T, TestType, Foo };
     inline for (to_define) |my_type| {
-        _ = try zlua.def.addClass(&state, my_type);
+        _ = try zlua.def.addClass(&state, a, my_type);
     }
 
     var buffer: [10000]u8 = .{0} ** 10000;
