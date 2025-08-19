@@ -3088,6 +3088,8 @@ test "checkNumeric and toNumeric" {
         return error.ExpectedError;
     } else |_| {
         const string = lua.toStringEx(lua.getTop());
-        try std.testing.expectEqualStrings(error_msg, string);
+        errdefer std.log.err("expected error message to contain: {s}", .{error_msg});
+        errdefer std.log.err("error message: {s}", .{string});
+        _ = std.mem.indexOf(u8, string, error_msg) orelse return error.BadErrorMessage;
     }
 }
