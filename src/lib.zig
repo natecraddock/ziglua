@@ -3363,7 +3363,8 @@ pub const Lua = opaque {
     /// * Pushes: `0`
     /// * Errors: `explained in text / on purpose`
     pub fn checkNumeric(lua: *Lua, comptime T: type, arg: i32) T {
-        if (@typeInfo(T) == .int) return std.math.cast(T, lua.checkNumber(arg)) orelse {
+        if (comptime @typeInfo(T) != .int) return @floatCast(lua.checkNumber(arg));
+        return std.math.cast(T, lua.checkInteger(arg)) orelse {
             const error_msg = comptime msg: {
                 var buf: [1024]u8 = undefined;
                 const info = @typeInfo(T).int;
@@ -3371,13 +3372,13 @@ pub const Lua = opaque {
                     .unsigned => "u",
                     .signed => "i",
                 };
-                break :msg std.fmt.bufPrintZ(&buf, "Integer argument doesn't fit inside {s}{d} range [{d}, {d}]", .{
+                const output = std.fmt.bufPrintZ(&buf, "integer argument doesn't fit inside {s}{d} range [{d}, {d}]", .{
                     signedness, info.bits, std.math.minInt(T), std.math.maxInt(T),
                 }) catch unreachable;
+                break :msg output[0..output.len :0].*;
             };
-            lua.argError(arg, error_msg);
+            lua.argError(arg, &error_msg);
         };
-        return @floatCast(lua.checkNumber(arg));
     }
 
     /// Checks whether the function argument `arg` is a number and returns this number cast to an i32

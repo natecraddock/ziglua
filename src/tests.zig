@@ -3056,12 +3056,38 @@ test "error union for CFn" {
     };
 }
 
-test "pushNumeric and toNumeric" {
+test "checkNumeric and toNumeric" {
+    const error_msg = "integer argument doesn't fit inside u8 range [0, 255]";
+
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
-    const num: u32 = 100;
-    lua.pushInteger(num);
-    const pull = lua.toNumeric(u32, lua.getTop());
-    try std.testing.expectEqual(num, pull);
+    lua.pushFunction(zlua.wrap(struct {
+        fn f(l: *Lua) i32 {
+            _ = l.checkNumeric(u8, 1);
+            return 1;
+        }
+    }.f));
+    const idx = lua.getTop();
+
+    lua.pushValue(idx);
+    lua.pushInteger(128);
+    try lua.protectedCall(.{
+        .args = 1,
+        .results = 1,
+    });
+    const val = lua.toNumeric(u8, lua.getTop());
+    try std.testing.expectEqual(128, val);
+
+    lua.pushValue(idx);
+    lua.pushInteger(256);
+    if (lua.protectedCall(.{
+        .args = 1,
+        .results = 0,
+    })) |_| {
+        return error.ExpectedError;
+    } else |_| {
+        const string = lua.toStringEx(lua.getTop());
+        try std.testing.expectEqualStrings(error_msg, string);
+    }
 }
