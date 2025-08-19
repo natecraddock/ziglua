@@ -2596,14 +2596,12 @@ pub const Lua = opaque {
 
     /// Converts the Lua value at the given `index` to a numeric type;
     /// if T is an integer type, the Lua value is converted to an integer.
-    /// The conversion from `Integer` or `Number` to T is performed with `@_Cast`,
-    /// which will assert in builds with runtime safety enabled
     ///
     /// * Pops:   `0`
     /// * Pushes: `0`
-    /// * Errors: `never`
+    /// * Errors: `error.IntegerCastFailed` if `T` is an integer type and the value at index doesn't fit
     pub fn toNumeric(lua: *Lua, comptime T: type, index: i32) !T {
-        if (@typeInfo(T) == .int) return @intCast(try lua.toInteger(index));
+        if (@typeInfo(T) == .int) return std.math.cast(try lua.toInteger(index)) orelse error.IntegerCastFailed;
         return @floatCast(try lua.toNumber(index));
     }
 
