@@ -2599,9 +2599,11 @@ pub const Lua = opaque {
     ///
     /// * Pops:   `0`
     /// * Pushes: `0`
-    /// * Errors: `error.IntegerCastFailed` if `T` is an integer type and the value at index doesn't fit
+    /// * Errors: `error.Overflow` if `T` is an integer type and the value at index doesn't fit
     pub fn toNumeric(lua: *Lua, comptime T: type, index: i32) !T {
-        if (@typeInfo(T) == .int) return std.math.cast(T, try lua.toInteger(index)) orelse error.IntegerCastFailed;
+        if (@typeInfo(T) == .int) {
+            return std.math.cast(T, try lua.toInteger(index)) orelse error.Overflow;
+        }
         return @floatCast(try lua.toNumber(index));
     }
 
