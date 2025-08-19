@@ -3061,7 +3061,7 @@ test "pushNumeric and toNumeric" {
     defer lua.deinit();
 
     const num: u32 = 100;
-    lua.pushNumeric(num);
+    lua.pushInteger(num);
     const pull = lua.toNumeric(u32, lua.getTop());
     try std.testing.expectEqual(num, pull);
 }
