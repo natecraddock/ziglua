@@ -3357,14 +3357,26 @@ pub const Lua = opaque {
 
     /// Checks whether the function argument `arg` is a numeric type and converts it to type T
     ///
-    /// The conversion is done with `@intCast` for numeric types,
-    /// so causes an assertion in modes with runtime safety enabled.
+    /// Raises a Lua error if the argument is an integer type but std.math.cast fails
     ///
     /// * Pops:   `0`
     /// * Pushes: `0`
     /// * Errors: `explained in text / on purpose`
     pub fn checkNumeric(lua: *Lua, comptime T: type, arg: i32) T {
-        if (@typeInfo(T) == .int) return @intCast(lua.checkInteger(arg));
+        if (@typeInfo(T) == .int) return std.math.cast(T, lua.checkNumber(arg)) orelse {
+            const error_msg = comptime msg: {
+                var buf: [1024]u8 = undefined;
+                const info = @typeInfo(T).int;
+                const signedness = switch (info.signedness) {
+                    .unsigned => "u",
+                    .signed => "i",
+                };
+                break :msg std.fmt.bufPrintZ(&buf, "Integer argument doesn't fit inside {s}{d} range [{d}, {d}]", .{
+                    signedness, info.bits, std.math.minInt(T), std.math.maxInt(T),
+                }) catch unreachable;
+            };
+            lua.argError(arg, error_msg);
+        };
         return @floatCast(lua.checkNumber(arg));
     }
 
