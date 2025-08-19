@@ -2035,18 +2035,6 @@ pub const Lua = opaque {
         c.lua_pushnil(@ptrCast(lua));
     }
 
-    /// Pushes a numeric type with value `n` onto the stack
-    /// The conversion from the type of `n` to `Integer` or `Number`
-    /// is performed with `@_Cast` so will assert in modes with runtime safety enabled.
-    ///
-    /// * Pops:   `0`
-    /// * Pushes: `1`
-    /// * Errors: `never`
-    pub fn pushNumeric(lua: *Lua, n: anytype) void {
-        if (@typeInfo(@TypeOf(n)) == .int) return lua.pushInteger(@intCast(n));
-        lua.pushNumber(@floatCast(n));
-    }
-
     /// Pushes a float with value `n` onto the stack
     ///
     /// * Pops:   `0`
