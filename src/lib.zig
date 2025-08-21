@@ -2594,6 +2594,19 @@ pub const Lua = opaque {
         c.lua_toclose(@ptrCast(lua), index);
     }
 
+    /// Converts the Lua value at the given `index` to a numeric type;
+    /// if T is an integer type, the Lua value is converted to an integer.
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `error.Overflow` if `T` is an integer type and the value at index doesn't fit
+    pub fn toNumeric(lua: *Lua, comptime T: type, index: i32) !T {
+        if (@typeInfo(T) == .int) {
+            return std.math.cast(T, try lua.toInteger(index)) orelse error.Overflow;
+        }
+        return @floatCast(try lua.toNumber(index));
+    }
+
     /// Converts the Lua value at the given `index` to a signed integer
     /// The Lua value must be an integer, or a number, or a string convertible to an integer
     /// Returns an error if the conversion failed
@@ -3340,6 +3353,32 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkany
     pub fn checkAny(lua: *Lua, arg: i32) void {
         c.luaL_checkany(@ptrCast(lua), arg);
+    }
+
+    /// Checks whether the function argument `arg` is a numeric type and converts it to type T
+    ///
+    /// Raises a Lua error if the argument is an integer type but std.math.cast fails
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `explained in text / on purpose`
+    pub fn checkNumeric(lua: *Lua, comptime T: type, arg: i32) T {
+        if (comptime @typeInfo(T) != .int) return @floatCast(lua.checkNumber(arg));
+        return std.math.cast(T, lua.checkInteger(arg)) orelse {
+            const error_msg = comptime msg: {
+                var buf: [1024]u8 = undefined;
+                const info = @typeInfo(T).int;
+                const signedness = switch (info.signedness) {
+                    .unsigned => "u",
+                    .signed => "i",
+                };
+                const output = std.fmt.bufPrintZ(&buf, "integer argument doesn't fit inside {s}{d} range [{d}, {d}]", .{
+                    signedness, info.bits, std.math.minInt(T), std.math.maxInt(T),
+                }) catch unreachable;
+                break :msg output[0..output.len :0].*;
+            };
+            lua.argError(arg, &error_msg);
+        };
     }
 
     /// Checks whether the function argument `arg` is a number and returns this number cast to an i32

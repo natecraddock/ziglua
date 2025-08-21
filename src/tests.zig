@@ -3055,3 +3055,41 @@ test "error union for CFn" {
         try expectEqualStrings("MissingInteger", try lua.toString(-1));
     };
 }
+
+test "checkNumeric and toNumeric" {
+    const error_msg = "integer argument doesn't fit inside u8 range [0, 255]";
+
+    const lua: *Lua = try .init(testing.allocator);
+    defer lua.deinit();
+
+    lua.pushFunction(zlua.wrap(struct {
+        fn f(l: *Lua) i32 {
+            _ = l.checkNumeric(u8, 1);
+            return 1;
+        }
+    }.f));
+    const idx = lua.getTop();
+
+    lua.pushValue(idx);
+    lua.pushInteger(128);
+    try lua.protectedCall(.{
+        .args = 1,
+        .results = 1,
+    });
+    const val = lua.toNumeric(u8, lua.getTop());
+    try std.testing.expectEqual(128, val);
+
+    lua.pushValue(idx);
+    lua.pushInteger(256);
+    if (lua.protectedCall(.{
+        .args = 1,
+        .results = 0,
+    })) |_| {
+        return error.ExpectedError;
+    } else |_| {
+        const string = try lua.toString(lua.getTop());
+        errdefer std.log.err("expected error message to contain: {s}", .{error_msg});
+        errdefer std.log.err("error message: {s}", .{string});
+        _ = std.mem.indexOf(u8, string, error_msg) orelse return error.BadErrorMessage;
+    }
+}
