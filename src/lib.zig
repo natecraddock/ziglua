@@ -562,10 +562,7 @@ pub const Stream = c.luaL_Stream;
 pub const Unsigned = c.lua_Unsigned;
 
 /// The type of warning functions used by Lua to emit warnings
-pub const CWarnFn = switch (lang) {
-    .lua54 => *const fn (data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.c) void,
-    else => @compileError("CWarnFn not defined"),
-};
+pub const CWarnFn = *const fn (data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.c) void;
 
 /// The type of the writer function used by `Lua.dump()`
 pub const CWriterFn = *const fn (state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.c) c_int;
@@ -5304,7 +5301,7 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
                 return -1;
             }
         }.inner,
-        CWarnFn => struct {
+        CWarnFn => if (lang != .lua54) @compileError("CWarnFn is only valid in Lua >= 5.4") else struct {
             fn inner(data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.c) void {
                 // warning messages emitted from Lua should be null-terminated for display
                 const message = std.mem.span(@as([*:0]const u8, @ptrCast(msg)));
