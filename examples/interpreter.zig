@@ -9,38 +9,23 @@ const zlua = @import("zlua");
 const ReadError = error{BufferTooSmall};
 
 fn readlineStdin(out_buf: []u8) anyerror!usize {
-    const builtin = @import("builtin");
-    // Backwards compatibility with zig-0.14
-    // TODO remove when zig-0.15 is released
-    if (builtin.zig_version.major == 0 and builtin.zig_version.minor < 15) {
-        var stdin = std.io.getStdIn().reader();
-        return try stdin.read(out_buf);
-    } else {
-        var in_buf: [4096]u8 = undefined;
-        var stdin_file = std.fs.File.stdin().reader(&in_buf);
-        const stdin = &stdin_file.interface;
-        const s = try stdin.takeDelimiterExclusive('\n');
-        if (s.len < out_buf.len) {
-            @memcpy(out_buf[0..s.len], s);
-            return s.len;
-        }
-        return error.BufferTooSmall;
+    var in_buf: [4096]u8 = undefined;
+    var stdin_file = std.fs.File.stdin().reader(&in_buf);
+    const stdin = &stdin_file.interface;
+    const s = try stdin.takeDelimiterExclusive('\n');
+    if (s.len < out_buf.len) {
+        @memcpy(out_buf[0..s.len], s);
+        return s.len;
     }
+    return error.BufferTooSmall;
 }
 
 fn flushedStdoutPrint(comptime fmt: []const u8, args: anytype) !void {
-    const builtin = @import("builtin");
-    // Backwards compatibility with zig-0.14
-    // TODO remove when zig-0.15 is released
-    if (builtin.zig_version.major == 0 and builtin.zig_version.minor < 15) {
-        try std.io.getStdOut().writer().print(fmt, args);
-    } else {
-        var out_buf: [4096]u8 = undefined;
-        var w = std.fs.File.stdout().writer(&out_buf);
-        const stdout = &w.interface;
-        try stdout.print(fmt, args);
-        try stdout.flush();
-    }
+    var out_buf: [4096]u8 = undefined;
+    var w = std.fs.File.stdout().writer(&out_buf);
+    const stdout = &w.interface;
+    try stdout.print(fmt, args);
+    try stdout.flush();
 }
 
 pub fn main() anyerror!void {
