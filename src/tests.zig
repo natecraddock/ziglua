@@ -2987,16 +2987,16 @@ test "define" {
         _ = try zlua.def.addClass(&state, a, my_type);
     }
 
-    var buffer: [10000]u8 = .{0} ** 10000;
-    var buffer_stream = std.io.fixedBufferStream(&buffer);
-    var writer = buffer_stream.writer();
+    var buffer: [10000]u8 = @splat(0);
+    var writer: std.Io.Writer = .failing;
+    writer.buffer = &buffer;
 
     for (state.definitions.items) |def| {
         try writer.writeAll(def.items);
         try writer.writeAll("\n");
     }
 
-    try std.testing.expectEqualSlices(u8, expected, buffer_stream.getWritten());
+    try std.testing.expectEqualSlices(u8, expected, buffer[0..writer.end]);
 }
 
 test "interrupt" {
