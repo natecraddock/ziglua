@@ -68,6 +68,7 @@ pub fn main() anyerror!void {
                     try flushedStdoutPrint("error: line too long!\n", .{});
                     continue;
                 },
+                error.EndOfStream => break,
                 else => return err,
             }
         };
