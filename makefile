@@ -14,7 +14,7 @@ test_zig_nightly:
 	zig build -Dlang=luajit
 
 # A subset of tests that are expected to work also on zig-0.14
-test_zig_014:
+test_zig_stable:
 	zig build test --summary failures -Dlang=lua52
 	zig build test --summary failures -Dlang=lua53
 	zig build test --summary failures -Dlang=lua54
