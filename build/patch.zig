@@ -17,7 +17,9 @@ pub fn main() !void {
     const patch_file = patch_file: {
         const patch_file = try std.fs.cwd().openFile(patch_file_path, .{ .mode = .read_only });
         defer patch_file.close();
-        break :patch_file try patch_file.readToEndAlloc(allocator, std.math.maxInt(usize));
+        var buf: [4096]u8 = undefined;
+        var reader = patch_file.reader(&buf);
+        break :patch_file try reader.interface.allocRemaining(allocator, .unlimited);
     };
     const chunk_details = Chunk.init(allocator, patch_file, 0) orelse @panic("No chunk data found");
 
