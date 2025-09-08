@@ -562,10 +562,7 @@ pub const Stream = c.luaL_Stream;
 pub const Unsigned = c.lua_Unsigned;
 
 /// The type of warning functions used by Lua to emit warnings
-pub const CWarnFn = switch (lang) {
-    .lua54 => *const fn (data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.c) void,
-    else => @compileError("CWarnFn not defined"),
-};
+pub const CWarnFn = *const fn (data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.c) void;
 
 /// The type of the writer function used by `Lua.dump()`
 pub const CWriterFn = *const fn (state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.c) c_int;
@@ -5157,21 +5154,30 @@ pub const Buffer = struct {
 
 // Helper functions to make the zlua API easier to use
 
-const Tuple = std.meta.Tuple;
-
 fn TypeOfWrap(comptime function: anytype) type {
-    const Args = std.meta.ArgsTuple(@TypeOf(function));
-    return switch (Args) {
-        Tuple(&.{*Lua}) => CFn,
-        Tuple(&.{ *Lua, Event, *DebugInfo }) => CHookFn,
-        Tuple(&.{ *Lua, Status, Context }) => CContFn,
-        Tuple(&.{ *Lua, *anyopaque }) => CReaderFn,
-        Tuple(&.{*anyopaque}) => CUserdataDtorFn,
-        Tuple(&.{ *Lua, i32 }) => CInterruptCallbackFn,
-        Tuple(&.{[]const u8}) => CUserAtomCallbackFn,
-        Tuple(&.{ ?*anyopaque, []const u8, bool }) => CWarnFn,
-        Tuple(&.{ *Lua, []const u8, *anyopaque }) => CWriterFn,
-        else => @compileError("Unsupported function given to wrap '" ++ @typeName(@TypeOf(function)) ++ "'"),
+    const params = @typeInfo(@TypeOf(function)).@"fn".params;
+    if (params.len == 1) {
+        if (params[0].type.? == *Lua) return CFn;
+        if (params[0].type.? == []const u8) return CUserAtomCallbackFn;
+        if (params[0].type.? == *anyopaque) return CUserdataDtorFn;
+    }
+    if (params.len == 2) {
+        if (params[0].type.? == *Lua) {
+            if (params[1].type.? == i32) return CInterruptCallbackFn;
+            if (params[1].type.? == *anyopaque) return CReaderFn;
+        }
+    }
+    if (params.len == 3) {
+        if (params[0].type.? == ?*anyopaque and params[1].type.? == []const u8 and params[2].type.? == bool) return CWarnFn;
+        if (params[0].type.? == *Lua) {
+            if (params[1].type.? == Event and params[2].type.? == *DebugInfo) return CHookFn;
+            if (params[1].type.? == Status and params[2].type.? == Context) return CContFn;
+            if (params[1].type.? == []const u8 and params[2].type.? == *anyopaque) return CWriterFn;
+        }
+    }
+    return {
+        @compileLog(@TypeOf(function));
+        @compileError("Unsupported function given to wrap.");
     };
 }
 
@@ -5190,169 +5196,139 @@ fn TypeOfWrap(comptime function: anytype) type {
 /// Functions that accept a `*Lua` pointer also support returning error unions. For example,
 /// wrap also supports `fn (lua: *Lua) !i32` for a `CFn`.
 pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
-    const info = @typeInfo(@TypeOf(function));
-    if (info != .@"fn") {
-        @compileError("Wrap only accepts functions");
-    }
+    const info = @typeInfo(@TypeOf(function)).@"fn";
 
-    const has_error_union = @typeInfo(info.@"fn".return_type.?) == .error_union;
+    const has_error_union = @typeInfo(info.return_type.?) == .error_union;
 
-    const Args = std.meta.ArgsTuple(@TypeOf(function));
-    switch (Args) {
-        // CFn
-        Tuple(&.{*Lua}) => {
-            return struct {
-                fn inner(state: ?*LuaState) callconv(.c) c_int {
-                    // this is called by Lua, state should never be null
-                    var lua: *Lua = @ptrCast(state.?);
-                    if (has_error_union) {
-                        return @call(.always_inline, function, .{lua}) catch |err| {
-                            lua.raiseErrorStr(@errorName(err), .{});
-                        };
-                    } else {
-                        return @call(.always_inline, function, .{lua});
-                    }
-                }
-            }.inner;
-        },
-        // CHookFn
-        Tuple(&.{ *Lua, Event, *DebugInfo }) => {
-            return struct {
-                fn inner(state: ?*LuaState, ar: ?*Debug) callconv(.c) void {
-                    // this is called by Lua, state should never be null
-                    var lua: *Lua = @ptrCast(state.?);
-                    var debug_info: DebugInfo = .{
-                        .current_line = if (ar.?.currentline == -1) null else ar.?.currentline,
-                        .private = switch (lang) {
-                            .lua51, .luajit => ar.?.i_ci,
-                            else => @ptrCast(ar.?.i_ci),
-                        },
+    const Return = TypeOfWrap(function);
+    return switch (Return) {
+        CFn => struct {
+            fn inner(state: ?*LuaState) callconv(.c) c_int {
+                // this is called by Lua, state should never be null
+                var lua: *Lua = @ptrCast(state.?);
+                if (has_error_union) {
+                    return @call(.always_inline, function, .{lua}) catch |err| {
+                        lua.raiseErrorStr(@errorName(err), .{});
                     };
-                    if (has_error_union) {
-                        @call(.always_inline, function, .{ lua, @as(Event, @enumFromInt(ar.?.event)), &debug_info }) catch |err| {
-                            lua.raiseErrorStr(@errorName(err), .{});
-                        };
-                    } else {
-                        @call(.always_inline, function, .{ lua, @as(Event, @enumFromInt(ar.?.event)), &debug_info });
-                    }
+                } else {
+                    return @call(.always_inline, function, .{lua});
                 }
-            }.inner;
-        },
-        // CContFn
-        Tuple(&.{ *Lua, Status, Context }) => {
-            return struct {
-                fn inner(state: ?*LuaState, status: c_int, ctx: Context) callconv(.c) c_int {
-                    // this is called by Lua, state should never be null
-                    var lua: *Lua = @ptrCast(state.?);
-                    if (has_error_union) {
-                        return @call(.always_inline, function, .{ lua, @as(Status, @enumFromInt(status)), ctx }) catch |err| {
-                            lua.raiseErrorStr(@errorName(err), .{});
-                        };
-                    } else {
-                        return @call(.always_inline, function, .{ lua, @as(Status, @enumFromInt(status)), ctx });
-                    }
-                }
-            }.inner;
-        },
-        // CReaderFn
-        Tuple(&.{ *Lua, *anyopaque }) => {
-            return struct {
-                fn inner(state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.c) [*c]const u8 {
-                    // this is called by Lua, state should never be null
-                    var lua: *Lua = @ptrCast(state.?);
-                    if (has_error_union) {
-                        const result = @call(.always_inline, function, .{ lua, data.? }) catch |err| {
-                            lua.raiseErrorStr(@errorName(err), .{});
-                        };
-                        if (result) |buffer| {
-                            size.* = buffer.len;
-                            return buffer.ptr;
-                        } else {
-                            size.* = 0;
-                            return null;
-                        }
-                    } else {
-                        if (@call(.always_inline, function, .{ lua, data.? })) |buffer| {
-                            size.* = buffer.len;
-                            return buffer.ptr;
-                        } else {
-                            size.* = 0;
-                            return null;
-                        }
-                    }
-                }
-            }.inner;
-        },
-        // CUserdataDtorFn
-        Tuple(&.{*anyopaque}) => {
-            return struct {
-                fn inner(userdata: *anyopaque) callconv(.c) void {
-                    return @call(.always_inline, function, .{userdata});
-                }
-            }.inner;
-        },
-        // CInterruptCallbackFn
-        Tuple(&.{ *Lua, i32 }) => {
-            return struct {
-                fn inner(state: ?*LuaState, gc: c_int) callconv(.c) void {
-                    // this is called by Lua, state should never be null
-                    var lua: *Lua = @ptrCast(state.?);
-                    if (has_error_union) {
-                        @call(.always_inline, function, .{ lua, gc }) catch |err| {
-                            lua.raiseErrorStr(@errorName(err), .{});
-                        };
-                    } else {
-                        @call(.always_inline, function, .{ lua, gc });
-                    }
-                }
-            }.inner;
-        },
-        // CUserAtomCallbackFn
-        Tuple(&.{[]const u8}) => {
-            return struct {
-                fn inner(str: [*c]const u8, len: usize) callconv(.c) i16 {
-                    if (str) |s| {
-                        const buf = s[0..len];
-                        return @call(.always_inline, function, .{buf});
-                    }
-                    return -1;
-                }
-            }.inner;
-        },
-        // CWarnFn
-        Tuple(&.{ ?*anyopaque, []const u8, bool }) => {
-            return struct {
-                fn inner(data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.c) void {
-                    // warning messages emitted from Lua should be null-terminated for display
-                    const message = std.mem.span(@as([*:0]const u8, @ptrCast(msg)));
-                    @call(.always_inline, function, .{ data, message, to_cont != 0 });
-                }
-            }.inner;
-        },
-        // CWriterFn
-        Tuple(&.{ *Lua, []const u8, *anyopaque }) => {
-            return struct {
-                fn inner(state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.c) c_int {
-                    // this is called by Lua, state should never be null
-                    var lua: *Lua = @ptrCast(state.?);
-                    const buffer = @as([*]const u8, @ptrCast(buf))[0..size];
-
-                    const result = if (has_error_union) blk: {
-                        break :blk @call(.always_inline, function, .{ lua, buffer, data.? }) catch |err| {
-                            lua.raiseErrorStr(@errorName(err), .{});
-                        };
-                    } else blk: {
-                        break :blk @call(.always_inline, function, .{ lua, buffer, data.? });
+            }
+        }.inner,
+        CHookFn => struct {
+            fn inner(state: ?*LuaState, ar: ?*Debug) callconv(.c) void {
+                // this is called by Lua, state should never be null
+                var lua: *Lua = @ptrCast(state.?);
+                var debug_info: DebugInfo = .{
+                    .current_line = if (ar.?.currentline == -1) null else ar.?.currentline,
+                    .private = switch (lang) {
+                        .lua51, .luajit => ar.?.i_ci,
+                        else => @ptrCast(ar.?.i_ci),
+                    },
+                };
+                if (has_error_union) {
+                    @call(.always_inline, function, .{ lua, @as(Event, @enumFromInt(ar.?.event)), &debug_info }) catch |err| {
+                        lua.raiseErrorStr(@errorName(err), .{});
                     };
-
-                    // it makes more sense for the inner writer function to return false for failure,
-                    // so negate the result here
-                    return @intFromBool(!result);
+                } else {
+                    @call(.always_inline, function, .{ lua, @as(Event, @enumFromInt(ar.?.event)), &debug_info });
                 }
-            }.inner;
-        },
-        else => @compileError("Unsupported function given to wrap '" ++ @typeName(@TypeOf(function)) ++ "'"),
-    }
+            }
+        }.inner,
+        CContFn => struct {
+            fn inner(state: ?*LuaState, status: c_int, ctx: Context) callconv(.c) c_int {
+                // this is called by Lua, state should never be null
+                var lua: *Lua = @ptrCast(state.?);
+                if (has_error_union) {
+                    return @call(.always_inline, function, .{ lua, @as(Status, @enumFromInt(status)), ctx }) catch |err| {
+                        lua.raiseErrorStr(@errorName(err), .{});
+                    };
+                } else {
+                    return @call(.always_inline, function, .{ lua, @as(Status, @enumFromInt(status)), ctx });
+                }
+            }
+        }.inner,
+        CReaderFn => struct {
+            fn inner(state: ?*LuaState, data: ?*anyopaque, size: [*c]usize) callconv(.c) [*c]const u8 {
+                // this is called by Lua, state should never be null
+                var lua: *Lua = @ptrCast(state.?);
+                if (has_error_union) {
+                    const result = @call(.always_inline, function, .{ lua, data.? }) catch |err| {
+                        lua.raiseErrorStr(@errorName(err), .{});
+                    };
+                    if (result) |buffer| {
+                        size.* = buffer.len;
+                        return buffer.ptr;
+                    } else {
+                        size.* = 0;
+                        return null;
+                    }
+                } else {
+                    if (@call(.always_inline, function, .{ lua, data.? })) |buffer| {
+                        size.* = buffer.len;
+                        return buffer.ptr;
+                    } else {
+                        size.* = 0;
+                        return null;
+                    }
+                }
+            }
+        }.inner,
+        CUserdataDtorFn => struct {
+            fn inner(userdata: *anyopaque) callconv(.c) void {
+                return @call(.always_inline, function, .{userdata});
+            }
+        }.inner,
+        CInterruptCallbackFn => struct {
+            fn inner(state: ?*LuaState, gc: c_int) callconv(.c) void {
+                // this is called by Lua, state should never be null
+                var lua: *Lua = @ptrCast(state.?);
+                if (has_error_union) {
+                    @call(.always_inline, function, .{ lua, gc }) catch |err| {
+                        lua.raiseErrorStr(@errorName(err), .{});
+                    };
+                } else {
+                    @call(.always_inline, function, .{ lua, gc });
+                }
+            }
+        }.inner,
+        CUserAtomCallbackFn => struct {
+            fn inner(str: [*c]const u8, len: usize) callconv(.c) i16 {
+                if (str) |s| {
+                    const buf = s[0..len];
+                    return @call(.always_inline, function, .{buf});
+                }
+                return -1;
+            }
+        }.inner,
+        CWarnFn => if (lang != .lua54) @compileError("CWarnFn is only valid in Lua >= 5.4") else struct {
+            fn inner(data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.c) void {
+                // warning messages emitted from Lua should be null-terminated for display
+                const message = std.mem.span(@as([*:0]const u8, @ptrCast(msg)));
+                @call(.always_inline, function, .{ data, message, to_cont != 0 });
+            }
+        }.inner,
+        CWriterFn => struct {
+            fn inner(state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.c) c_int {
+                // this is called by Lua, state should never be null
+                var lua: *Lua = @ptrCast(state.?);
+                const buffer = @as([*]const u8, @ptrCast(buf))[0..size];
+
+                const result = if (has_error_union) blk: {
+                    break :blk @call(.always_inline, function, .{ lua, buffer, data.? }) catch |err| {
+                        lua.raiseErrorStr(@errorName(err), .{});
+                    };
+                } else blk: {
+                    break :blk @call(.always_inline, function, .{ lua, buffer, data.? });
+                };
+
+                // it makes more sense for the inner writer function to return false for failure,
+                // so negate the result here
+                return @intFromBool(!result);
+            }
+        }.inner,
+        else => unreachable,
+    };
 }
 
 /// Zig wrapper for Luau lua_CompileOptions that uses the same defaults as Luau if
