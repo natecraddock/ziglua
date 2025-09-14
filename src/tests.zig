@@ -3093,3 +3093,36 @@ test "checkNumeric and toNumeric" {
         _ = std.mem.indexOf(u8, string, error_msg) orelse return error.BadErrorMessage;
     }
 }
+
+test "function registration with fnRegsFromStruct" {
+    const lua: *Lua = try .init(testing.allocator);
+    defer lua.deinit();
+
+    const MyLib = struct {
+        pub fn add(l: *Lua) i32 {
+            const a = l.toInteger(1) catch 0;
+            const b = l.toInteger(2) catch 0;
+            l.pushInteger(a + b);
+            return 1;
+        }
+        pub fn neg(l: *Lua) i32 {
+            const a = l.toInteger(1) catch 0;
+            l.pushInteger(-a);
+            return 1;
+        }
+    };
+
+    // Construct function registration table at comptime from
+    // public decls on MyLib.
+
+    const funcs = zlua.fnRegsFromStruct(MyLib);
+    if (zlua.lang == .lua51 or zlua.lang == .luau or zlua.lang == .luajit) {
+        lua.newTable();
+        lua.registerFns("fnregs", funcs);
+    } else {
+        lua.newLib(zlua.fnRegsFromStruct(MyLib));
+        lua.setGlobal("fnregs");
+    }
+    try lua.doString("res = fnregs.add(100, fnregs.neg(25))");
+    try expectEqual(75, lua.get(i32, "res"));
+}

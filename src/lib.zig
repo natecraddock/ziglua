@@ -5408,3 +5408,38 @@ pub fn exportFn(comptime name: []const u8, comptime func: anytype) CFn {
         }
     }.luaopen;
 }
+
+/// Generates a list of Lua function registrations (`FnReg`) from all
+/// pub declarations in a struct type `T`.
+///
+/// Example:
+///
+/// ```zig
+/// const MyLib = struct {
+///     fn someHelper(...) { ... }   // non-pub funcs skipped
+///     pub fn foo(l: *Lua) void { ... }
+///     pub fn bar(l: *Lua) void { ... }
+///
+/// };
+///
+/// const funcs = fnRegsFromStruct(MyLib);
+/// lua.newLib(funcs);
+/// lua.setGlobal("mylib"); // mylib.foo, mylib.bar now visible
+/// ```
+pub inline fn fnRegsFromStruct(comptime T: type) []const FnReg {
+    comptime {
+        const decls = switch (@typeInfo(T)) {
+            .@"struct" => |info| info.decls,
+            else => @compileError("Expected struct, found '" ++ @typeName(T) ++ "'"),
+        };
+        var funcs: [decls.len]FnReg = undefined;
+        for (decls, 0..) |d, i| {
+            funcs[i] = .{
+                .name = d.name,
+                .func = wrap(@field(T, d.name)),
+            };
+        }
+        const final = funcs;
+        return &final;
+    }
+}
