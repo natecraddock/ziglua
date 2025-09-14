@@ -3094,7 +3094,7 @@ test "checkNumeric and toNumeric" {
     }
 }
 
-test "function registration with fnRegsFromStruct" {
+test "function registration with fnRegsFromType" {
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
@@ -3115,12 +3115,12 @@ test "function registration with fnRegsFromStruct" {
     // Construct function registration table at comptime from
     // public decls on MyLib.
 
-    const funcs = zlua.fnRegsFromStruct(MyLib);
     if (zlua.lang == .lua51 or zlua.lang == .luau or zlua.lang == .luajit) {
+        const funcs = comptime zlua.fnRegsFromType(MyLib);
         lua.newTable();
         lua.registerFns("fnregs", funcs);
     } else {
-        lua.newLib(zlua.fnRegsFromStruct(MyLib));
+        lua.newLib(comptime zlua.fnRegsFromType(MyLib));
         lua.setGlobal("fnregs");
     }
     try lua.doString("res = fnregs.add(100, fnregs.neg(25))");

@@ -5422,24 +5422,25 @@ pub fn exportFn(comptime name: []const u8, comptime func: anytype) CFn {
 ///
 /// };
 ///
-/// const funcs = fnRegsFromStruct(MyLib);
+/// const funcs = fnRegsFromType(MyLib);
 /// lua.newLib(funcs);
 /// lua.setGlobal("mylib"); // mylib.foo, mylib.bar now visible
 /// ```
-pub inline fn fnRegsFromStruct(comptime T: type) []const FnReg {
-    comptime {
-        const decls = switch (@typeInfo(T)) {
-            .@"struct" => |info| info.decls,
-            else => @compileError("Expected struct, found '" ++ @typeName(T) ++ "'"),
-        };
-        var funcs: [decls.len]FnReg = undefined;
-        for (decls, 0..) |d, i| {
-            funcs[i] = .{
+pub fn fnRegsFromType(comptime T: type) []const FnReg {
+    const decls = switch (@typeInfo(T)) {
+        inline .@"struct", .@"enum", .@"union", .@"opaque" => |info| info.decls,
+        else => @compileError("Type " ++ @typeName(T) ++ "does not allow declarations"),
+    };
+    comptime var funcs: []const FnReg = &.{};
+    inline for (decls) |d| {
+        if (@typeInfo(@TypeOf(@field(T, d.name))) == .@"fn") {
+            const reg: []const FnReg = &.{.{
                 .name = d.name,
-                .func = wrap(@field(T, d.name)),
-            };
+                .func = comptime wrap(@field(T, d.name)),
+            }};
+            funcs = funcs ++ reg;
         }
-        const final = funcs;
-        return &final;
     }
+    const final = funcs;
+    return final;
 }
