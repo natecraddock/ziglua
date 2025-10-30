@@ -55,11 +55,11 @@ pub fn main() !void {
                 const chunk = chunk_details.lines[line_number - chunk_details.src];
                 switch (chunk.action) {
                     .remove => {
-                        const line = try reader.interface.takeDelimiterExclusive('\n');
+                        const line = (try reader.interface.takeDelimiter('\n')).?;
                         if (!std.mem.eql(u8, chunk.buf, line)) @panic("Failed to apply patch");
                     },
                     .keep => {
-                        const line = try reader.interface.takeDelimiterExclusive('\n');
+                        const line = (try reader.interface.takeDelimiter('\n')).?;
                         if (!std.mem.eql(u8, chunk.buf, line)) @panic("Failed to apply patch");
                         try writer.interface.writeAll(line);
                         try writer.interface.writeByte('\n');
