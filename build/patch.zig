@@ -7,6 +7,10 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
+    var threaded: std.Io.Threaded = .init(allocator);
+    defer threaded.deinit();
+    const io = threaded.io();
+
     const args = try std.process.argsAlloc(allocator);
     if (args.len != 4) @panic("Wrong number of arguments");
 
@@ -18,7 +22,7 @@ pub fn main() !void {
         const patch_file = try std.fs.cwd().openFile(patch_file_path, .{ .mode = .read_only });
         defer patch_file.close();
         var buf: [4096]u8 = undefined;
-        var reader = patch_file.reader(&buf);
+        var reader = patch_file.reader(io, &buf);
         break :patch_file try reader.interface.allocRemaining(allocator, .unlimited);
     };
     const chunk_details = Chunk.init(allocator, patch_file, 0) orelse @panic("No chunk data found");
@@ -26,7 +30,7 @@ pub fn main() !void {
     const file = try std.fs.cwd().openFile(file_path, .{ .mode = .read_only });
     defer file.close();
     var in_buf: [4096]u8 = undefined;
-    var reader = file.reader(&in_buf);
+    var reader = file.reader(io, &in_buf);
 
     const output = try std.fs.cwd().createFile(output_path, .{});
     defer output.close();
