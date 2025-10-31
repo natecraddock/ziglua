@@ -4696,7 +4696,7 @@ pub const Lua = opaque {
                 const arr_len = switch (@typeInfo(T)) {
                     inline else => |i| i.len,
                 };
-                var result: T = undefined;
+                var result: [arr_len]child = undefined;
                 lua.pushValue(index);
                 defer lua.pop(1);
 
