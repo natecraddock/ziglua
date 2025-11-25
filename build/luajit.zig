@@ -127,9 +127,14 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 
     const buildvm_c_flags: []const []const u8 = switch (target.result.cpu.arch) {
         .aarch64, .aarch64_be => &.{ "-DLUAJIT_TARGET=LUAJIT_ARCH_arm64", "-DLJ_ARCH_HASFPU=1", "-DLJ_ABI_SOFTFP=0" },
-        .x86_64 => &.{ "-DLUAJIT_TARGET=LUAJIT_ARCH_X64" },
+        .x86_64 => &.{"-DLUAJIT_TARGET=LUAJIT_ARCH_X64"},
         else => &.{},
     };
+
+    const buildvm_windows_c_flags: []const []const u8 = if (target.result.os.tag == .windows)
+        &.{"-DLUAJIT_OS=1"}
+    else
+        &.{};
 
     buildvm.addCSourceFiles(.{
         .root = .{ .dependency = .{
@@ -137,7 +142,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
             .sub_path = "",
         } },
         .files = &.{ "src/host/buildvm_asm.c", "src/host/buildvm_fold.c", "src/host/buildvm_lib.c", "src/host/buildvm_peobj.c", "src/host/buildvm.c" },
-        .flags = buildvm_c_flags,
+        .flags = std.mem.concat(b.allocator, []const u8, &.{ buildvm_c_flags, buildvm_windows_c_flags }) catch @panic("OOM!"),
     });
 
     buildvm.addIncludePath(upstream.path("src"));
