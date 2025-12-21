@@ -644,6 +644,48 @@ pub const Lua = opaque {
         } else return error.OutOfMemory;
     }
 
+    /// Initialize a Lua state with the given `context` of type `T` which contains an allocator in the `alloc_field`.
+    /// This allows you to recieve the context with `Lua.getUserContext()` in callbacks.
+    /// Use `Lua.deinitWithUserContext()` to close the state and free memory.
+    ///
+    /// Creates a new independent state and returns its main thread.
+    /// Returns an error if it cannot create the state (due to lack of memory).
+    /// Lua will do all memory allocation for this state through the passed Allocator (see lua_Alloc).
+    ///
+    /// * Pops:   `0`
+    /// * Pushes: `0`
+    /// * Errors: `never`
+    ///
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_newstate
+    pub fn initWithUserContext(T: type, context: T, comptime alloc_field: []const u8) !*Lua {
+        if (lang == .luau) zig_registerAssertionHandler();
+
+        // the userdata passed to alloc needs to be a pointer with a consistent address
+        // so we allocate an Allocator struct to hold a copy of the allocator's data
+        const a: Allocator = @field(context, alloc_field);
+        const context_ptr = try a.create(@TypeOf(context));
+        context_ptr.* = context;
+        const allocator_ptr = &@field(context_ptr.*, alloc_field);
+
+        if (c.lua_newstate(alloc, allocator_ptr)) |state| {
+            return @ptrCast(state);
+        } else return error.OutOfMemory;
+    }
+
+    /// Returns the user context of type `T` associated with this Lua state.
+    ///
+    /// Important: The Lua state must have been initialized with `Lua.initWithUserContext()`
+    /// and the type `T` and `alloc_field` match those used to initialize the Lua state for this to work.
+    pub fn getUserContext(lua: *Lua, T: type, comptime alloc_field: []const u8) *T {
+        var data: ?*Allocator = undefined;
+        _ = c.lua_getallocf(@ptrCast(lua), @ptrCast(&data)).?;
+
+        // The pointer should never be null because the only way to create a Lua state requires
+        // passing a Zig allocator.
+        const context_ptr: *T = @fieldParentPtr(alloc_field, data.?);
+        return context_ptr;
+    }
+
     /// Deinitialize a Lua state and free all memory
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_close
@@ -657,6 +699,23 @@ pub const Lua = opaque {
         if (data) |a| {
             const alloc_ = a;
             alloc_.destroy(a);
+        }
+    }
+
+    /// Deinitialize a Lua state and free all memory when initialized with `Lua.initWithUserContext()`.
+    /// The type `T` and `alloc_field` must match those used to initialize the Lua state.
+    /// See https://www.lua.org/manual/5.4/manual.html#lua_close
+    pub fn deinitWithUserContext(lua: *Lua, T: type, comptime alloc_field: []const u8) void {
+        // First get a reference to the allocator
+        var data: ?*Allocator = undefined;
+        _ = c.lua_getallocf(@ptrCast(lua), @ptrCast(&data)).?;
+
+        c.lua_close(@ptrCast(lua));
+
+        if (data) |a| {
+            const alloc_ = a;
+            const context_ptr: *T = @fieldParentPtr(alloc_field, a);
+            alloc_.destroy(context_ptr);
         }
     }
 
