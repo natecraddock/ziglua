@@ -18,9 +18,16 @@ const std = @import("std");
 pub const def = @import("define.zig");
 pub const define = def.define;
 
-const c = @import("c");
-
 const config = @import("config");
+
+const c = if (config.system_lua)
+    @cImport({
+        @cInclude("lua.h");
+        @cInclude("lualib.h");
+        @cInclude("lauxlib.h");
+    })
+else
+    @import("c");
 
 /// Lua language version targeted
 pub const lang = config.lang;
