@@ -7,12 +7,12 @@ const zlua = @import("zlua");
 
 var mutex = std.Thread.Mutex{};
 
-export fn lua_zlock(L: *zlua.LuaState) callconv(.C) void {
+export fn lua_zlock(L: *zlua.LuaState) callconv(.c) void {
     _ = L;
     mutex.lock();
 }
 
-export fn lua_zunlock(L: *zlua.LuaState) callconv(.C) void {
+export fn lua_zunlock(L: *zlua.LuaState) callconv(.c) void {
     _ = L;
     mutex.unlock();
 }
