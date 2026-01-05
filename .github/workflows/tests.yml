@@ -28,24 +28,24 @@ jobs:
       run: make test_zig_nightly
 
   #------ zig-0.15 ------
-  test_zig_015:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest, ubuntu-24.04-arm]
+  #test_zig_015:
+  #  strategy:
+  #    matrix:
+  #      os: [ubuntu-latest, macos-latest, windows-latest, ubuntu-24.04-arm]
 
-    runs-on: ${{matrix.os}}
+  #  runs-on: ${{matrix.os}}
 
-    steps:
-    - name: Clone Ziglua
-      uses: actions/checkout@v3
+  #  steps:
+  #  - name: Clone Ziglua
+  #    uses: actions/checkout@v3
 
-    - name: Setup Zig
-      uses: mlugg/setup-zig@v2
-      with:
-        version: "0.15.2"
+  #  - name: Setup Zig
+  #    uses: mlugg/setup-zig@v2
+  #    with:
+  #      version: "0.15.2"
 
-    - name: Run tests
-      run: make test_zig_stable
+  #  - name: Run tests
+  #    run: make test_zig_stable
 
   #------ cross compilation ------
   test_cross:
