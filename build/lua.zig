@@ -44,6 +44,7 @@ pub fn configure(
     const lib = b.createModule(.{
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
     });
     const library = b.addLibrary(.{
         .name = library_name,
@@ -103,15 +104,13 @@ pub fn configure(
         lib.addCSourceFile(.{ .file = patched.output, .flags = &flags });
     }
 
-    library.linkLibC();
-
     library.installHeader(upstream.path("src/lua.h"), "lua.h");
     library.installHeader(upstream.path("src/lualib.h"), "lualib.h");
     library.installHeader(upstream.path("src/lauxlib.h"), "lauxlib.h");
     library.installHeader(upstream.path("src/luaconf.h"), "luaconf.h");
 
     if (lua_user_h) |user_h| {
-        library.addIncludePath(user_h.dirname());
+        library.root_module.addIncludePath(user_h.dirname());
         library.installHeader(user_h, user_header);
     }
 

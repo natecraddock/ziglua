@@ -7,6 +7,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     const lib = b.createModule(.{
         .target = target,
         .optimize = optimize,
+        .link_libcpp = true,
     });
     const library = b.addLibrary(.{
         .name = "luau",
@@ -37,7 +38,6 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
         .flags = &flags,
     });
     lib.addCSourceFile(.{ .file = b.path("src/luau.cpp"), .flags = &flags });
-    library.linkLibCpp();
 
     library.installHeader(upstream.path("VM/include/lua.h"), "lua.h");
     library.installHeader(upstream.path("VM/include/lualib.h"), "lualib.h");
