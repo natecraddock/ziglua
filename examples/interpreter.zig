@@ -8,9 +8,9 @@ const zlua = @import("zlua");
 
 const ReadError = error{BufferTooSmall};
 
-fn readlineStdin(out_buf: []u8) anyerror!usize {
+fn readlineStdin(io: std.Io, out_buf: []u8) anyerror!usize {
     var in_buf: [4096]u8 = undefined;
-    var stdin_file = std.fs.File.stdin().reader(&in_buf);
+    var stdin_file = std.Io.File.stdin().reader(io, &in_buf);
     const stdin = &stdin_file.interface;
     const s = try stdin.takeDelimiterExclusive('\n');
     if (s.len < out_buf.len) {
@@ -20,9 +20,9 @@ fn readlineStdin(out_buf: []u8) anyerror!usize {
     return error.BufferTooSmall;
 }
 
-fn flushedStdoutPrint(comptime fmt: []const u8, args: anytype) !void {
+fn flushedStdoutPrint(io: std.Io, comptime fmt: []const u8, args: anytype) !void {
     var out_buf: [4096]u8 = undefined;
-    var w = std.fs.File.stdout().writer(&out_buf);
+    var w = std.Io.File.stdout().writer(io, &out_buf);
     const stdout = &w.interface;
     try stdout.print(fmt, args);
     try stdout.flush();
@@ -32,6 +32,10 @@ pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
+
+    var threaded: std.Io.Threaded = .init_single_threaded;
+    defer threaded.deinit();
+    const io = threaded.io();
 
     // Initialize The Lua vm and get a reference to the main thread
     //
@@ -43,14 +47,14 @@ pub fn main() anyerror!void {
     lua.openLibs();
 
     while (true) {
-        try flushedStdoutPrint("> ", .{});
+        try flushedStdoutPrint(io, "> ", .{});
 
         // Read a line of input
         var buffer: [256]u8 = undefined;
-        const len = readlineStdin(buffer[0 .. buffer.len - 1]) catch |err| {
+        const len = readlineStdin(io, buffer[0 .. buffer.len - 1]) catch |err| {
             switch (err) {
                 error.BufferTooSmall => {
-                    try flushedStdoutPrint("error: line too long!\n", .{});
+                    try flushedStdoutPrint(io, "error: line too long!\n", .{});
                     continue;
                 },
                 error.EndOfStream => break,
@@ -65,7 +69,7 @@ pub fn main() anyerror!void {
         lua.loadString(buffer[0..len :0]) catch {
             // If there was an error, Lua will place an error string on the top of the stack.
             // Here we print out the string to inform the user of the issue.
-            try flushedStdoutPrint("{s}\n", .{lua.toString(-1) catch unreachable});
+            try flushedStdoutPrint(io, "{s}\n", .{lua.toString(-1) catch unreachable});
 
             // Remove the error from the stack and go back to the prompt
             lua.pop(1);
@@ -75,7 +79,7 @@ pub fn main() anyerror!void {
         // Execute a line of Lua code
         lua.protectedCall(.{}) catch {
             // Error handling here is the same as above.
-            try flushedStdoutPrint("{s}\n", .{lua.toString(-1) catch unreachable});
+            try flushedStdoutPrint(io, "{s}\n", .{lua.toString(-1) catch unreachable});
             lua.pop(1);
         };
     }

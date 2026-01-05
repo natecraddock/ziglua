@@ -4,8 +4,11 @@
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
-
     const allocator = arena.allocator();
+
+    var threaded = Io.Threaded.init(allocator, .{});
+    defer threaded.deinit();
+    const io = threaded.io();
 
     const args = try std.process.argsAlloc(allocator);
     if (args.len != 4) @panic("Wrong number of arguments");
@@ -15,23 +18,23 @@ pub fn main() !void {
     const output_path = args[3];
 
     const patch_file = patch_file: {
-        const patch_file = try std.fs.cwd().openFile(patch_file_path, .{ .mode = .read_only });
-        defer patch_file.close();
+        const patch_file = try Io.Dir.cwd().openFile(io, patch_file_path, .{ .mode = .read_only });
+        defer patch_file.close(io);
         var buf: [4096]u8 = undefined;
-        var reader = patch_file.reader(&buf);
+        var reader = patch_file.reader(io, &buf);
         break :patch_file try reader.interface.allocRemaining(allocator, .unlimited);
     };
     const chunk_details = Chunk.init(allocator, patch_file, 0) orelse @panic("No chunk data found");
 
-    const file = try std.fs.cwd().openFile(file_path, .{ .mode = .read_only });
-    defer file.close();
+    const file = try Io.Dir.cwd().openFile(io, file_path, .{ .mode = .read_only });
+    defer file.close(io);
     var in_buf: [4096]u8 = undefined;
-    var reader = file.reader(&in_buf);
+    var reader = file.reader(io, &in_buf);
 
-    const output = try std.fs.cwd().createFile(output_path, .{});
-    defer output.close();
+    const output = try Io.Dir.cwd().createFile(io, output_path, .{});
+    defer output.close(io);
     var out_buf: [4096]u8 = undefined;
-    var writer = output.writer(&out_buf);
+    var writer = output.writer(io, &out_buf);
 
     var state: State = .copy;
 
@@ -134,4 +137,5 @@ const Chunk = struct {
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const File = std.fs.File;
+const Io = std.Io;
+const File = Io.File;
