@@ -18,6 +18,7 @@ pub fn build(b: *Build) void {
     const lang = b.option(Language, "lang", "Lua language version to build") orelse .lua54;
     const library_name = b.option([]const u8, "library_name", "Library name for lua linking, default is `lua`") orelse "lua";
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
+    const system_lua = b.option(bool, "system_lua", "Use system lua") orelse false;
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
     const lua_user_h = b.option(Build.LazyPath, "lua_user_h", "Lazy path to user supplied c header file") orelse null;
 
@@ -30,7 +31,10 @@ pub fn build(b: *Build) void {
     }
 
     // Zig module
-    const zlua = b.addModule("zlua", .{
+    const zlua = if (system_lua) b.addModule("zlua", .{
+        .root_source_file = b.path("src/lib.zig"),
+        .target = target,
+    }) else b.addModule("zlua", .{
         .root_source_file = b.path("src/lib.zig"),
     });
 
@@ -38,6 +42,7 @@ pub fn build(b: *Build) void {
     const config = b.addOptions();
     config.addOption(Language, "lang", lang);
     config.addOption(bool, "luau_use_4_vector", luau_use_4_vector);
+    config.addOption(bool, "system_lua", system_lua);
     zlua.addOptions("config", config);
 
     if (lang == .luau) {
@@ -45,7 +50,17 @@ pub fn build(b: *Build) void {
         zlua.addCMacro("LUA_VECTOR_SIZE", b.fmt("{}", .{vector_size}));
     }
 
-    if (b.lazyDependency(@tagName(lang), .{})) |upstream| {
+    if (system_lua) {
+        const link_mode: std.builtin.LinkMode = if (shared) .dynamic else .static;
+        switch (lang) {
+            .lua51 => zlua.linkSystemLibrary("lua5.1", .{ .preferred_link_mode = link_mode }),
+            .lua52 => zlua.linkSystemLibrary("lua5.2", .{ .preferred_link_mode = link_mode }),
+            .lua53 => zlua.linkSystemLibrary("lua5.3", .{ .preferred_link_mode = link_mode }),
+            .lua54 => zlua.linkSystemLibrary("lua5.4", .{ .preferred_link_mode = link_mode }),
+            .luajit => zlua.linkSystemLibrary("luajit", .{ .preferred_link_mode = link_mode }),
+            .luau => @panic("luau not supported for system lua"),
+        }
+    } else if (b.lazyDependency(@tagName(lang), .{})) |upstream| {
         const lib = switch (lang) {
             .luajit => luajit_setup.configure(b, target, optimize, upstream, shared),
             .luau => luau_setup.configure(b, target, optimize, upstream, luau_use_4_vector),
