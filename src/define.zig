@@ -25,6 +25,7 @@ pub const DefineState = struct {
 };
 
 pub fn define(
+    io: std.Io,
     gpa: std.mem.Allocator,
     absolute_output_path: []const u8,
     comptime to_define: []const type,
@@ -33,21 +34,18 @@ pub fn define(
     defer state.deinit(gpa);
 
     inline for (to_define) |T| {
-        _ = try addClass(&state, T);
+        _ = try addClass(&state, gpa, T);
     }
 
-    var file = try std.fs.createFileAbsolute(absolute_output_path, .{});
-    defer file.close();
+    var file = try std.Io.Dir.createFileAbsolute(io, absolute_output_path, .{});
+    defer file.close(io);
 
-    try file.seekTo(0);
-    try file.writeAll(file_header);
+    try file.writeStreamingAll(io, file_header);
 
     for (state.definitions.items) |def| {
-        try file.writeAll(def.items);
-        try file.writeAll("\n");
+        try file.writeStreamingAll(io, def.items);
+        try file.writeStreamingAll(io, "\n");
     }
-
-    try file.setEndPos(try file.getPos());
 }
 
 const file_header: []const u8 =
