@@ -131,8 +131,11 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
         else => &.{},
     };
 
-    const buildvm_windows_c_flags: []const []const u8 = if (target.result.os.tag == .windows)
+    const buildvm_os_c_flags: []const []const u8 = if (target.result.os.tag == .windows)
         &.{"-DLUAJIT_OS=1"}
+    else if (target.result.os.tag.isDarwin())
+        // FIXME: this can be removed once https://codeberg.org/ziglang/zig/issues/30669 is successfully resolved
+        &.{"-DLJ_NO_UNWIND=1"}
     else
         &.{};
 
@@ -142,7 +145,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
             .sub_path = "",
         } },
         .files = &.{ "src/host/buildvm_asm.c", "src/host/buildvm_fold.c", "src/host/buildvm_lib.c", "src/host/buildvm_peobj.c", "src/host/buildvm.c" },
-        .flags = std.mem.concat(b.allocator, []const u8, &.{ buildvm_c_flags, buildvm_windows_c_flags }) catch @panic("OOM!"),
+        .flags = std.mem.concat(b.allocator, []const u8, &.{ buildvm_c_flags, buildvm_os_c_flags }) catch @panic("OOM!"),
     });
 
     buildvm.addIncludePath(upstream.path("src"));
