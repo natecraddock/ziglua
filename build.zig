@@ -21,6 +21,7 @@ pub fn build(b: *Build) void {
     const system_lua = b.option(bool, "system_lua", "Use system lua") orelse false;
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
     const lua_user_h = b.option(Build.LazyPath, "lua_user_h", "Lazy path to user supplied c header file") orelse null;
+    const additional_system_headers = b.option(Build.LazyPath, "additional_system_headers", "Lazy path to additional system headers to include when building Lua") orelse null;
 
     if (lang == .luau and shared) {
         std.debug.panic("Luau does not support compiling or loading shared modules", .{});
@@ -100,6 +101,13 @@ pub fn build(b: *Build) void {
             .optimize = optimize,
         });
         c_headers.addIncludePath(lib.getEmittedIncludeTree());
+
+        // If we've been given additional system headers, add them now
+        // Useful for things like linking Emscripten headers by including a new sysroot
+        if (additional_system_headers != null) {
+            c_headers.addSystemIncludePath(additional_system_headers.?);
+        }
+
         c_headers.step.dependOn(&install_lib.step);
 
         const ziglua_c = c_headers.createModule();
