@@ -2,7 +2,7 @@
 [![shield showing current tests status](https://github.com/natecraddock/ziglua/actions/workflows/tests.yml/badge.svg)](https://github.com/natecraddock/ziglua/actions/workflows/tests.yml)
 [![Discord](https://img.shields.io/discord/1196908820140671077?style=flat&logo=discord)](https://discord.com/invite/XpZqDFvAtK)
 
-Zig bindings for the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, 5.4, and [Luau](https://luau-lang.org).
+Zig bindings for the [Lua C API](https://www.lua.org/manual/5.4/manual.html#4). Ziglua currently supports the latest releases of Lua 5.1, 5.2, 5.3, 5.4, 5.5, [LuaJIT](https://luajit.org) and [Luau](https://luau-lang.org).
 
 Ziglua can be used in two ways, either
 * **embedded** to statically embed the Lua VM in a Zig program,
