@@ -87,7 +87,7 @@ test "standard library loading" {
         lua.openOS();
         lua.openDebug();
 
-        if (zlua.lang != .lua51 and zlua.lang != .lua53 and zlua.lang != .lua54 and zlua.lang != .lua55) lua.openBit32();
+        if (zlua.lang != .lua51 and zlua.lang != .lua53 and zlua.lang != .lua54 and zlua.lang != .lua55 and zlua.lang != .luajit) lua.openBit32();
 
         if (zlua.lang != .luau) {
             lua.openPackage();
@@ -2084,7 +2084,7 @@ test "userdata dtor" {
         gc_hits_ptr: *i32,
 
         pub fn dtor(udata: *anyopaque) void {
-            const self: *@This() = @alignCast(@ptrCast(udata));
+            const self: *@This() = @ptrCast(@alignCast(udata));
             self.gc_hits_ptr.* = self.gc_hits_ptr.* + 1;
         }
     };

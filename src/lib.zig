@@ -4077,10 +4077,7 @@ pub const Lua = opaque {
             if (!lua.isTable(-1)) {
                 lua.pop(1);
                 if (c.luaL_findtable(@ptrCast(lua), globals_index, name, @intCast(funcs.len))) |_| {
-                    switch (lang) {
-                        .luau => lua.raiseErrorStr("name conflict for module '%s'", .{name.ptr}),
-                        else => lua.raiseErrorStr("name conflict for module " ++ c.LUA_QS, .{name.ptr}),
-                    }
+                    lua.raiseErrorStr("name conflict for module '%s'", .{name.ptr});
                 }
                 lua.pushValue(-1);
                 lua.setField(-3, name);
