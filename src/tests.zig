@@ -201,19 +201,12 @@ test "compare" {
         try expect(!lua.rawEqual(-1, -2));
         lua.pushNumber(2);
         try expect(lua.rawEqual(-1, -2));
-    } else if (zlua.lang == .lua52 or zlua.lang == .lua53 or zlua.lang == .lua54) {
+    } else {
         try testing.expect(!lua.equal(1, 2));
         try testing.expect(lua.lessThan(1, 2));
 
         lua.pushInteger(2);
         try testing.expect(lua.equal(2, 3));
-    } else {
-        // Lua 5.5+ doesn't have equal and lessThan functions
-        try testing.expect(!lua.compare(1, 2, .eq));
-        try testing.expect(lua.compare(1, 2, .lt));
-
-        lua.pushInteger(2);
-        try testing.expect(lua.compare(2, 3, .eq));
     }
 }
 
