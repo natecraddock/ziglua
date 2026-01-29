@@ -27,7 +27,7 @@ pub fn build(b: *Build) void {
         std.debug.panic("Luau does not support compiling or loading shared modules", .{});
     }
 
-    if (lua_user_h != null and (lang == .luajit or lang == .luau)) {
+    if (lua_user_h != null and (lang == .luajit or lang == .luau or lang == .lua55)) {
         std.debug.panic("Only basic lua supports a user provided header file", .{});
     }
 
@@ -58,6 +58,7 @@ pub fn build(b: *Build) void {
             .lua52 => zlua.linkSystemLibrary("lua5.2", .{ .preferred_link_mode = link_mode }),
             .lua53 => zlua.linkSystemLibrary("lua5.3", .{ .preferred_link_mode = link_mode }),
             .lua54 => zlua.linkSystemLibrary("lua5.4", .{ .preferred_link_mode = link_mode }),
+            .lua55 => zlua.linkSystemLibrary("lua5.5", .{ .preferred_link_mode = link_mode }),
             .luajit => zlua.linkSystemLibrary("luajit", .{ .preferred_link_mode = link_mode }),
             .luau => @panic("luau not supported for system lua"),
         }

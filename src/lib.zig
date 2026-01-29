@@ -77,7 +77,7 @@ const ArithOperator53 = enum(u4) {
 
 /// Operations supported by `Lua.arith()`
 pub const ArithOperator = switch (lang) {
-    .lua53, .lua54 => ArithOperator53,
+    .lua53, .lua54, .lua55 => ArithOperator53,
     else => ArithOperator52,
 };
 
@@ -260,6 +260,63 @@ const DebugInfo54 = struct {
     };
 };
 
+/// The Lua debug interface structure for Lua 5.5
+const DebugInfo55 = struct {
+    source: [:0]const u8 = undefined,
+    src_len: usize = 0,
+    short_src: [c.LUA_IDSIZE:0]u8 = undefined,
+
+    name: ?[:0]const u8 = undefined,
+    name_what: NameType = undefined,
+    what: FnType = undefined,
+
+    current_line: ?i32 = null,
+    first_line_defined: ?i32 = null,
+    last_line_defined: ?i32 = null,
+
+    num_upvalues: u8 = 0,
+    num_params: u8 = 0,
+
+    is_vararg: bool = false,
+    is_tail_call: bool = false,
+
+    first_transfer: i32 = 0,
+    num_transfer: i32 = 0,
+
+    private: *anyopaque = undefined,
+
+    pub const NameType = enum { global, local, method, field, upvalue, other };
+
+    pub const FnType = enum { lua, c, main };
+
+    pub const Options = packed struct {
+        @">": bool = false,
+        f: bool = false,
+        l: bool = false,
+        n: bool = false,
+        r: bool = false,
+        S: bool = false,
+        t: bool = false,
+        u: bool = false,
+        L: bool = false,
+
+        fn toString(options: Options) [10:0]u8 {
+            var str = [_:0]u8{0} ** 10;
+            var index: u8 = 0;
+
+            inline for (std.meta.fields(Options)) |field| {
+                if (@field(options, field.name)) {
+                    str[index] = field.name[0];
+                    index += 1;
+                }
+            }
+            while (index < str.len) : (index += 1) str[index] = 0;
+
+            return str;
+        }
+    };
+};
+
 pub const DebugInfoLuau = struct {
     source: [:0]const u8 = undefined,
     src_len: usize = 0,
@@ -306,6 +363,7 @@ pub const DebugInfo = switch (lang) {
     .lua51, .luajit => DebugInfo51,
     .lua52, .lua53 => DebugInfo52,
     .lua54 => DebugInfo54,
+    .lua55 => DebugInfo55,
     .luau => DebugInfoLuau,
 };
 
@@ -349,7 +407,7 @@ const Event52 = enum(u3) {
 
 pub const Event = switch (lang) {
     .lua51, .luajit => Event51,
-    .lua52, .lua53, .lua54 => Event52,
+    .lua52, .lua53, .lua54, .lua55 => Event52,
     // TODO: probably something better than void here
     .luau => void,
 };
@@ -646,7 +704,10 @@ pub const Lua = opaque {
         const allocator_ptr = try a.create(Allocator);
         allocator_ptr.* = a;
 
-        if (c.lua_newstate(alloc, allocator_ptr)) |state| {
+        if (switch (lang) {
+            .lua55 => c.lua_newstate(alloc, allocator_ptr, 0),
+            else => c.lua_newstate(alloc, allocator_ptr),
+        }) |state| {
             return @ptrCast(state);
         } else return error.OutOfMemory;
     }
@@ -786,13 +847,13 @@ pub const Lua = opaque {
         /// Context value passed to the continuation function
         ctx: switch (lang) {
             .lua52 => i32,
-            .lua53, .lua54 => Context,
+            .lua53, .lua54, .lua55 => Context,
             else => void,
         },
         /// The continuation function
         k: switch (lang) {
             .lua52 => CFn,
-            .lua53, .lua54 => CContFn,
+            .lua53, .lua54, .lua55 => CContFn,
             else => void,
         },
     };
@@ -972,7 +1033,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_dump
     pub const dump = switch (lang) {
-        .lua53, .lua54 => dump53,
+        .lua53, .lua54, .lua55 => dump53,
         else => dump51,
         .luau => @compileError("Not implemented in Luau."),
     };
@@ -989,7 +1050,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.1/manual.html#lua_equal
     pub fn equal(lua: *Lua, index1: i32, index2: i32) bool {
         switch (lang) {
-            .lua52, .lua53, .lua54 => @compileError("lua_equal is deprecated, use Lua.compare with .eq instead"),
+            .lua52, .lua53, .lua54, .lua55 => @compileError("lua_equal is deprecated, use Lua.compare with .eq instead"),
             else => {},
         }
         return c.lua_equal(@ptrCast(lua), index1, index2) == 1;
@@ -1012,7 +1073,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcCollect(lua: *Lua) void {
         _ = switch (lang) {
-            .lua54 => c.lua_gc(@ptrCast(lua), c.LUA_GCCOLLECT),
+            .lua54, .lua55 => c.lua_gc(@ptrCast(lua), c.LUA_GCCOLLECT),
             else => c.lua_gc(@ptrCast(lua), c.LUA_GCCOLLECT, 0),
         };
     }
@@ -1021,7 +1082,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcStop(lua: *Lua) void {
         _ = switch (lang) {
-            .lua54 => c.lua_gc(@ptrCast(lua), c.LUA_GCSTOP),
+            .lua54, .lua55 => c.lua_gc(@ptrCast(lua), c.LUA_GCSTOP),
             else => c.lua_gc(@ptrCast(lua), c.LUA_GCSTOP, 0),
         };
     }
@@ -1030,7 +1091,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcRestart(lua: *Lua) void {
         _ = switch (lang) {
-            .lua54 => c.lua_gc(@ptrCast(lua), c.LUA_GCRESTART),
+            .lua54, .lua55 => c.lua_gc(@ptrCast(lua), c.LUA_GCRESTART),
             else => c.lua_gc(@ptrCast(lua), c.LUA_GCRESTART, 0),
         };
     }
@@ -1045,7 +1106,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcCount(lua: *Lua) i32 {
         return switch (lang) {
-            .lua54 => c.lua_gc(@ptrCast(lua), c.LUA_GCCOUNT),
+            .lua54, .lua55 => c.lua_gc(@ptrCast(lua), c.LUA_GCCOUNT),
             else => c.lua_gc(@ptrCast(lua), c.LUA_GCCOUNT, 0),
         };
     }
@@ -1054,7 +1115,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcCountB(lua: *Lua) i32 {
         return switch (lang) {
-            .lua54 => c.lua_gc(@ptrCast(lua), c.LUA_GCCOUNTB),
+            .lua54, .lua55 => c.lua_gc(@ptrCast(lua), c.LUA_GCCOUNTB),
             else => c.lua_gc(@ptrCast(lua), c.LUA_GCCOUNTB, 0),
         };
     }
@@ -1063,7 +1124,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcIsRunning(lua: *Lua) bool {
         return switch (lang) {
-            .lua54 => c.lua_gc(@ptrCast(lua), c.LUA_GCISRUNNING) != 0,
+            .lua54, .lua55 => c.lua_gc(@ptrCast(lua), c.LUA_GCISRUNNING) != 0,
             else => c.lua_gc(@ptrCast(lua), c.LUA_GCISRUNNING, 0) != 0,
         };
     }
@@ -1096,7 +1157,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub const gcSetGenerational = switch (lang) {
         .lua52 => gcSetGenerational52,
-        .lua54 => gcSetGenerational54,
+        .lua54, .lua55 => gcSetGenerational54,
         else => @compileError("gcSetGenerational() not available"),
     };
 
@@ -1185,7 +1246,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getfield
     pub fn getField(lua: *Lua, index: i32, key: [:0]const u8) LuaType {
         switch (lang) {
-            .lua53, .lua54, .luau => return @enumFromInt(c.lua_getfield(@ptrCast(lua), index, key.ptr)),
+            .lua53, .lua54, .lua55, .luau => return @enumFromInt(c.lua_getfield(@ptrCast(lua), index, key.ptr)),
             else => {
                 c.lua_getfield(@ptrCast(lua), index, key.ptr);
                 return lua.typeOf(-1);
@@ -1205,7 +1266,7 @@ pub const Lua = opaque {
     pub fn getGlobal(lua: *Lua, name: [:0]const u8) !LuaType {
         const lua_type: LuaType = blk: {
             switch (lang) {
-                .lua53, .lua54, .luau => break :blk @enumFromInt(c.lua_getglobal(@as(*LuaState, @ptrCast(lua)), name.ptr)),
+                .lua53, .lua54, .lua55, .luau => break :blk @enumFromInt(c.lua_getglobal(@as(*LuaState, @ptrCast(lua)), name.ptr)),
                 else => {
                     c.lua_getglobal(@as(*LuaState, @ptrCast(lua)), name.ptr);
                     break :blk lua.typeOf(-1);
@@ -1256,7 +1317,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getiuservalue
     pub const getUserValue = switch (lang) {
         .lua53 => getUserValue53,
-        .lua54 => getUserValue54,
+        .lua54, .lua55 => getUserValue54,
         else => getUserValue52,
     };
 
@@ -1285,7 +1346,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gettable
     pub fn getTable(lua: *Lua, index: i32) LuaType {
         switch (lang) {
-            .lua53, .lua54, .luau => return @enumFromInt(c.lua_gettable(@ptrCast(lua), index)),
+            .lua53, .lua54, .lua55, .luau => return @enumFromInt(c.lua_gettable(@ptrCast(lua), index)),
             else => {
                 c.lua_gettable(@ptrCast(lua), index);
                 return lua.typeOf(-1);
@@ -1549,7 +1610,7 @@ pub const Lua = opaque {
         const ret = c.lua_load(@ptrCast(lua), reader, data, chunk_name.ptr, mode_str.ptr);
 
         return switch (lang) {
-            .lua54 => switch (ret) {
+            .lua54, .lua55 => switch (ret) {
                 StatusCode.ok => {},
                 StatusCode.err_syntax => error.LuaSyntax,
                 StatusCode.err_memory => error.OutOfMemory,
@@ -1626,7 +1687,7 @@ pub const Lua = opaque {
     }
 
     pub const newUserdata = switch (lang) {
-        .lua54 => newUserdata54,
+        .lua54, .lua55 => newUserdata54,
         else => newUserdata51,
     };
 
@@ -1649,7 +1710,7 @@ pub const Lua = opaque {
     }
 
     pub const newUserdataSlice = switch (lang) {
-        .lua54 => newUserdataSlice54,
+        .lua54, .lua55 => newUserdataSlice54,
         else => newUserdataSlice51,
     };
 
@@ -1767,7 +1828,7 @@ pub const Lua = opaque {
         };
 
         return switch (lang) {
-            .lua54 => switch (ret) {
+            .lua54, .lua55 => switch (ret) {
                 StatusCode.ok => return,
                 StatusCode.err_runtime => return error.LuaRuntime,
                 StatusCode.err_memory => return error.OutOfMemory,
@@ -1802,13 +1863,13 @@ pub const Lua = opaque {
         /// Context value passed to the continuation function
         ctx: switch (lang) {
             .lua52 => i32,
-            .lua53, .lua54 => Context,
+            .lua53, .lua54, .lua55 => Context,
             else => void,
         },
         /// The continuation function
         k: switch (lang) {
             .lua52 => CFn,
-            .lua53, .lua54 => CContFn,
+            .lua53, .lua54, .lua55 => CContFn,
             else => void,
         },
     };
@@ -1827,7 +1888,7 @@ pub const Lua = opaque {
         };
 
         return switch (lang) {
-            .lua54 => switch (ret) {
+            .lua54, .lua55 => switch (ret) {
                 StatusCode.ok => return,
                 StatusCode.err_runtime => return error.LuaRuntime,
                 StatusCode.err_memory => return error.OutOfMemory,
@@ -1842,7 +1903,7 @@ pub const Lua = opaque {
                 StatusCode.err_gcmm => return error.LuaGCMetaMethod,
                 else => unreachable,
             },
-            else => @compileError("Only implemented in Lua 5.2, 5.3, and 5.4"),
+            else => @compileError("Only implemented in Lua 5.2, 5.3, 5.4, and 5.5"),
         };
     }
 
@@ -2150,7 +2211,7 @@ pub const Lua = opaque {
     /// TODO: should this be renamed to getTableRaw (seems more logical)?
     pub fn rawGetTable(lua: *Lua, index: i32) LuaType {
         switch (lang) {
-            .lua53, .lua54, .luau => return @enumFromInt(c.lua_rawget(@ptrCast(lua), index)),
+            .lua53, .lua54, .lua55, .luau => return @enumFromInt(c.lua_rawget(@ptrCast(lua), index)),
             else => {
                 c.lua_rawget(@ptrCast(lua), index);
                 return lua.typeOf(-1);
@@ -2175,7 +2236,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawgeti
     pub fn rawGetIndex(lua: *Lua, index: i32, n: RawGetIndexNType) LuaType {
         switch (lang) {
-            .lua53, .lua54, .luau => return @enumFromInt(c.lua_rawgeti(@ptrCast(lua), index, n)),
+            .lua53, .lua54, .lua55, .luau => return @enumFromInt(c.lua_rawgeti(@ptrCast(lua), index, n)),
             else => {
                 c.lua_rawgeti(@ptrCast(lua), index, n);
                 return lua.typeOf(-1);
@@ -2195,7 +2256,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawgetp
     pub fn rawGetPtr(lua: *Lua, index: i32, p: *const anyopaque) LuaType {
         switch (lang) {
-            .lua53, .lua54 => return @enumFromInt(c.lua_rawgetp(@ptrCast(lua), index, p)),
+            .lua53, .lua54, .lua55 => return @enumFromInt(c.lua_rawgetp(@ptrCast(lua), index, p)),
             else => {
                 c.lua_rawgetp(@ptrCast(lua), index, p);
                 return lua.typeOf(-1);
@@ -2359,7 +2420,7 @@ pub const Lua = opaque {
     pub const resumeThread = switch (lang) {
         .lua51, .luajit => resumeThread51,
         .lua52, .lua53 => resumeThread52,
-        .lua54 => resumeThread54,
+        .lua54, .lua55 => resumeThread54,
         .luau => resumeThreadLuau,
     };
 
@@ -2451,7 +2512,7 @@ pub const Lua = opaque {
     }
 
     pub const setUserValue = switch (lang) {
-        .lua54 => setUserValue54,
+        .lua54, .lua55 => setUserValue54,
         else => setUserValue52,
     };
 
@@ -2874,7 +2935,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_version
     pub const version = switch (lang) {
-        .lua54 => version54,
+        .lua54, .lua55 => version54,
         else => version52,
     };
 
@@ -2934,7 +2995,7 @@ pub const Lua = opaque {
     /// This function never returns
     /// See https://www.lua.org/manual/5.4/manual.html#lua_yieldk
     pub const yieldCont = switch (lang) {
-        .lua53, .lua54 => yieldCont53,
+        .lua53, .lua54, .lua55 => yieldCont53,
         else => yieldCont52,
     };
 
@@ -3005,7 +3066,7 @@ pub const Lua = opaque {
                 unreachable;
             };
         }
-        if (lang == .lua54 and options.r) {
+        if ((lang == .lua54 or lang == .lua55) and options.r) {
             info.first_transfer = ar.ftransfer;
             info.num_transfer = ar.ntransfer;
         }
@@ -3562,7 +3623,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkversion
     pub const checkVersion = switch (lang) {
-        .lua53, .lua54 => checkVersion53,
+        .lua53, .lua54, .lua55 => checkVersion53,
         else => checkVersion52,
     };
 
@@ -3677,7 +3738,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_getmetatable
     pub fn getMetatableRegistry(lua: *Lua, table_name: [:0]const u8) LuaType {
         switch (lang) {
-            .lua53, .lua54, .luau => return @enumFromInt(c.luaL_getmetatable(@as(*LuaState, @ptrCast(lua)), table_name.ptr)),
+            .lua53, .lua54, .lua55, .luau => return @enumFromInt(c.luaL_getmetatable(@as(*LuaState, @ptrCast(lua)), table_name.ptr)),
             else => {
                 c.luaL_getmetatable(@as(*LuaState, @ptrCast(lua)), table_name.ptr);
                 return lua.typeOf(-1);
@@ -4239,7 +4300,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_openlibs
     pub fn openLibs(lua: *Lua) void {
-        c.luaL_openlibs(@ptrCast(lua));
+        c.luaL_openlibs(@as(*LuaState, @ptrCast(lua)));
     }
 
     /// Open the basic standard library
@@ -4249,7 +4310,7 @@ pub const Lua = opaque {
     /// * Errors: `other`
     pub fn openBase(lua: *Lua) void {
         lua.requireF("_G", c.luaopen_base, true);
-        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
 
     /// Open the coroutine standard library
@@ -4261,7 +4322,7 @@ pub const Lua = opaque {
     /// * Errors: `other`
     pub fn openCoroutine(lua: *Lua) void {
         lua.requireF(c.LUA_COLIBNAME, c.luaopen_coroutine, true);
-        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
 
     /// Open the package standard library
@@ -4274,7 +4335,7 @@ pub const Lua = opaque {
     pub fn openPackage(lua: *Lua) void {
         if (lang == .luau) @compileError(@src().fn_name ++ " is not available in Luau.");
         lua.requireF(c.LUA_LOADLIBNAME, c.luaopen_package, true);
-        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
 
     /// Open the string standard library
@@ -4284,7 +4345,7 @@ pub const Lua = opaque {
     /// * Errors: `other`
     pub fn openString(lua: *Lua) void {
         lua.requireF(c.LUA_STRLIBNAME, c.luaopen_string, true);
-        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
 
     /// Open the UTF-8 standard library
@@ -4296,7 +4357,7 @@ pub const Lua = opaque {
     /// * Errors: `other`
     pub fn openUtf8(lua: *Lua) void {
         lua.requireF(c.LUA_UTF8LIBNAME, c.luaopen_utf8, true);
-        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
 
     /// Open the table standard library
@@ -4306,7 +4367,7 @@ pub const Lua = opaque {
     /// * Errors: `other`
     pub fn openTable(lua: *Lua) void {
         lua.requireF(c.LUA_TABLIBNAME, c.luaopen_table, true);
-        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
 
     /// Open the math standard library
@@ -4316,7 +4377,7 @@ pub const Lua = opaque {
     /// * Errors: `other`
     pub fn openMath(lua: *Lua) void {
         lua.requireF(c.LUA_MATHLIBNAME, c.luaopen_math, true);
-        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
 
     /// Open the io standard library
@@ -4329,7 +4390,7 @@ pub const Lua = opaque {
     pub fn openIO(lua: *Lua) void {
         if (lang == .luau) @compileError(@src().fn_name ++ " is not available in Luau.");
         lua.requireF(c.LUA_IOLIBNAME, c.luaopen_io, true);
-        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
 
     /// Open the os standard library
@@ -4339,7 +4400,7 @@ pub const Lua = opaque {
     /// * Errors: `other`
     pub fn openOS(lua: *Lua) void {
         lua.requireF(c.LUA_OSLIBNAME, c.luaopen_os, true);
-        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
 
     /// Open the debug standard library
@@ -4349,7 +4410,7 @@ pub const Lua = opaque {
     /// * Errors: `other`
     pub fn openDebug(lua: *Lua) void {
         lua.requireF(c.LUA_DBLIBNAME, c.luaopen_debug, true);
-        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
 
     /// Open the bit32 standard library
@@ -4359,7 +4420,7 @@ pub const Lua = opaque {
     /// * Errors: `other`
     pub fn openBit32(lua: *Lua) void {
         lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit32, true);
-        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
 
     /// Open the vector standard library
@@ -4372,7 +4433,7 @@ pub const Lua = opaque {
     pub fn openVector(lua: *Lua) void {
         if (lang == .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         lua.requireF(c.LUA_VECLIBNAME, c.luaopen_vector, true);
-        if (lang == .lua52 or lang == .lua53 or lang == .lua54) lua.pop(1);
+        if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
 
     /// Returns if given typeinfo is a string type
@@ -5317,6 +5378,8 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
         }.inner,
         CWriterFn => struct {
             fn inner(state: ?*LuaState, buf: ?*const anyopaque, size: usize, data: ?*anyopaque) callconv(.c) c_int {
+                // Lua 5.5 calls the writer with null at the end of dump
+                if (lang == .lua55 and buf == null) return 0;
                 // this is called by Lua, state should never be null
                 var lua: *Lua = @ptrCast(state.?);
                 const buffer = @as([*]const u8, @ptrCast(buf))[0..size];

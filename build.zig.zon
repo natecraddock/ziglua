@@ -33,6 +33,12 @@
             .lazy = true,
         },
 
+        .lua55 = .{
+            .url = "https://www.lua.org/ftp/lua-5.5.0.tar.gz",
+            .hash = "N-V-__8AAGuAFQAFQL34FRuOIGC9klkZq44uTTan4cUS9vas",
+            .lazy = true,
+        },
+
         .luajit = .{
             .url = "https://github.com/LuaJIT/LuaJIT/archive/c525bcb9024510cad9e170e12b6209aedb330f83.tar.gz",
             .hash = "N-V-__8AACcgQgCuLYTPzCp6pnBmFJHyG77RAtM13hjOfTaG",
