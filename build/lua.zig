@@ -10,6 +10,7 @@ pub const Language = enum {
     lua52,
     lua53,
     lua54,
+    lua55,
     luajit,
     luau,
 };
@@ -38,6 +39,7 @@ pub fn configure(
         .lua52 => .{ .major = 5, .minor = 2, .patch = 4 },
         .lua53 => .{ .major = 5, .minor = 3, .patch = 6 },
         .lua54 => .{ .major = 5, .minor = 4, .patch = 8 },
+        .lua55 => .{ .major = 5, .minor = 5, .patch = 0 },
         else => unreachable,
     };
 
@@ -83,6 +85,7 @@ pub fn configure(
         .lua52 => &lua_52_source_files,
         .lua53 => &lua_53_source_files,
         .lua54 => &lua_54_source_files,
+        .lua55 => &lua_55_source_files,
         else => unreachable,
     };
 
@@ -164,6 +167,13 @@ const lua_53_source_files = lua_base_source_files ++ [_][]const u8{
 };
 
 const lua_54_source_files = lua_base_source_files ++ [_][]const u8{
+    "src/ldo.c",
+    "src/lctype.c",
+    "src/lcorolib.c",
+    "src/lutf8lib.c",
+};
+
+const lua_55_source_files = lua_base_source_files ++ [_][]const u8{
     "src/ldo.c",
     "src/lctype.c",
     "src/lcorolib.c",

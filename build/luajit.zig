@@ -122,9 +122,6 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 
     const buildvm_os_c_flags: []const []const u8 = if (target.result.os.tag == .windows)
         &.{"-DLUAJIT_OS=1"}
-    else if (target.result.os.tag.isDarwin())
-        // FIXME: this can be removed once https://codeberg.org/ziglang/zig/issues/30669 is successfully resolved
-        &.{"-DLJ_NO_UNWIND=1"}
     else
         &.{};
 
@@ -208,7 +205,6 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     library.is_linking_libc = true;
 
     lib.addCMacro("LUAJIT_UNWIND_EXTERNAL", "");
-
     lib.linkSystemLibrary("unwind", .{});
 
     library.root_module.addIncludePath(upstream.path("src"));

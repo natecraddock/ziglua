@@ -87,7 +87,7 @@ test "standard library loading" {
         lua.openOS();
         lua.openDebug();
 
-        if (zlua.lang != .lua51 and zlua.lang != .lua53 and zlua.lang != .lua54) lua.openBit32();
+        if (zlua.lang == .lua52 or zlua.lang == .luajit) lua.openBit32();
 
         if (zlua.lang != .luau) {
             lua.openPackage();
@@ -118,7 +118,7 @@ test "number conversion success and failure" {
 }
 
 test "arithmetic (lua_arith)" {
-    if (!langIn(.{ .lua52, .lua53, .lua54 })) return;
+    if (!langIn(.{ .lua52, .lua53, .lua54, .lua55 })) return;
 
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
@@ -191,7 +191,7 @@ test "compare" {
     lua.pushNumber(1);
     lua.pushNumber(2);
 
-    if (langIn(.{ .lua52, .lua53, .lua54 })) {
+    if (langIn(.{ .lua52, .lua53, .lua54, .lua55 })) {
         try expect(!lua.compare(-2, -1, .eq));
         try expect(!lua.compare(-1, -2, .le));
         try expect(!lua.compare(-1, -2, .lt));
@@ -369,7 +369,7 @@ test "stack manipulation" {
     defer lua.deinit();
 
     // TODO: combine these more
-    if (zlua.lang == .lua53 or zlua.lang == .lua54) {
+    if (zlua.lang == .lua53 or zlua.lang == .lua54 or zlua.lang == .lua55) {
         var num: i32 = 1;
         while (num <= 10) : (num += 1) {
             lua.pushInteger(num);
@@ -479,6 +479,7 @@ test "version" {
         .lua52 => try expectEqual(502, lua.version(false).*),
         .lua53 => try expectEqual(503, lua.version(false).*),
         .lua54 => try expectEqual(504, lua.version()),
+        .lua55 => try expectEqual(505, lua.version()),
         else => unreachable,
     }
 
@@ -697,7 +698,7 @@ test "concat" {
     _ = lua.pushStringZ(" wow!");
     lua.concat(3);
 
-    if (zlua.lang == .lua53 or zlua.lang == .lua54) {
+    if (zlua.lang == .lua53 or zlua.lang == .lua54 or zlua.lang == .lua55) {
         try expectEqualStrings("hello 10.0 wow!", try lua.toString(-1));
     } else {
         try expectEqualStrings("hello 10 wow!", try lua.toString(-1));
@@ -727,7 +728,7 @@ test "garbage collector" {
     if (zlua.lang == .lua52) {
         lua.gcSetGenerational();
         lua.gcSetGenerational();
-    } else if (zlua.lang == .lua54) {
+    } else if (zlua.lang == .lua54 or zlua.lang == .lua55) {
         try expect(lua.gcSetGenerational(0, 10));
         try expect(lua.gcSetIncremental(0, 0, 0));
         try expect(!lua.gcSetIncremental(0, 0, 0));
@@ -739,7 +740,7 @@ test "garbage collector" {
 }
 
 test "extra space" {
-    if (zlua.lang != .lua53 and zlua.lang != .lua54) return;
+    if (zlua.lang != .lua53 and zlua.lang != .lua54 and zlua.lang != .lua55) return;
 
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
@@ -758,13 +759,13 @@ test "table access" {
     try lua.doString("a = { [1] = 'first', key = 'value', ['other one'] = 1234 }");
     _ = try lua.getGlobal("a");
 
-    if (zlua.lang == .lua53 or zlua.lang == .lua54) {
+    if (zlua.lang == .lua53 or zlua.lang == .lua54 or zlua.lang == .lua55) {
         try expectEqual(.string, lua.rawGetIndex(1, 1));
         try expectEqualStrings("first", try lua.toString(-1));
     }
 
     try expectEqual(.string, switch (zlua.lang) {
-        .lua53, .lua54 => lua.getIndex(1, 1),
+        .lua53, .lua54, .lua55 => lua.getIndex(1, 1),
         else => lua.rawGetIndex(1, 1),
     });
     try expectEqualStrings("first", try lua.toString(-1));
@@ -812,7 +813,7 @@ test "table access" {
     var index: i32 = 1;
     while (index <= 5) : (index += 1) {
         lua.pushInteger(index);
-        if (zlua.lang == .lua53 or zlua.lang == .lua54) lua.setIndex(-2, index) else lua.rawSetIndex(-2, index);
+        if (zlua.lang == .lua53 or zlua.lang == .lua54 or zlua.lang == .lua55) lua.setIndex(-2, index) else lua.rawSetIndex(-2, index);
     }
 
     if (!langIn(.{ .lua51, .luajit, .luau })) {
@@ -828,7 +829,7 @@ test "table access" {
 }
 
 test "conversions" {
-    if (zlua.lang != .lua53 and zlua.lang != .lua54) return;
+    if (zlua.lang != .lua53 and zlua.lang != .lua54 and zlua.lang != .lua55) return;
 
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
@@ -885,15 +886,20 @@ test "dump and load" {
     defer buffer.deinit(std.testing.allocator);
 
     // save the function as a binary chunk in the buffer
-    if (zlua.lang == .lua53 or zlua.lang == .lua54) {
+    if (zlua.lang == .lua53 or zlua.lang == .lua54 or zlua.lang == .lua55) {
         try lua.dump(zlua.wrap(writer), &buffer, false);
     } else {
         try lua.dump(zlua.wrap(writer), &buffer);
     }
 
     // clear the stack
-    if (zlua.lang == .lua54) {
-        try lua.closeThread(lua);
+    if (zlua.lang == .lua54 or zlua.lang == .lua55) {
+        // NOTE: for closeThread, passing `lua` as `from` when L==from means
+        // "thread closing itself" which only works inside a resume (Lua 5.5+).
+        // Pass null to reset the thread normally.
+        // See: https://www.lua.org/manual/5.4/manual.html#lua_closethread
+        //      https://www.lua.org/manual/5.5/manual.html#lua_closethread
+        try lua.closeThread(null);
     } else lua.setTop(0);
 
     const reader = struct {
@@ -947,7 +953,7 @@ test "userdata and uservalues" {
     };
 
     // create a Lua-owned pointer to a Data with 2 associated user values
-    var data = if (zlua.lang == .lua54) lua.newUserdata(Data, 2) else lua.newUserdata(Data);
+    var data = if (zlua.lang == .lua54 or zlua.lang == .lua55) lua.newUserdata(Data, 2) else lua.newUserdata(Data);
     data.val = 1;
     @memcpy(&data.code, "abcd");
 
@@ -961,7 +967,7 @@ test "userdata and uservalues" {
 
         _ = lua.getUserValue(1);
         try expectEqual(.nil, lua.typeOf(-1));
-    } else if (zlua.lang == .lua54) {
+    } else if (zlua.lang == .lua54 or zlua.lang == .lua55) {
         // assign the user values
         lua.pushNumber(1234.56);
         try lua.setUserValue(1, 1);
@@ -1120,7 +1126,7 @@ fn continuation(l: *Lua, status: zlua.Status, ctx: isize) i32 {
 }
 
 test "yielding" {
-    if (zlua.lang != .lua53 and zlua.lang != .lua54) return;
+    if (zlua.lang != .lua53 and zlua.lang != .lua54 and zlua.lang != .lua55) return;
 
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
@@ -1139,7 +1145,7 @@ test "yielding" {
     try expect(!lua.isYieldable());
 
     var i: i32 = 0;
-    if (zlua.lang == .lua54) {
+    if (zlua.lang == .lua54 or zlua.lang == .lua55) {
         try expect(thread.isYieldable());
 
         var results: i32 = undefined;
@@ -1151,6 +1157,7 @@ test "yielding" {
 
         try expectEqual(.ok, try thread.resumeThread(lua, 0, &results));
     } else {
+        // Lua 5.3
         try expect(!thread.isYieldable());
 
         while (i < 5) : (i += 1) {
@@ -1228,8 +1235,6 @@ test "yielding no continuation" {
 }
 
 test "resuming" {
-    if (zlua.lang == .lua54) return;
-
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
@@ -1249,13 +1254,25 @@ test "resuming" {
     );
     _ = try thread.getGlobal("counter");
 
+    var num_results: i32 = 0;
     var i: i32 = 1;
     while (i <= 5) : (i += 1) {
-        try expectEqual(.yield, if (zlua.lang == .lua51 or zlua.lang == .luajit) try thread.resumeThread(0) else try thread.resumeThread(lua, 0));
+        try expectEqual(.yield, switch (zlua.lang) {
+            .lua51, .luajit => thread.resumeThread(0),
+            .lua54, .lua55 => thread.resumeThread(lua, 0, &num_results),
+            else => thread.resumeThread(lua, 0),
+        });
+
         try expectEqual(i, thread.toInteger(-1));
         lua.pop(lua.getTop());
     }
-    try expectEqual(.ok, if (zlua.lang == .lua51 or zlua.lang == .luajit) try thread.resumeThread(0) else try thread.resumeThread(lua, 0));
+
+    try expectEqual(.ok, switch (zlua.lang) {
+        .lua51, .luajit => thread.resumeThread(0),
+        .lua54, .lua55 => thread.resumeThread(lua, 0, &num_results),
+        else => thread.resumeThread(lua, 0),
+    });
+
     try expectEqualStrings("done", try thread.toString(-1));
 }
 
@@ -1330,7 +1347,7 @@ test "aux check functions" {
 
     lua.pushFunction(function);
     // test pushFail here (currently acts the same as pushNil)
-    if (zlua.lang == .lua54) lua.pushFail() else lua.pushNil();
+    if (zlua.lang == .lua54 or zlua.lang == .lua55) lua.pushFail() else lua.pushNil();
     lua.pushInteger(3);
     lua.pushNumber(4);
     _ = lua.pushString("hello world");
@@ -1653,7 +1670,7 @@ test "userdata" {
     lua.pushFunction(checkUdata);
 
     {
-        var t = if (zlua.lang == .lua54) lua.newUserdata(Type, 0) else lua.newUserdata(Type);
+        var t = if (zlua.lang == .lua54 or zlua.lang == .lua55) lua.newUserdata(Type, 0) else lua.newUserdata(Type);
         if (langIn(.{ .lua51, .luajit, .luau })) {
             _ = lua.getField(zlua.registry_index, "Type");
             lua.setMetatable(-2);
@@ -1687,7 +1704,7 @@ test "userdata" {
     lua.pushFunction(testUdata);
 
     {
-        var t = if (zlua.lang == .lua54) lua.newUserdata(Type, 0) else lua.newUserdata(Type);
+        var t = if (zlua.lang == .lua54 or zlua.lang == .lua55) lua.newUserdata(Type, 0) else lua.newUserdata(Type);
         lua.setMetatableRegistry("Type");
         t.a = 1234;
         t.b = 3.14;
@@ -1707,7 +1724,7 @@ test "userdata slices" {
     try lua.newMetatable("FixedArray");
 
     // create an array of 10
-    const slice = if (zlua.lang == .lua54) lua.newUserdataSlice(Integer, 10, 0) else lua.newUserdataSlice(Integer, 10);
+    const slice = if (zlua.lang == .lua54 or zlua.lang == .lua55) lua.newUserdataSlice(Integer, 10, 0) else lua.newUserdataSlice(Integer, 10);
     if (langIn(.{ .lua51, .luajit, .luau })) {
         _ = lua.getField(zlua.registry_index, "FixedArray");
         lua.setMetatable(-2);
@@ -1826,9 +1843,9 @@ test "debug interface" {
         fn inner(l: *Lua, event: zlua.Event, i: *DebugInfo) !void {
             switch (event) {
                 .call => {
-                    if (zlua.lang == .lua54) l.getInfo(.{ .l = true, .r = true }, i) else l.getInfo(.{ .l = true }, i);
+                    if (zlua.lang == .lua54 or zlua.lang == .lua55) l.getInfo(.{ .l = true, .r = true }, i) else l.getInfo(.{ .l = true }, i);
                     if (i.current_line.? != 2) std.debug.panic("Expected line to be 2", .{});
-                    _ = if (zlua.lang == .lua54) try l.getLocal(i, i.first_transfer) else try l.getLocal(i, 1);
+                    _ = if (zlua.lang == .lua54 or zlua.lang == .lua55) try l.getLocal(i, i.first_transfer) else try l.getLocal(i, 1);
                     if ((try l.toNumber(-1)) != 3) std.debug.panic("Expected x to equal 3", .{});
                 },
                 .line => if (i.current_line.? == 4) {
@@ -1837,9 +1854,9 @@ test "debug interface" {
                     _ = try l.setLocal(i, 2);
                 },
                 .ret => {
-                    if (zlua.lang == .lua54) l.getInfo(.{ .l = true, .r = true }, i) else l.getInfo(.{ .l = true }, i);
+                    if (zlua.lang == .lua54 or zlua.lang == .lua55) l.getInfo(.{ .l = true, .r = true }, i) else l.getInfo(.{ .l = true }, i);
                     if (i.current_line.? != 4) std.debug.panic("Expected line to be 4", .{});
-                    _ = if (zlua.lang == .lua54) try l.getLocal(i, i.first_transfer) else try l.getLocal(i, 1);
+                    _ = if (zlua.lang == .lua54 or zlua.lang == .lua55) try l.getLocal(i, i.first_transfer) else try l.getLocal(i, 1);
                     if ((try l.toNumber(-1)) != 3) std.debug.panic("Expected result to equal 3", .{});
                 },
                 else => unreachable,
@@ -1978,7 +1995,7 @@ test "debug upvalues" {
     _ = try lua.setUpvalue(-2, 1);
 
     // test a bad index (the valid one's result is unpredicable)
-    if (zlua.lang == .lua54) try expectError(error.LuaError, lua.upvalueId(-1, 2));
+    if (zlua.lang == .lua54 or zlua.lang == .lua55) try expectError(error.LuaError, lua.upvalueId(-1, 2));
 
     // call the new function (should return 7)
     lua.pushNumber(2);
@@ -2070,7 +2087,7 @@ test "userdata dtor" {
         gc_hits_ptr: *i32,
 
         pub fn dtor(udata: *anyopaque) void {
-            const self: *@This() = @alignCast(@ptrCast(udata));
+            const self: *@This() = @ptrCast(@alignCast(udata));
             self.gc_hits_ptr.* = self.gc_hits_ptr.* + 1;
         }
     };

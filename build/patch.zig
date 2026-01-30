@@ -1,7 +1,7 @@
 //! A simple script to apply a patch to a file
 //! Does minimal validation and is just enough for patching Lua 5.1
 
-pub fn main() !void {
+pub fn main(init: std.process.Init.Minimal) !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -10,12 +10,16 @@ pub fn main() !void {
     defer threaded.deinit();
     const io = threaded.io();
 
-    const args = try std.process.argsAlloc(allocator);
-    if (args.len != 4) @panic("Wrong number of arguments");
+    var iter = init.args.iterate();
 
-    const file_path = args[1];
-    const patch_file_path = args[2];
-    const output_path = args[3];
+    // Skip executable name
+    _ = iter.next();
+
+    const file_path = iter.next() orelse @panic("Missing file_path argument");
+    const patch_file_path = iter.next() orelse @panic("Missing patch_file_path argument");
+    const output_path = iter.next() orelse @panic("Missing output_path argument");
+
+    if (iter.next() != null) @panic("Too many arguments");
 
     const patch_file = patch_file: {
         const patch_file = try Io.Dir.cwd().openFile(io, patch_file_path, .{ .mode = .read_only });
