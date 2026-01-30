@@ -728,7 +728,7 @@ test "garbage collector" {
     if (zlua.lang == .lua52) {
         lua.gcSetGenerational();
         lua.gcSetGenerational();
-    } else if (zlua.lang == .lua54) {
+    } else if (zlua.lang == .lua54 or zlua.lang == .lua55) {
         try expect(lua.gcSetGenerational(0, 10));
         try expect(lua.gcSetIncremental(0, 0, 0));
         try expect(!lua.gcSetIncremental(0, 0, 0));
@@ -967,7 +967,7 @@ test "userdata and uservalues" {
 
         _ = lua.getUserValue(1);
         try expectEqual(.nil, lua.typeOf(-1));
-    } else if (zlua.lang == .lua54) {
+    } else if (zlua.lang == .lua54 or zlua.lang == .lua55) {
         // assign the user values
         lua.pushNumber(1234.56);
         try lua.setUserValue(1, 1);
@@ -1235,8 +1235,6 @@ test "yielding no continuation" {
 }
 
 test "resuming" {
-    if (zlua.lang == .lua54) return;
-
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
@@ -1259,11 +1257,22 @@ test "resuming" {
     var num_results: i32 = 0;
     var i: i32 = 1;
     while (i <= 5) : (i += 1) {
-        try expectEqual(.yield, if (zlua.lang == .lua51 or zlua.lang == .luajit) try thread.resumeThread(0) else if (zlua.lang == .lua54 or zlua.lang == .lua55) try thread.resumeThread(lua, 0, &num_results) else try thread.resumeThread(lua, 0));
+        try expectEqual(.yield, switch (zlua.lang) {
+            .lua51, .luajit => thread.resumeThread(0),
+            .lua54, .lua55 => thread.resumeThread(lua, 0, &num_results),
+            else => thread.resumeThread(lua, 0),
+        });
+
         try expectEqual(i, thread.toInteger(-1));
         lua.pop(lua.getTop());
     }
-    try expectEqual(.ok, if (zlua.lang == .lua51 or zlua.lang == .luajit) try thread.resumeThread(0) else if (zlua.lang == .lua54 or zlua.lang == .lua55) try thread.resumeThread(lua, 0, &num_results) else try thread.resumeThread(lua, 0));
+
+    try expectEqual(.ok, switch (zlua.lang) {
+        .lua51, .luajit => thread.resumeThread(0),
+        .lua54, .lua55 => thread.resumeThread(lua, 0, &num_results),
+        else => thread.resumeThread(lua, 0),
+    });
+
     try expectEqualStrings("done", try thread.toString(-1));
 }
 
