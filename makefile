@@ -6,6 +6,7 @@ test_zig_nightly:
 	zig build test --summary failures -Dlang=lua52
 	zig build test --summary failures -Dlang=lua53
 	zig build test --summary failures -Dlang=lua54
+	zig build test --summary failures -Dlang=lua55
 	zig build test --summary failures -Dlang=luau
 
 	zig build install-example-interpreter
@@ -21,6 +22,7 @@ test_zig_stable:
 	zig build test --summary failures -Dlang=lua52
 	zig build test --summary failures -Dlang=lua53
 	zig build test --summary failures -Dlang=lua54
+	zig build test --summary failures -Dlang=lua55
 	zig build test --summary failures -Dlang=luau
 
 	zig build install-example-interpreter
