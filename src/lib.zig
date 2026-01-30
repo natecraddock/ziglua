@@ -4415,18 +4415,20 @@ pub const Lua = opaque {
 
     /// Open the bit32 standard library
     ///
+    /// Only available in Lua 5.2 (and deprecated in Lua 5.3) and LuaJIT
+    ///
     /// * Pops:   `0`
     /// * Pushes: `0`
     /// * Errors: `other`
     pub fn openBit32(lua: *Lua) void {
         switch (lang) {
-            .lua52 => lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit32, true),
+            .lua52, .lua53 => lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit32, true),
             .luajit => lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit, true),
-            else => return,
+            else => @compileError(@src().fn_name ++ " is only available in Lua 5.2 and LuaJIT."),
         }
-
         lua.pop(1);
     }
+    pub const openBit = openBit32;
 
     /// Open the vector standard library
     ///
