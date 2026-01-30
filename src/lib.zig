@@ -4416,8 +4416,13 @@ pub const Lua = opaque {
     /// * Pushes: `0`
     /// * Errors: `other`
     pub fn openBit32(lua: *Lua) void {
-        lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit32, true);
-        if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
+        switch (lang) {
+            .lua52 => lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit32, true),
+            .luajit => lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit, true),
+            else => return,
+        }
+
+        lua.pop(1);
     }
 
     /// Open the vector standard library
