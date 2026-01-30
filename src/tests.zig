@@ -864,8 +864,6 @@ test "absIndex" {
 
 test "dump and load" {
     if (zlua.lang == .luau) return;
-    // TODO: Lua 5.5 changed the dump format, need to investigate
-    if (zlua.lang == .lua55) return;
 
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
@@ -896,7 +894,12 @@ test "dump and load" {
 
     // clear the stack
     if (zlua.lang == .lua54 or zlua.lang == .lua55) {
-        try lua.closeThread(lua);
+        // NOTE: for closeThread, passing `lua` as `from` when L==from means
+        // "thread closing itself" which only works inside a resume (Lua 5.5+).
+        // Pass null to reset the thread normally.
+        // See: https://www.lua.org/manual/5.4/manual.html#lua_closethread
+        //      https://www.lua.org/manual/5.5/manual.html#lua_closethread
+        try lua.closeThread(null);
     } else lua.setTop(0);
 
     const reader = struct {
