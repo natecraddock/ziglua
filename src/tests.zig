@@ -1156,7 +1156,8 @@ test "yielding" {
         }
 
         try expectEqual(.ok, try thread.resumeThread(lua, 0, &results));
-    } else if (zlua.lang == .lua52 or zlua.lang == .lua53) {
+    } else {
+        // Lua 5.3
         try expect(!thread.isYieldable());
 
         while (i < 5) : (i += 1) {
@@ -1165,16 +1166,6 @@ test "yielding" {
             lua.pop(lua.getTop());
         }
         try expectEqual(.ok, try thread.resumeThread(lua, 0));
-    } else {
-        // Lua 5.1, LuaJIT - no from parameter
-        try expect(!thread.isYieldable());
-
-        while (i < 5) : (i += 1) {
-            try expectEqual(.yield, try thread.resumeThread(0));
-            try expectEqual(i, try thread.toInteger(-1));
-            lua.pop(lua.getTop());
-        }
-        try expectEqual(.ok, try thread.resumeThread(0));
     }
 
     try expectEqualStrings("done", try thread.toString(-1));
