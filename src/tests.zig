@@ -1995,7 +1995,7 @@ test "debug upvalues" {
     _ = try lua.setUpvalue(-2, 1);
 
     // test a bad index (the valid one's result is unpredicable)
-    if (zlua.lang == .lua54) try expectError(error.LuaError, lua.upvalueId(-1, 2));
+    if (zlua.lang == .lua54 or zlua.lang == .lua55) try expectError(error.LuaError, lua.upvalueId(-1, 2));
 
     // call the new function (should return 7)
     lua.pushNumber(2);
