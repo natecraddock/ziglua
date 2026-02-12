@@ -15,7 +15,7 @@ pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const lang = b.option(Language, "lang", "Lua language version to build") orelse .lua54;
+    const lang = b.option(Language, "lang", "Lua language version to build") orelse .lua55;
     const library_name = b.option([]const u8, "library_name", "Library name for lua linking, default is `lua`") orelse "lua";
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
     const system_lua = b.option(bool, "system_lua", "Use system lua") orelse false;
