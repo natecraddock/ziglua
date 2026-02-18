@@ -40,8 +40,8 @@
         },
 
         .luajit = .{
-            .url = "https://github.com/LuaJIT/LuaJIT/archive/c525bcb9024510cad9e170e12b6209aedb330f83.tar.gz",
-            .hash = "N-V-__8AACcgQgCuLYTPzCp6pnBmFJHyG77RAtM13hjOfTaG",
+            .url = "https://github.com/LuaJIT/LuaJIT/archive/1c3b5a4d722598ecbb9219480142eda682e87bb1.tar.gz",
+            .hash = "N-V-__8AADvoQgDNXzLQ8axn5XarZnk9amsbNxFk1GRxj5mH",
             .lazy = true,
         },
 
