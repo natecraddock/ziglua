@@ -33,7 +33,7 @@ pub fn define(
     defer state.deinit(gpa);
 
     inline for (to_define) |T| {
-        _ = try addClass(&state, T);
+        _ = try addClass(&state, gpa, T);
     }
 
     var file = try std.fs.createFileAbsolute(absolute_output_path, .{});
