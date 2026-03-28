@@ -47,6 +47,7 @@ pub fn configure(
         .target = target,
         .optimize = optimize,
         .link_libc = true,
+        .sanitize_c = if (lang == .lua51) .off else null,
     });
     const library = b.addLibrary(.{
         .name = library_name,
