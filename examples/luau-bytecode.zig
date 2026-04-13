@@ -11,15 +11,13 @@ const std = @import("std");
 // The zlua module is made available in build.zig
 const zlua = @import("zlua");
 
-pub fn main() anyerror!void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+pub fn main(init: std.process.Init) anyerror!void {
+    const gpa = init.gpa;
 
     // Initialize The Lua vm and get a reference to the main thread
     //
     // Passing a Zig allocator to the Lua state requires a stable pointer
-    var lua = try zlua.Lua.init(allocator);
+    var lua = try zlua.Lua.init(gpa);
     defer lua.deinit();
 
     // Open all Lua standard libraries
@@ -27,8 +25,8 @@ pub fn main() anyerror!void {
 
     // Load bytecode
     const src = @embedFile("./test.luau");
-    const bc = try zlua.compile(allocator, src, zlua.CompileOptions{});
-    defer allocator.free(bc);
+    const bc = try zlua.compile(gpa, src, zlua.CompileOptions{});
+    defer gpa.free(bc);
 
     try lua.loadBytecode("...", bc);
     try lua.protectedCall(.{});

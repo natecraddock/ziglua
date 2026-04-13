@@ -34,13 +34,11 @@ fn add_to_x(lua: *zlua.Lua, num: usize) void {
     lua.protectedCall(.{}) catch return;
 }
 
-pub fn main() anyerror!void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+pub fn main(init: std.process.Init) anyerror!void {
+    const gpa = init.gpa;
 
     // Initialize The Lua vm and get a reference to the main thread
-    var lua = try zlua.Lua.init(allocator);
+    var lua = try zlua.Lua.init(gpa);
     defer lua.deinit();
 
     lua.openLibs();
@@ -56,7 +54,7 @@ pub fn main() anyerror!void {
 
     // create a thread pool to run all the functions
     var pool: std.Thread.Pool = undefined;
-    try pool.init(.{ .allocator = allocator, .n_jobs = n_jobs });
+    try pool.init(.{ .allocator = gpa, .n_jobs = n_jobs });
     defer pool.deinit();
 
     var wg: std.Thread.WaitGroup = .{};

@@ -29,7 +29,7 @@ fn flushedStdoutPrint(io: std.Io, comptime fmt: []const u8, args: anytype) !void
 }
 
 pub fn main() anyerror!void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 

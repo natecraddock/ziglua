@@ -87,14 +87,12 @@ const zlua = @import("zlua");
 
 const Lua = zlua.Lua;
 
-pub fn main() anyerror!void {
-    // Create an allocator
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+pub fn main(init: std.process.Init) anyerror!void {
+    // Get an allocator from juicy main
+    const gpa = init.gpa;
 
     // Initialize the Lua vm
-    var lua = try Lua.init(allocator);
+    var lua = try Lua.init(gpa);
     defer lua.deinit();
 
     // Add an integer to the Lua stack and retrieve it
