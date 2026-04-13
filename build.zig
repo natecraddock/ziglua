@@ -112,7 +112,7 @@ pub fn build(b: *Build) void {
         c_headers.step.dependOn(&install_lib.step);
 
         const ziglua_c = c_headers.createModule();
-        b.modules.put("ziglua-c", ziglua_c) catch @panic("OOM");
+        b.modules.put(b.graph.arena, "ziglua-c", ziglua_c) catch @panic("OOM");
 
         zlua.addImport("c", ziglua_c);
     }
