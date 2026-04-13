@@ -16,13 +16,11 @@ fn adder(lua: *Lua) i32 {
     return 1;
 }
 
-pub fn main() anyerror!void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+pub fn main(init: std.process.Init) anyerror!void {
+    const gpa = init.gpa;
 
     // Initialize The Lua vm and get a reference to the main thread
-    var lua = try Lua.init(allocator);
+    var lua = try Lua.init(gpa);
     defer lua.deinit();
 
     // Push the adder function to the Lua stack.
