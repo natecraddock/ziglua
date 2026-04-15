@@ -166,7 +166,7 @@ pub fn build(b: *Build) void {
     }
 
     const docs = b.addObject(.{
-        .name = "ziglua",
+        .name = "zlua",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/lib.zig"),
             .target = target,

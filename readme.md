@@ -14,7 +14,7 @@ Ziglua `main` is kept up to date with Zig `master`. See the [`zig-0.15.2`](https
 
 ## Documentation
 Docs are a work in progress and are automatically generated. Most functions and public declarations are documented:
-* [Ziglua Docs](https://natecraddock.github.io/ziglua/#ziglua.lib.Lua)
+* [Ziglua Docs](https://natecraddock.github.io/ziglua/#zlua)
 
 See [docs.md](https://github.com/natecraddock/ziglua/blob/main/docs.md) for more general information on Ziglua and how it differs from the C API.
 
