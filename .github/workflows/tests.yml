@@ -22,7 +22,7 @@ jobs:
     - name: Setup Zig
       uses: mlugg/setup-zig@v2
       with:
-        version: master
+        version: "0.16.0"
 
     - name: Run tests
       run: make test_zig_nightly
@@ -62,7 +62,7 @@ jobs:
     - name: Setup Zig
       uses: mlugg/setup-zig@v2
       with:
-        version: master
+        version: "0.16.0"
 
     - name: Run tests
       run: make test_cross
