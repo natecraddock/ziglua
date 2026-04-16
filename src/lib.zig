@@ -13,7 +13,7 @@
 //!   * `see docs` means the function may raise the errors explained in the docs.
 //!   * `any` means the function can run arbitrary Lua code, either directly or through metamethods, and therefore may raise any errors.
 //!
-//! See [Lua](/#zlua.Lua) for documentation on the Lua state.
+//! See [Lua](/ziglua/#zlua.Lua) for documentation on the Lua state.
 
 const std = @import("std");
 
