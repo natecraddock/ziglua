@@ -10,7 +10,7 @@ pub fn main(init: std.process.Init.Minimal) !void {
     defer threaded.deinit();
     const io = threaded.io();
 
-    var iter = init.args.iterate();
+    var iter = try init.args.iterateAllocator(allocator);
 
     // Skip executable name
     _ = iter.next();
