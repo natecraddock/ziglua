@@ -1,16 +1,14 @@
 //! A simple script to apply a patch to a file
 //! Does minimal validation and is just enough for patching Lua 5.1
 
-pub fn main(init: std.process.Init.Minimal) !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
+pub fn main(init: std.process.Init) !void {
+    const arena = init.arena.allocator();
 
     var threaded: std.Io.Threaded = .init_single_threaded;
     defer threaded.deinit();
     const io = threaded.io();
 
-    var iter = try init.args.iterateAllocator(allocator);
+    var iter = try init.minimal.args.iterateAllocator(arena);
 
     // Skip executable name
     _ = iter.next();
@@ -26,9 +24,9 @@ pub fn main(init: std.process.Init.Minimal) !void {
         defer patch_file.close(io);
         var buf: [4096]u8 = undefined;
         var reader = patch_file.reader(io, &buf);
-        break :patch_file try reader.interface.allocRemaining(allocator, .unlimited);
+        break :patch_file try reader.interface.allocRemaining(arena, .unlimited);
     };
-    const chunk_details = Chunk.init(allocator, patch_file, 0) orelse @panic("No chunk data found");
+    const chunk_details = Chunk.init(arena, patch_file, 0) orelse @panic("No chunk data found");
 
     const file = try Io.Dir.cwd().openFile(io, file_path, .{ .mode = .read_only });
     defer file.close(io);

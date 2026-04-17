@@ -75,19 +75,9 @@ pub fn build(b: *Build) void {
             }),
         };
 
-        // Expose the Lua artifact, and get an install step that header translation can refer to
+        // Expose the Lua artifact.
         const install_lib = b.addInstallArtifact(lib, .{});
         b.getInstallStep().dependOn(&install_lib.step);
-
-        switch (lang) {
-            .luau => {
-                zlua.addIncludePath(upstream.path("Common/include"));
-                zlua.addIncludePath(upstream.path("Compiler/include"));
-                zlua.addIncludePath(upstream.path("Ast/include"));
-                zlua.addIncludePath(upstream.path("VM/include"));
-            },
-            else => zlua.addIncludePath(upstream.path("src")),
-        }
 
         zlua.linkLibrary(lib);
 
@@ -112,10 +102,7 @@ pub fn build(b: *Build) void {
             t.addSystemIncludePath(additional_system_headers.?);
         }
 
-        const ziglua_c = t.mod;
-        b.modules.put(b.graph.arena, "ziglua-c", ziglua_c) catch @panic("OOM");
-
-        zlua.addImport("c", ziglua_c);
+        zlua.addImport("c", t.mod);
     }
 
     // Tests
