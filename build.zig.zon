@@ -50,5 +50,9 @@
             .hash = "N-V-__8AAFB1kwDHb7dLmDsOv91rOkqorfDB_2nJtqnp4F-b",
             .lazy = true,
         },
+        .translate_c = .{
+            .url = "git+https://codeberg.org/ziglang/translate-c#46b5609b5ac4c0a896217d1d984f3ae50e4810b5",
+            .hash = "translate_c-0.0.0-Q_BUWpf0BgAwrh5AM-acJcslN_YPEhcoCVKbbNjwuUTJ",
+        },
     },
 }

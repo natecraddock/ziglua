@@ -3,6 +3,7 @@ const std = @import("std");
 const Build = std.Build;
 pub const Language = lua_setup.Language;
 const Step = std.Build.Step;
+const Translator = @import("translate_c").Translator;
 
 const lua_setup = @import("build/lua.zig");
 const luau_setup = @import("build/luau.zig");
@@ -96,22 +97,22 @@ pub fn build(b: *Build) void {
             .luau => b.path("build/include/luau_all.h"),
             else => b.path("build/include/lua_all.h"),
         };
-        const c_headers = b.addTranslateC(.{
-            .root_source_file = c_header_path,
+        const translate_c = b.dependency("translate_c", .{});
+
+        const t: Translator = .init(translate_c, .{
+            .c_source_file = c_header_path,
             .target = target,
             .optimize = optimize,
         });
-        c_headers.addIncludePath(lib.getEmittedIncludeTree());
+        t.addIncludePath(lib.getEmittedIncludeTree());
 
         // If we've been given additional system headers, add them now
         // Useful for things like linking Emscripten headers by including a new sysroot
         if (additional_system_headers != null) {
-            c_headers.addSystemIncludePath(additional_system_headers.?);
+            t.addSystemIncludePath(additional_system_headers.?);
         }
 
-        c_headers.step.dependOn(&install_lib.step);
-
-        const ziglua_c = c_headers.createModule();
+        const ziglua_c = t.mod;
         b.modules.put(b.graph.arena, "ziglua-c", ziglua_c) catch @panic("OOM");
 
         zlua.addImport("c", ziglua_c);
