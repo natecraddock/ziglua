@@ -1,6 +1,12 @@
-//! Similar to the Lua C API documentation, each function has an indicator to describe how interacts with the stack and which errors it may return.
+//! *To avoid a duplication of efforts, Ziglua does not contain full
+//! documentation on the Lua C API. Please refer to the [Lua C API Documentation](https://www.lua.org/manual/5.5/manual.html#4)
+//! for full details.*
 //!
-//! Instead of using the form `[-o, +p, x]`, zlua uses the words **Pops**, **Pushes**, and **Lua Errors** for clarity.
+//! ## Error Handling
+//!
+//! Similar to the Lua C API documentation, each function has an indicator to describe how interacts with the stack and which errors it may raise.
+//!
+//! Instead of using the `[-o, +p, x]` notation found in the Lua reference manual, zlua uses the words **Pops**, **Pushes**, and **Lua Errors** for clarity.
 //!
 //! * **Pops**: how many elements the function pops from the stack.
 //! * **Pushes**: how many elements the function pushes onto the stack.
@@ -12,6 +18,10 @@
 //!   * `memory` means the function may raise only out-of-memory errors.
 //!   * `see docs` means the function may raise the errors explained in the docs.
 //!   * `any` means the function can run arbitrary Lua code, either directly or through metamethods, and therefore may raise any errors.
+//!
+//! If a Lua error is raised in a protected environment (created by calling either `pcall()` or `lua.protectedCall()`), the error is
+//! handled and returned to the caller. An error raised outside a protected environment panics and aborts the process.
+//! See https://www.lua.org/manual/5.5/manual.html#4.4 for more details.
 //!
 //! See [Lua](/ziglua/#zlua.Lua) for documentation on the Lua state.
 
