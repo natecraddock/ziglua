@@ -7,8 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  #------ zig-dev builds ------
-  test_zig_nightly:
+  test_zig:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest, ubuntu-24.04-arm]
@@ -25,44 +24,5 @@ jobs:
         version: "0.16.0"
 
     - name: Run tests
-      run: make test_zig_nightly
+      run: make test
 
-  #------ zig-0.15 ------
-  #test_zig_015:
-  #  strategy:
-  #    matrix:
-  #      os: [ubuntu-latest, macos-latest, windows-latest, ubuntu-24.04-arm]
-
-  #  runs-on: ${{matrix.os}}
-
-  #  steps:
-  #  - name: Clone Ziglua
-  #    uses: actions/checkout@v3
-
-  #  - name: Setup Zig
-  #    uses: mlugg/setup-zig@v2
-  #    with:
-  #      version: "0.15.2"
-
-  #  - name: Run tests
-  #    run: make test_zig_stable
-
-  #------ cross compilation ------
-  test_cross:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest, ubuntu-24.04-arm]
-
-    runs-on: ${{matrix.os}}
-
-    steps:
-    - name: Clone Ziglua
-      uses: actions/checkout@v3
-
-    - name: Setup Zig
-      uses: mlugg/setup-zig@v2
-      with:
-        version: "0.16.0"
-
-    - name: Run tests
-      run: make test_cross
