@@ -12,6 +12,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
         .target = target,
         .optimize = optimize,
         .unwind_tables = .sync,
+        .sanitize_c = .off,
     });
     const library = b.addLibrary(.{
         .name = "lua",

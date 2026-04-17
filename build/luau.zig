@@ -8,6 +8,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
         .target = target,
         .optimize = optimize,
         .link_libcpp = true,
+        .sanitize_c = .off,
     });
     const library = b.addLibrary(.{
         .name = "luau",
