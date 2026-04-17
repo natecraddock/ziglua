@@ -2075,8 +2075,10 @@ pub const Lua = opaque {
     /// * Lua Errors: `never`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushlightuserdata
-    pub fn pushLightUserdata(lua: *Lua, ptr: *anyopaque) void {
-        c.lua_pushlightuserdata(@as(*LuaState, @ptrCast(lua)), ptr);
+    pub fn pushLightUserdata(lua: *Lua, ptr: *const anyopaque) void {
+        // Use @constCast and a *const anyopaque to allow this function to accept constant pointers. Lua doesn't ever modify
+        // the pointer so this should be safe, and makes pushLightUserdata more flexible.
+        c.lua_pushlightuserdata(@as(*LuaState, @ptrCast(lua)), @constCast(ptr));
     }
 
     /// Pushes the string pointed to by `str` onto the stack. Lua will make or reuse an internal copy of the given
