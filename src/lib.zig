@@ -1323,16 +1323,16 @@ pub const Lua = opaque {
         else => getUserValue52,
     };
 
-    /// If the value at the given index has a metatable, the function pushes that metatable onto the stack
-    /// Otherwise an error is returned
+    /// If the value at the given index has a metatable, the function pushes that metatable onto the stack.
+    /// Otherwise `error.NoMetatable` is returned.
     ///
     /// * Pops:   `0`
     /// * Pushes: `(0|1)`
     /// * Lua Errors: `never`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getmetatable
-    pub fn getMetatable(lua: *Lua, index: i32) !void {
-        if (c.lua_getmetatable(@ptrCast(lua), index) == 0) return error.LuaError;
+    pub fn getMetatable(lua: *Lua, index: i32) error{NoMetatable}!void {
+        if (c.lua_getmetatable(@ptrCast(lua), index) == 0) return error.NoMetatable;
     }
 
     /// Pushes onto the stack the value `t[k]`, where `t` is the value at the given `index` and `k` is the value on the top of the stack.

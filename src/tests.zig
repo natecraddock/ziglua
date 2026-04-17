@@ -788,7 +788,7 @@ test "table access" {
     _ = lua.pushStringZ("zig");
     lua.rawSetTable(1);
 
-    try expectError(error.LuaError, lua.getMetatable(1));
+    try expectError(error.NoMetatable, lua.getMetatable(1));
 
     // create a metatable (it isn't a useful one)
     lua.newTable();
