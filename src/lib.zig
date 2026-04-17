@@ -5461,6 +5461,7 @@ pub fn compile(allocator: Allocator, source: []const u8, options: CompileOptions
         .coverageLevel = options.coverage_level,
         .vectorLib = options.vector_lib,
         .vectorCtor = options.vector_ctor,
+        .vectorType = options.vector_type,
         .mutableGlobals = options.mutable_globals,
         .userdataTypes = options.userdata_types,
     };
