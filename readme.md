@@ -23,7 +23,7 @@ Example code is included in the [examples](https://github.com/natecraddock/ziglu
 * Install an example with `zig build install-example-<name>`
 
 ## Why use Ziglua?
-In a nutshell, Ziglua is a simple wrapper around the C API you would get by using Zig's `@cImport()`. Ziglua aims to mirror the [Lua C API](https://www.lua.org/manual/5.5/manual.html#4) as closely as possible, while improving ergonomics using Zig's features. For example:
+Ziglua is a simple wrapper around the C API. Ziglua aims to mirror the [Lua C API](https://www.lua.org/manual/5.5/manual.html#4) as closely as possible, while improving ergonomics using Zig's features. For example:
 
 * Zig error unions to require failure state handling
 * Null-terminated slices instead of C strings
@@ -63,7 +63,7 @@ This will compile the Lua C sources and link with your project.
 
 There are currently three additional options that can be passed to `b.dependency()`:
 
-* `.lang`: Set the Lua language to build and embed. Defaults to `.lua54`. Possible values are `.lua51`, `.lua52`, `.lua53`, `.lua54`, `.lua55`, and `luau`.
+* `.lang`: Set the Lua language to build and embed. Defaults to `.lua55`. Possible values are `.lua51`, `.lua52`, `.lua53`, `.lua54`, `.lua55`, and `luau`.
 * `.shared`: Defaults to `false` for embedding in a Zig program. Set to `true` to dynamically link the Lua source code (useful for creating shared modules).
 * `luau_use_4_vector`: defaults to false. Set to true to use 4-vectors instead of the default 3-vector in Luau.
 * `lua_user_h`: defaults to null. Provide a path to an additional header file for the Lua compilation. Must be set to to `examples/user.h` in order to run the multithreaded example.
