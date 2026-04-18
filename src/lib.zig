@@ -593,7 +593,9 @@ pub const ResumeStatus = enum(u1) {
 pub const ref_nil = c.LUA_REFNIL;
 pub const ref_no = c.LUA_NOREF;
 
-/// Index of the regsitry in the stack (pseudo-index)
+/// Index of the registry in the stack (pseudo-index).
+///
+/// See https://www.lua.org/manual/5.5/manual.html#4.3
 pub const registry_index = c.LUA_REGISTRYINDEX;
 
 /// Index of globals in the registry
@@ -663,6 +665,12 @@ pub fn Parsed(comptime T: type) type {
         }
     };
 }
+
+/// The key in the registry that holds a table of all loaded modules. The `package.loaded` table in Lua.
+pub const loaded_table = if (@hasDecl(c, "LUA_LOADED_TABLE")) c.LUA_LOADED_TABLE else "_LOADED";
+
+/// The key in the registry that holds a table of preloaded loaders. The `package.preload` table in Lua.
+pub const preload_table = if (@hasDecl(c, "LUA_PRELOAD_TABLE")) c.LUA_PRELOAD_TABLE else "_PRELOAD";
 
 /// A Zig wrapper around the Lua C API
 /// Represents a Lua state or thread and contains the entire state of the Lua interpreter
