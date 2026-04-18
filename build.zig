@@ -44,13 +44,34 @@ pub fn build(b: *Build) void {
     const config = b.addOptions();
     config.addOption(Language, "lang", lang);
     config.addOption(bool, "luau_use_4_vector", luau_use_4_vector);
-    config.addOption(bool, "system_lua", system_lua);
     zlua.addOptions("config", config);
 
     if (lang == .luau) {
         const vector_size: usize = if (luau_use_4_vector) 4 else 3;
         zlua.addCMacro("LUA_VECTOR_SIZE", b.fmt("{}", .{vector_size}));
     }
+
+    // Translate the Lua C headers in to Zig code.
+    const translate_c = b.dependency("translate_c", .{});
+
+    const c_header_path = switch (lang) {
+        .luajit => b.path("build/include/luajit_all.h"),
+        .luau => b.path("build/include/luau_all.h"),
+        else => b.path("build/include/lua_all.h"),
+    };
+    const t: Translator = .init(translate_c, .{
+        .c_source_file = c_header_path,
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // If we've been given additional system headers, add them now.
+    // Useful for things like linking Emscripten headers by including a new sysroot
+    if (additional_system_headers) |headers| {
+        t.addSystemIncludePath(headers);
+    }
+
+    zlua.addImport("c", t.mod);
 
     if (system_lua) {
         const link_mode: std.builtin.LinkMode = if (shared) .dynamic else .static;
@@ -81,28 +102,8 @@ pub fn build(b: *Build) void {
 
         zlua.linkLibrary(lib);
 
-        // lib must expose all headers included by these root headers
-        const c_header_path = switch (lang) {
-            .luajit => b.path("build/include/luajit_all.h"),
-            .luau => b.path("build/include/luau_all.h"),
-            else => b.path("build/include/lua_all.h"),
-        };
-        const translate_c = b.dependency("translate_c", .{});
-
-        const t: Translator = .init(translate_c, .{
-            .c_source_file = c_header_path,
-            .target = target,
-            .optimize = optimize,
-        });
+        // Ensure translate C can find the Lua headers.
         t.addIncludePath(lib.getEmittedIncludeTree());
-
-        // If we've been given additional system headers, add them now
-        // Useful for things like linking Emscripten headers by including a new sysroot
-        if (additional_system_headers != null) {
-            t.addSystemIncludePath(additional_system_headers.?);
-        }
-
-        zlua.addImport("c", t.mod);
     }
 
     // Tests

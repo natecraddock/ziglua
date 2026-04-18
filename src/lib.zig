@@ -37,14 +37,7 @@ const config = @import("config");
 /// This is exposed in case a function or constant is missing from the ziglua
 /// bindings, or one of the wrapper functions imposes a limitation that
 /// requires access to the C function.
-pub const c = if (config.system_lua)
-    @cImport({
-        @cInclude("lua.h");
-        @cInclude("lualib.h");
-        @cInclude("lauxlib.h");
-    })
-else
-    @import("c");
+pub const c = @import("c");
 
 /// Lua language version targeted
 pub const lang = config.lang;
