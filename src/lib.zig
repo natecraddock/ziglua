@@ -23,7 +23,7 @@
 //! handled and returned to the caller. An error raised outside a protected environment panics and aborts the process.
 //! See https://www.lua.org/manual/5.5/manual.html#4.4 for more details.
 //!
-//! See [Lua](/ziglua/#zlua.Lua) for documentation on the Lua state.
+//! See [Lua](#zlua.Lua) for documentation on the Lua state.
 
 const std = @import("std");
 
@@ -32,7 +32,12 @@ pub const define = def.define;
 
 const config = @import("config");
 
-const c = if (config.system_lua)
+/// Access to the full Lua C API for the selected version of Lua (see `lang`).
+///
+/// This is exposed in case a function or constant is missing from the ziglua
+/// bindings, or one of the wrapper functions imposes a limitation that
+/// requires access to the C function.
+pub const c = if (config.system_lua)
     @cImport({
         @cInclude("lua.h");
         @cInclude("lualib.h");
