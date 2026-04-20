@@ -36,8 +36,8 @@
         },
 
         .luajit = .{
-            .url = "https://github.com/LuaJIT/LuaJIT/archive/1c3b5a4d722598ecbb9219480142eda682e87bb1.tar.gz",
-            .hash = "N-V-__8AADvoQgDNXzLQ8axn5XarZnk9amsbNxFk1GRxj5mH",
+            .url = "https://github.com/LuaJIT/LuaJIT/archive/18b087cd2cd4ddc4a79782bf155383a689d5093d.tar.gz",
+            .hash = "N-V-__8AAODpQgCVrpfzE2ze9FA_rOuByh3WKyIyk5iS_o9a",
             .lazy = true,
         },
 
