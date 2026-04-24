@@ -379,8 +379,6 @@ pub const DebugInfo = switch (lang) {
 
 /// The superset of all errors returned from zlua
 pub const Error = error{
-    /// A generic failure (used when a function can only fail in one way)
-    LuaError,
     /// A runtime error
     LuaRuntime,
     /// A syntax error during precompilation
@@ -901,8 +899,8 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none` (Lua 5.2, 5.3, 5.4)
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_checkstack
-    pub fn checkStack(lua: *Lua, n: i32) !void {
-        if (c.lua_checkstack(@ptrCast(lua), n) == 0) return error.LuaError;
+    pub fn checkStack(lua: *Lua, n: i32) error{NoSpace}!void {
+        if (c.lua_checkstack(@ptrCast(lua), n) == 0) return error.NoSpace;
     }
 
     /// Close the to-be-closed slot at the given index and set its value to nil. The index must be the last index previously
@@ -921,20 +919,21 @@ pub const Lua = opaque {
     }
 
     /// Resets a thread, cleaning its call stack and closing all pending to-be-closed variables. Returns an
-    /// error status if an error occurs and leaves the error object on the top of the stack.
+    /// error if an error occurs (either the original error that stopped the thread or errors in closing
+    /// methods) and leaves the error object on the top of the stack.
     ///
     /// The parameter `from` represents the coroutine that is resetting `lua`. If there is no such coroutine, this parameter can be
     /// `null`.
     ///
-    /// Only implemented in Lua 5.4
+    /// Only implemented in Lua 5.4 and 5.5
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `?`
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_closethread
-    pub fn closeThread(lua: *Lua, from: ?*Lua) !void {
-        if (c.lua_closethread(@ptrCast(lua), if (from) |f| @ptrCast(f) else null) != StatusCode.ok) return error.LuaError;
+    pub fn closeThread(lua: *Lua, from: ?*Lua) error{ThreadError}!void {
+        if (c.lua_closethread(@ptrCast(lua), if (from) |f| @ptrCast(f) else null) != StatusCode.ok) return error.ThreadError;
     }
 
     /// Compares two Lua values.
@@ -1020,12 +1019,12 @@ pub const Lua = opaque {
         c.lua_createtable(@ptrCast(lua), num_arr, num_rec);
     }
 
-    fn dump51(lua: *Lua, writer: CWriterFn, data: *anyopaque) !void {
-        if (c.lua_dump(@ptrCast(lua), writer, data) != 0) return error.LuaError;
+    fn dump51(lua: *Lua, writer: CWriterFn, data: *anyopaque) error{WriteError}!void {
+        if (c.lua_dump(@ptrCast(lua), writer, data) != 0) return error.WriteError;
     }
 
-    fn dump53(lua: *Lua, writer: CWriterFn, data: *anyopaque, strip: bool) !void {
-        if (c.lua_dump(@ptrCast(lua), writer, data, @intFromBool(strip)) != 0) return error.LuaError;
+    fn dump53(lua: *Lua, writer: CWriterFn, data: *anyopaque, strip: bool) error{WriteError}!void {
+        if (c.lua_dump(@ptrCast(lua), writer, data, @intFromBool(strip)) != 0) return error.WriteError;
     }
 
     /// Dumps a function as a binary chunk.
@@ -1741,11 +1740,13 @@ pub const Lua = opaque {
         return @ptrCast(@alignCast(ptr));
     }
 
-    /// Returns the tag of a userdata at the given index
-    /// TODO: rename to getUserdataTag?
-    pub fn userdataTag(lua: *Lua, index: i32) !i32 {
+    /// Returns the tag of a userdata at the given index or an error if the
+    /// value is not a tagged userdata.
+    ///
+    /// Only available in Luau.
+    pub fn getUserdataTag(lua: *Lua, index: i32) error{ExpectedTaggedUserdata}!i32 {
         const tag = c.lua_userdatatag(@ptrCast(lua), index);
-        if (tag == -1) return error.LuaError;
+        if (tag == -1) return error.ExpectedTaggedUserdata;
         return tag;
     }
 
@@ -1779,18 +1780,21 @@ pub const Lua = opaque {
         return c.lua_next(@ptrCast(lua), index) != 0;
     }
 
-    /// Tries to convert a Lua float to a Lua integer; the float `n` must have an integral value. If that value is within the range of Lua integers, it is converted to an integer and assigned to *p. The macro results in a boolean indicating whether the conversion was successful. (Note that this range test can be tricky to do correctly without this macro, due to rounding.)
+    /// Tries to convert a Lua float to a Lua integer; the float `n` must have
+    /// an integral value. If that value is within the range of Lua integers,
+    /// it is converted to an integer and returned. If the integer is not in range,
+    /// error.Overflow is returned.
     ///
-    /// Only available in Lua 5.4
+    /// Only available in Lua 5.4 and Lua 5.5.
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_numbertointeger
-    pub fn numberToInteger(n: Number) !Integer {
+    pub fn numberToInteger(n: Number) error{Overflow}!Integer {
         // translate-c failure
         // return c.lua_numbertointeger(n, i) != 0;
         const min_float: Number = @floatFromInt(min_integer);
         if (n >= min_float and n < -min_float) {
             return @intFromFloat(n);
-        } else return error.LuaError;
+        } else return error.Overflow;
     }
 
     /// Returns the "length" of the value at the given acceptable `index`:
@@ -2463,15 +2467,15 @@ pub const Lua = opaque {
     /// Pops a table from the stack and sets it as the new environment for the value at the
     /// given `index`. Returns an error if the value at that index is not a function or thread or userdata.
     ///
-    /// Only implemented in Lua 5.1 and Luau
+    /// Only implemented in Lua 5.1, Luajit, and Luau.
     ///
     /// * Pops from Stack: `1`
     /// * Pushes to Stack: `0`
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.1/manual.html#lua_setfenv
-    pub fn setFnEnvironment(lua: *Lua, index: i32) !void {
-        if (c.lua_setfenv(@ptrCast(lua), index) == 0) return error.LuaError;
+    pub fn setFnEnvironment(lua: *Lua, index: i32) error{InvalidValue}!void {
+        if (c.lua_setfenv(@ptrCast(lua), index) == 0) return error.InvalidValue;
     }
 
     /// Does the equivalent to `t[k] = v` where `t` is the value at the given `index`
@@ -2527,8 +2531,8 @@ pub const Lua = opaque {
     /// the full userdata at the given index
     /// Returns an error if the userdata does not have that value
     /// See https://www.lua.org/manual/5.4/manual.html#lua_setiuservalue
-    fn setUserValue54(lua: *Lua, index: i32, n: i32) !void {
-        if (c.lua_setiuservalue(@ptrCast(lua), index, n) == 0) return error.LuaError;
+    fn setUserValue54(lua: *Lua, index: i32, n: i32) error{OutOfBounds}!void {
+        if (c.lua_setiuservalue(@ptrCast(lua), index, n) == 0) return error.OutOfBounds;
     }
 
     pub const setUserValue = switch (lang) {
@@ -2613,19 +2617,20 @@ pub const Lua = opaque {
         return @enumFromInt(c.lua_status(@ptrCast(lua)));
     }
 
-    /// Converts the zero-terminated string `str` to a number, pushes that number onto the stack,
-    /// Returns an error if conversion failed
+    /// Converts the zero-terminated string `str` to a number, pushes that
+    /// number onto the stack, Returns an error if conversion failed. The
+    /// string may have leading and trailing whitespaces and a sign.
     ///
-    /// Only available in Lua 5.3 and 5.4
+    /// Only available in Lua 5.3, 5.4 and 5.5.
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `1`
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_stringtonumber
-    pub fn stringToNumber(lua: *Lua, str: [:0]const u8) !void {
+    pub fn stringToNumber(lua: *Lua, str: [:0]const u8) error{InvalidNumber}!void {
         const size = c.lua_stringtonumber(@ptrCast(lua), str.ptr);
-        if (size == 0) return error.LuaError;
+        if (size == 0) return error.InvalidNumber;
     }
 
     /// Converts the Lua value at the given index to a Zig boolean value. Like all tests in Lua, `Lua.toBoolean()` returns
@@ -2649,8 +2654,8 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_tocfunction
-    pub fn toCFunction(lua: *Lua, index: i32) !CFn {
-        return c.lua_tocfunction(@ptrCast(lua), index) orelse return error.LuaError;
+    pub fn toCFunction(lua: *Lua, index: i32) error{ExpectedFunction}!CFn {
+        return c.lua_tocfunction(@ptrCast(lua), index) orelse return error.ExpectedFunction;
     }
 
     /// Marks the given index in the stack as a to-be-closed slot
@@ -2702,17 +2707,17 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_tointeger'
-    pub fn toInteger(lua: *Lua, index: i32) !Integer {
+    pub fn toInteger(lua: *Lua, index: i32) error{ExpectedInteger}!Integer {
         switch (lang) {
             .lua51 => {
                 const result = c.lua_tointeger(@ptrCast(lua), index);
-                if (result == 0 and !lua.isNumber(index)) return error.LuaError;
+                if (result == 0 and !lua.isNumber(index)) return error.ExpectedInteger;
                 return result;
             },
             else => {
                 var success: c_int = undefined;
                 const result = c.lua_tointegerx(@ptrCast(lua), index, &success);
-                if (success == 0) return error.LuaError;
+                if (success == 0) return error.ExpectedInteger;
                 return result;
             },
         }
@@ -2727,24 +2732,24 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_tonumber
-    pub fn toNumber(lua: *Lua, index: i32) !Number {
+    pub fn toNumber(lua: *Lua, index: i32) error{ExpectedNumber}!Number {
         switch (lang) {
             .lua51 => {
                 const result = c.lua_tonumber(@ptrCast(lua), index);
-                if (result == 0 and !lua.isNumber(index)) return error.LuaError;
+                if (result == 0 and !lua.isNumber(index)) return error.ExpectedNumber;
                 return result;
             },
             else => {
                 var success: c_int = undefined;
                 const result = c.lua_tonumberx(@ptrCast(lua), index, &success);
-                if (success == 0) return error.LuaError;
+                if (success == 0) return error.ExpectedNumber;
                 return result;
             },
         }
     }
 
     /// Converts the value at the given index to a generic pointer (`*anyopaque`) The value can be a userdata, a table, a thread, a
-    /// string, or a function; otherwise, `Lua.toPointer()` returns an error. Different objects will give different pointers. There is
+    /// string, or a function; otherwise, `Lua.toPointer()` returns null. Different objects will give different pointers. There is
     /// no way to convert the pointer back to its original value.
     ///
     /// Typically this function is used only for hashing and debug information.
@@ -2754,9 +2759,8 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_topointer
-    pub fn toPointer(lua: *Lua, index: i32) !*const anyopaque {
-        if (c.lua_topointer(@ptrCast(lua), index)) |ptr| return ptr;
-        return error.LuaError;
+    pub fn toPointer(lua: *Lua, index: i32) ?*const anyopaque {
+        return c.lua_topointer(@ptrCast(lua), index);
     }
 
     /// Converts the Lua value at the given index to a slice. The
@@ -2776,10 +2780,10 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `memory` (All other versions)
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_tostring
-    pub fn toString(lua: *Lua, index: i32) ![:0]const u8 {
+    pub fn toString(lua: *Lua, index: i32) error{ExpectedString}![:0]const u8 {
         var length: usize = undefined;
         if (c.lua_tolstring(@ptrCast(lua), index, &length)) |ptr| return ptr[0..length :0];
-        return error.LuaError;
+        return error.ExpectedString;
     }
 
     /// Converts the value at the given `index` to a Lua thread.
@@ -2790,10 +2794,10 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_tothread
-    pub fn toThread(lua: *Lua, index: i32) !*Lua {
+    pub fn toThread(lua: *Lua, index: i32) error{ExpectedThread}!*Lua {
         const thread = c.lua_tothread(@ptrCast(lua), index);
         if (thread) |thread_ptr| return @ptrCast(thread_ptr);
-        return error.LuaError;
+        return error.ExpectedThread;
     }
 
     /// Converts the Lua value at the given index to an unsigned integer
@@ -2806,10 +2810,10 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.2/manual.html#lua_tounsignedx
-    pub fn toUnsigned(lua: *Lua, index: i32) !Unsigned {
+    pub fn toUnsigned(lua: *Lua, index: i32) error{ExpectedNumber}!Unsigned {
         var success: c_int = undefined;
         const result = c.lua_tounsignedx(@ptrCast(lua), index, &success);
-        if (success == 0) return error.LuaError;
+        if (success == 0) return error.ExpectedNumber;
         return result;
     }
 
@@ -2822,9 +2826,9 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_touserdata
-    pub fn toUserdata(lua: *Lua, comptime T: type, index: i32) !*T {
+    pub fn toUserdata(lua: *Lua, comptime T: type, index: i32) error{ExpectedUserdata}!*T {
         if (c.lua_touserdata(@ptrCast(lua), index)) |ptr| return @ptrCast(@alignCast(ptr));
-        return error.LuaError;
+        return error.ExpectedUserdata;
     }
 
     /// Returns a Lua-owned userdata slice of the given type at the given index.
@@ -2835,7 +2839,7 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_touserdata
-    pub fn toUserdataSlice(lua: *Lua, comptime T: type, index: i32) ![]T {
+    pub fn toUserdataSlice(lua: *Lua, comptime T: type, index: i32) error{ExpectedUserdata}![]T {
         if (c.lua_touserdata(@ptrCast(lua), index)) |ptr| {
             const size = switch (lang) {
                 .lua51, .luajit => lua.objectLen(index) / @sizeOf(T),
@@ -2844,21 +2848,21 @@ pub const Lua = opaque {
             };
             return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
         }
-        return error.LuaError;
+        return error.ExpectedUserdata;
     }
 
     /// Only available in Luau
-    pub fn toUserdataTagged(lua: *Lua, comptime T: type, index: i32, tag: i32) !*T {
+    pub fn toUserdataTagged(lua: *Lua, comptime T: type, index: i32, tag: i32) error{ExpectedTaggedUserdata}!*T {
         if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         if (c.lua_touserdatatagged(@ptrCast(lua), index, tag)) |ptr| return @ptrCast(@alignCast(ptr));
-        return error.LuaError;
+        return error.ExpectedTaggedUserdata;
     }
 
     /// Converts the Lua value at the given `index` to a 3- or 4-vector.
     /// The Lua value must be a vector.
     ///
     /// Only available in Luau
-    pub fn toVector(lua: *Lua, index: i32) ![luau_vector_size]f32 {
+    pub fn toVector(lua: *Lua, index: i32) error{ExpectedVector}![luau_vector_size]f32 {
         if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         const res = c.lua_tovector(@ptrCast(lua), index);
         if (res) |r| {
@@ -2868,33 +2872,33 @@ pub const Lua = opaque {
                 else => @compileError("invalid luau_vector_size - should not happen"),
             }
         }
-        return error.LuaError;
+        return error.ExpectedVector;
     }
 
     /// Converts the Lua string at the given `index` to a string atom.
     /// The Lua value must be a string.
     ///
     /// Only available in Luau
-    pub fn toStringAtom(lua: *Lua, index: i32) !struct { i32, [:0]const u8 } {
+    pub fn toStringAtom(lua: *Lua, index: i32) error{ExpectedString}!struct { i32, [:0]const u8 } {
         if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         var atom: c_int = undefined;
         if (c.lua_tostringatom(@ptrCast(lua), index, &atom)) |ptr| {
             return .{ atom, std.mem.span(ptr) };
         }
-        return error.LuaError;
+        return error.ExpectedString;
     }
 
     /// Retrieve the user atom index and name for the method being
-    /// invoked in a namecall.
+    /// invoked in a namecall. Returns an error when not invoked in a namecall.
     ///
     /// Only available in Luau
-    pub fn namecallAtom(lua: *Lua) !struct { i32, [:0]const u8 } {
+    pub fn namecallAtom(lua: *Lua) error{ExpectedNamecall}!struct { i32, [:0]const u8 } {
         if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         var atom: c_int = undefined;
         if (c.lua_namecallatom(@ptrCast(lua), &atom)) |ptr| {
             return .{ atom, std.mem.span(ptr) };
         }
-        return error.LuaError;
+        return error.ExpectedNamecall;
     }
 
     /// Returns the `LuaType` of the value at the given index.
@@ -3153,7 +3157,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getinfo
     pub const getInfo = if (lang == .luau) getInfoLuau else getInfoLua;
 
-    fn getLocalLua(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
+    fn getLocalLua(lua: *Lua, info: *DebugInfo, n: i32) error{OutOfBounds}![:0]const u8 {
         var ar: Debug = undefined;
 
         switch (lang) {
@@ -3164,14 +3168,14 @@ pub const Lua = opaque {
         if (c.lua_getlocal(@ptrCast(lua), &ar, n)) |name| {
             return std.mem.span(name);
         }
-        return error.LuaError;
+        return error.OutOfBounds;
     }
 
-    fn getLocalLuau(lua: *Lua, level: i32, n: i32) ![:0]const u8 {
+    fn getLocalLuau(lua: *Lua, level: i32, n: i32) error{OutOfBounds}![:0]const u8 {
         if (c.lua_getlocal(@ptrCast(lua), level, n)) |name| {
             return std.mem.span(name);
         }
-        return error.LuaError;
+        return error.OutOfBounds;
     }
 
     /// Gets information about a local variable or a temporary value of a given activation record or a given function.
@@ -3207,9 +3211,9 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getstack
-    pub fn getStack(lua: *Lua, level: i32) !DebugInfo {
+    pub fn getStack(lua: *Lua, level: i32) error{OutOfBounds}!DebugInfo {
         var ar: Debug = undefined;
-        if (c.lua_getstack(@ptrCast(lua), level, &ar) == 0) return error.LuaError;
+        if (c.lua_getstack(@ptrCast(lua), level, &ar) == 0) return error.OutOfBounds;
         return DebugInfo{
             .private = switch (lang) {
                 .lua51, .luajit => ar.i_ci,
@@ -3227,11 +3231,11 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getupvalue
-    pub fn getUpvalue(lua: *Lua, func_index: i32, n: i32) ![:0]const u8 {
+    pub fn getUpvalue(lua: *Lua, func_index: i32, n: i32) error{OutOfBounds}![:0]const u8 {
         if (c.lua_getupvalue(@ptrCast(lua), func_index, n)) |name| {
             return std.mem.span(name);
         }
-        return error.LuaError;
+        return error.OutOfBounds;
     }
 
     /// Sets the debugging hook function.
@@ -3265,7 +3269,7 @@ pub const Lua = opaque {
         _ = c.lua_sethook(@ptrCast(lua), f, hook_mask, count);
     }
 
-    fn setLocalLua(lua: *Lua, info: *DebugInfo, n: i32) ![:0]const u8 {
+    fn setLocalLua(lua: *Lua, info: *DebugInfo, n: i32) error{OutOfBounds}![:0]const u8 {
         var ar: Debug = undefined;
 
         switch (lang) {
@@ -3276,14 +3280,14 @@ pub const Lua = opaque {
         if (c.lua_setlocal(@ptrCast(lua), &ar, n)) |name| {
             return std.mem.span(name);
         }
-        return error.LuaError;
+        return error.OutOfBounds;
     }
 
-    fn setLocalLuau(lua: *Lua, level: i32, n: i32) ![:0]const u8 {
+    fn setLocalLuau(lua: *Lua, level: i32, n: i32) error{OutOfBounds}![:0]const u8 {
         if (c.lua_setlocal(@ptrCast(lua), level, n)) |name| {
             return std.mem.span(name);
         }
-        return error.LuaError;
+        return error.OutOfBounds;
     }
 
     /// Sets the value of a local variable of a given activation record. It assigns the value on the top of the stack to the
@@ -3310,11 +3314,11 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_setupvalue
-    pub fn setUpvalue(lua: *Lua, func_index: i32, n: i32) ![:0]const u8 {
+    pub fn setUpvalue(lua: *Lua, func_index: i32, n: i32) error{OutOfBounds}![:0]const u8 {
         if (c.lua_setupvalue(@ptrCast(lua), func_index, n)) |name| {
             return std.mem.span(name);
         }
-        return error.LuaError;
+        return error.OutOfBounds;
     }
 
     /// Only available in Luau
@@ -3347,9 +3351,8 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_upvalueid
-    pub fn upvalueId(lua: *Lua, func_index: i32, n: i32) !*anyopaque {
-        if (c.lua_upvalueid(@ptrCast(lua), func_index, n)) |ptr| return ptr;
-        return error.LuaError;
+    pub fn upvalueId(lua: *Lua, func_index: i32, n: i32) ?*anyopaque {
+        return c.lua_upvalueid(@ptrCast(lua), func_index, n);
     }
 
     /// Make the `n1`-th upvalue of the Lua closure at index `func_index1` refer to the `n2`-th upvalue of the Lua closure at index
@@ -3426,8 +3429,8 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `any`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_callmeta
-    pub fn callMeta(lua: *Lua, obj: i32, field: [:0]const u8) !void {
-        if (c.luaL_callmeta(@ptrCast(lua), obj, field.ptr) == 0) return error.LuaError;
+    pub fn callMeta(lua: *Lua, obj: i32, field: [:0]const u8) error{NoMetamethod}!void {
+        if (c.luaL_callmeta(@ptrCast(lua), obj, field.ptr) == 0) return error.NoMetamethod;
     }
 
     /// Checks whether the function has an argument of any type (including nil) at position `arg`
@@ -3844,8 +3847,8 @@ pub const Lua = opaque {
     /// Loads bytecode binary (as compiled with f.ex. 'luau-compile --binary')
     /// See https://luau-lang.org/getting-started
     /// See also condsiderations for binary bytecode compatibility/safety: https://github.com/luau-lang/luau/issues/493#issuecomment-1185054665
-    pub fn loadBytecode(lua: *Lua, chunkname: [:0]const u8, bytecode: []const u8) !void {
-        if (c.luau_load(@ptrCast(lua), chunkname.ptr, bytecode.ptr, bytecode.len, 0) != 0) return error.LuaError;
+    pub fn loadBytecode(lua: *Lua, chunkname: [:0]const u8, bytecode: []const u8) error{InvalidBytecode}!void {
+        if (c.luau_load(@ptrCast(lua), chunkname.ptr, bytecode.ptr, bytecode.len, 0) != 0) return error.InvalidBytecode;
     }
 
     fn loadFile51(lua: *Lua, file_name: [:0]const u8) !void {
@@ -3956,8 +3959,8 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `memory`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_newmetatable
-    pub fn newMetatable(lua: *Lua, key: [:0]const u8) !void {
-        if (c.luaL_newmetatable(@ptrCast(lua), key.ptr) == 0) return error.LuaError;
+    pub fn newMetatable(lua: *Lua, key: [:0]const u8) error{KeyInRegistry}!void {
+        if (c.luaL_newmetatable(@ptrCast(lua), key.ptr) == 0) return error.KeyInRegistry;
     }
 
     // luaL_opt (a macro) really isn't that useful, so not going to implement for now
@@ -4063,9 +4066,8 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `memory`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_ref
-    pub fn ref(lua: *Lua, index: i32) !i32 {
-        const ret = if (lang == .luau) c.lua_ref(@ptrCast(lua), index) else c.luaL_ref(@ptrCast(lua), index);
-        return if (ret == ref_nil) error.LuaError else ret;
+    pub fn ref(lua: *Lua, index: i32) i32 {
+        return if (lang == .luau) c.lua_ref(@ptrCast(lua), index) else c.luaL_ref(@ptrCast(lua), index);
     }
 
     /// Opens a library
@@ -4193,10 +4195,10 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `memory`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_testudata
-    pub fn testUserdata(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) !*T {
+    pub fn testUserdata(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) error{ExpectedUserdata}!*T {
         if (c.luaL_testudata(@ptrCast(lua), arg, name.ptr)) |ptr| {
             return @ptrCast(@alignCast(ptr));
-        } else return error.LuaError;
+        } else return error.ExpectedUserdata;
     }
 
     /// This function works like `Lua.checkUserdataSlice()` except it returns a Zig error instead of raising a Lua error on fail
@@ -4208,11 +4210,11 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `memory`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkudata
-    pub fn testUserdataSlice(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) ![]T {
+    pub fn testUserdataSlice(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) error{ExpectedUserdata}![]T {
         if (c.luaL_testudata(@ptrCast(lua), arg, name.ptr)) |ptr| {
             const size = lua.rawLen(arg) / @sizeOf(T);
             return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
-        } else return error.LuaError;
+        } else return error.ExpectedUserdata;
     }
 
     /// Converts any Lua value at the given index into a string in a reasonable format

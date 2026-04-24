@@ -109,12 +109,12 @@ test "number conversion success and failure" {
     try expectEqual(1234, try lua.toInteger(-1));
 
     lua.pushNil();
-    try expectError(error.LuaError, lua.toNumber(-1));
-    try expectError(error.LuaError, lua.toInteger(-1));
+    try expectError(error.ExpectedNumber, lua.toNumber(-1));
+    try expectError(error.ExpectedInteger, lua.toInteger(-1));
 
     _ = lua.pushString("fail");
-    try expectError(error.LuaError, lua.toNumber(-1));
-    try expectError(error.LuaError, lua.toInteger(-1));
+    try expectError(error.ExpectedNumber, lua.toNumber(-1));
+    try expectError(error.ExpectedInteger, lua.toInteger(-1));
 }
 
 test "arithmetic (lua_arith)" {
@@ -314,7 +314,7 @@ test "unsigned" {
     try expectEqual(123456, try lua.toUnsigned(-1));
 
     _ = lua.pushString("hello");
-    try expectError(error.LuaError, lua.toUnsigned(-1));
+    try expectError(error.ExpectedNumber, lua.toUnsigned(-1));
 }
 
 test "executing string contents" {
@@ -330,7 +330,7 @@ test "executing string contents" {
     try expectEqual(.number, try lua.getGlobal("a"));
     try expectEqual(12, try lua.toInteger(1));
 
-    try expectError(if (zlua.lang == .luau) error.LuaError else error.LuaSyntax, lua.loadString("bad syntax"));
+    try expectError(if (zlua.lang == .luau) error.InvalidBytecode else error.LuaSyntax, lua.loadString("bad syntax"));
     try lua.loadString("a = g()");
     try expectError(error.LuaRuntime, lua.protectedCall(.{}));
 }
@@ -353,7 +353,7 @@ test "filling and checking the stack" {
     try expectEqual(30, lua.getTop());
 
     // this should fail (beyond max stack size)
-    try expectError(error.LuaError, lua.checkStack(1_000_000));
+    try expectError(error.NoSpace, lua.checkStack(1_000_000));
 
     // this is small enough it won't fail (would raise an error if it did)
     lua.checkStackErr(40, null);
@@ -836,7 +836,7 @@ test "conversions" {
 
     // number conversion
     try expectEqual(3, Lua.numberToInteger(3.14));
-    try expectError(error.LuaError, Lua.numberToInteger(@as(zlua.Number, @floatFromInt(zlua.max_integer)) + 10));
+    try expectError(error.Overflow, Lua.numberToInteger(@as(zlua.Number, @floatFromInt(zlua.max_integer)) + 10));
 
     // string conversion
     try lua.stringToNumber("1");
@@ -847,9 +847,9 @@ test "conversions" {
     try expect(lua.isNumber(-1));
     try expectEqual(1.0, try lua.toNumber(-1));
 
-    try expectError(error.LuaError, lua.stringToNumber("a"));
-    try expectError(error.LuaError, lua.stringToNumber("1.a"));
-    try expectError(error.LuaError, lua.stringToNumber(""));
+    try expectError(error.InvalidNumber, lua.stringToNumber("a"));
+    try expectError(error.InvalidNumber, lua.stringToNumber("1.a"));
+    try expectError(error.InvalidNumber, lua.stringToNumber(""));
 }
 
 test "absIndex" {
@@ -958,7 +958,7 @@ test "userdata and uservalues" {
     @memcpy(&data.code, "abcd");
 
     try expectEqual(data, try lua.toUserdata(Data, 1));
-    try expectEqual(@as(*const anyopaque, @ptrCast(data)), try lua.toPointer(1));
+    try expectEqual(@as(*const anyopaque, @ptrCast(data)), lua.toPointer(1));
 
     if (zlua.lang == .lua52 or zlua.lang == .lua53) {
         // assign the associated user value
@@ -980,7 +980,7 @@ test "userdata and uservalues" {
         try expectEqual(.string, try lua.getUserValue(1, 2));
         try expectEqualStrings("test string", try lua.toString(-1));
 
-        try expectError(error.LuaError, lua.setUserValue(1, 3));
+        try expectError(error.OutOfBounds, lua.setUserValue(1, 3));
         try expectError(error.LuaError, lua.getUserValue(1, 3));
     }
 }
@@ -1500,11 +1500,11 @@ test "ref" {
     defer lua.deinit();
 
     lua.pushNil();
-    try expectError(error.LuaError, lua.ref(zlua.registry_index));
+    try expectEqual(zlua.ref_nil, lua.ref(zlua.registry_index));
     try expectEqual(0, lua.getTop());
 
     _ = lua.pushString("Hello there");
-    const ref = try lua.ref(zlua.registry_index);
+    const ref = lua.ref(zlua.registry_index);
 
     _ = lua.rawGetIndex(zlua.registry_index, ref);
     try expectEqualStrings("Hello there", try lua.toString(-1));
@@ -1519,13 +1519,13 @@ test "ref luau" {
     defer lua.deinit();
 
     lua.pushNil();
-    try expectError(error.LuaError, lua.ref(1));
+    try expectEqual(zlua.ref_nil, lua.ref(1));
     try expectEqual(1, lua.getTop());
 
     // In luau lua.ref does not pop the item from the stack
     // and the data is stored in the registry_index by default
     _ = lua.pushString("Hello there");
-    const ref = try lua.ref(2);
+    const ref = lua.ref(2);
 
     _ = lua.rawGetIndex(zlua.registry_index, ref);
     try expectEqualStrings("Hello there", try lua.toString(-1));
@@ -1756,7 +1756,7 @@ test "userdata slices" {
 }
 
 test "function environments" {
-    if (zlua.lang != .lua51 and zlua.lang != .luau) return;
+    if (zlua.lang != .lua51 and zlua.lang != .luajit and zlua.lang != .luau) return;
 
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
@@ -1983,7 +1983,7 @@ test "debug upvalues" {
     _ = try lua.getGlobal("addone");
 
     // index doesn't exist
-    try expectError(error.LuaError, lua.getUpvalue(1, 2));
+    try expectError(error.OutOfBounds, lua.getUpvalue(1, 2));
 
     // inspect the upvalue (should be x)
     try expectEqualStrings(if (zlua.lang == .luau) "" else "x", try lua.getUpvalue(-1, 1));
@@ -1995,7 +1995,7 @@ test "debug upvalues" {
     _ = try lua.setUpvalue(-2, 1);
 
     // test a bad index (the valid one's result is unpredicable)
-    if (zlua.lang == .lua54 or zlua.lang == .lua55) try expectError(error.LuaError, lua.upvalueId(-1, 2));
+    if (zlua.lang == .lua54 or zlua.lang == .lua55) try expectEqual(null, lua.upvalueId(-1, 2));
 
     // call the new function (should return 7)
     lua.pushNumber(2);
@@ -2015,7 +2015,7 @@ test "debug upvalues" {
 
     // now addone and addthree share the same upvalue
     lua.upvalueJoin(-2, 1, -1, 1);
-    try expect((try lua.upvalueId(-2, 1)) == try lua.upvalueId(-1, 1));
+    try expect(lua.upvalueId(-2, 1) == lua.upvalueId(-1, 1));
 }
 
 test "getstack" {
@@ -2024,7 +2024,7 @@ test "getstack" {
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
-    try expectError(error.LuaError, lua.getStack(1));
+    try expectError(error.OutOfBounds, lua.getStack(1));
 
     const function = struct {
         fn inner(l: *Lua) !i32 {
@@ -2099,7 +2099,7 @@ test "userdata dtor" {
 
         var data = lua.newUserdataDtor(Data, zlua.wrap(Data.dtor));
         data.gc_hits_ptr = &gc_hits;
-        try expectEqual(@as(*anyopaque, @ptrCast(data)), try lua.toPointer(1));
+        try expectEqual(@as(*anyopaque, @ptrCast(data)), lua.toPointer(1));
         try expectEqual(0, gc_hits);
         lua.pop(1); // don't let the stack hold a ref to the user data
         lua.gcCollect();
@@ -2126,22 +2126,22 @@ test "tagged userdata" {
     const data2 = try lua.toUserdataTagged(Data, -1, 13);
     try testing.expectEqual(data.val, data2.val);
 
-    var tag = try lua.userdataTag(-1);
+    var tag = try lua.getUserdataTag(-1);
     try testing.expectEqual(13, tag);
 
     lua.setUserdataTag(-1, 100);
-    tag = try lua.userdataTag(-1);
+    tag = try lua.getUserdataTag(-1);
     try testing.expectEqual(100, tag);
 
     // Test that tag mismatch error handling works.  Userdata is not tagged with 123.
-    try expectError(error.LuaError, lua.toUserdataTagged(Data, -1, 123));
+    try expectError(error.ExpectedTaggedUserdata, lua.toUserdataTagged(Data, -1, 123));
 
     // should not fail
     _ = try lua.toUserdataTagged(Data, -1, 100);
 
-    // Integer is not userdata, so userdataTag should fail.
+    // Integer is not userdata, so getUserdataTag should fail.
     lua.pushInteger(13);
-    try expectError(error.LuaError, lua.userdataTag(-1));
+    try expectError(error.ExpectedTaggedUserdata, lua.getUserdataTag(-1));
 }
 
 fn vectorCtor(l: *Lua) !i32 {
@@ -2243,7 +2243,7 @@ test "useratom" {
     try expectEqual(-1, atom_idx2);
 
     lua.pushInteger(13);
-    try expectError(error.LuaError, lua.toStringAtom(-1));
+    try expectError(error.ExpectedString, lua.toStringAtom(-1));
 }
 
 test "namecall" {

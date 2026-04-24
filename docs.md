@@ -46,8 +46,6 @@ Here is a list of the features Ziglua uses for greater safety:
 
 Many functions now return Zig errors rather than an integer code. The Zig compiler will then ensure that the error is handled, or ignored. There are specific error types like `ziglua.error.LuaRuntime` for errors that have a specific meaning.
 
-On the other hand, many functions either succeed or return an error. Rather than returning a boolean success code, these functions return the generic `ziglua.Error.LuaError` to indicate failure. The type of failure can be determined in the context of the function called.
-
 ### Booleans
 
 Functions that return or accept C boolean integers now use the Zig `bool` type.
