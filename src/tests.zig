@@ -2213,7 +2213,8 @@ test "useratom" {
     if (zlua.lang != .luau) return;
 
     const useratomCb = struct {
-        pub fn inner(str: []const u8) i16 {
+        pub fn inner(l: *Lua, str: []const u8) i16 {
+            _ = l;
             if (std.mem.eql(u8, str, "method_one")) {
                 return 0;
             } else if (std.mem.eql(u8, str, "another_method")) {
@@ -2256,7 +2257,8 @@ test "namecall" {
         // The useratom callback to initially form a mapping from method names to
         // integer indices. The indices can then be used to quickly dispatch the right
         // method in namecalls without needing to perform string compares.
-        pub fn useratomCb(str: []const u8) i16 {
+        pub fn useratomCb(l: *Lua, str: []const u8) i16 {
+            _ = l;
             if (std.mem.eql(u8, str, "dot")) {
                 return dot_idx;
             }

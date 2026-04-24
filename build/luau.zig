@@ -17,6 +17,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
         .root_module = lib,
     });
 
+    lib.addIncludePath(upstream.path("Bytecode/include"));
     lib.addIncludePath(upstream.path("Common/include"));
     lib.addIncludePath(upstream.path("Compiler/include"));
     lib.addIncludePath(upstream.path("Ast/include"));
@@ -49,9 +50,13 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
 }
 
 const luau_source_files = [_][]const u8{
+    "Bytecode/src/BytecodeBuilder.cpp",
+    "Bytecode/src/BytecodeGraph.cpp",
+
+    "Common/src/StringUtils.cpp",
+
     "Compiler/src/BuiltinFolding.cpp",
     "Compiler/src/Builtins.cpp",
-    "Compiler/src/BytecodeBuilder.cpp",
     "Compiler/src/Compiler.cpp",
     "Compiler/src/ConstantFolding.cpp",
     "Compiler/src/CostModel.cpp",
@@ -75,6 +80,7 @@ const luau_source_files = [_][]const u8{
     "VM/src/lgc.cpp",
     "VM/src/lgcdebug.cpp",
     "VM/src/linit.cpp",
+    "VM/src/lintlib.cpp",
     "VM/src/lmathlib.cpp",
     "VM/src/lmem.cpp",
     "VM/src/lnumprint.cpp",
@@ -97,9 +103,9 @@ const luau_source_files = [_][]const u8{
     "Ast/src/Allocator.cpp",
     "Ast/src/Ast.cpp",
     "Ast/src/Confusables.cpp",
+    "Ast/src/Cst.cpp",
     "Ast/src/Lexer.cpp",
     "Ast/src/Location.cpp",
     "Ast/src/Parser.cpp",
-    "Ast/src/StringUtils.cpp",
-    "Ast/src/TimeTrace.cpp",
+    "Ast/src/PrettyPrinter.cpp",
 };

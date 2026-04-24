@@ -109,7 +109,7 @@ pub const CUserdataDtorFn = *const fn (userdata: *anyopaque) callconv(.c) void;
 pub const CInterruptCallbackFn = *const fn (state: ?*LuaState, gc: c_int) callconv(.c) void;
 
 /// Type for C useratom callback
-pub const CUserAtomCallbackFn = *const fn (str: [*c]const u8, len: usize) callconv(.c) i16;
+pub const CUserAtomCallbackFn = *const fn (state: ?*LuaState, str: [*c]const u8, len: usize) callconv(.c) i16;
 
 /// The internal Lua debug structure
 const Debug = c.lua_Debug;
@@ -5262,12 +5262,12 @@ fn TypeOfWrap(comptime function: anytype) type {
     const params = @typeInfo(@TypeOf(function)).@"fn".params;
     if (params.len == 1) {
         if (params[0].type.? == *Lua) return CFn;
-        if (params[0].type.? == []const u8) return CUserAtomCallbackFn;
         if (params[0].type.? == *anyopaque) return CUserdataDtorFn;
     }
     if (params.len == 2) {
         if (params[0].type.? == *Lua) {
             if (params[1].type.? == i32) return CInterruptCallbackFn;
+            if (params[1].type.? == []const u8) return CUserAtomCallbackFn;
             if (params[1].type.? == *anyopaque) return CReaderFn;
         }
     }
@@ -5293,7 +5293,7 @@ fn TypeOfWrap(comptime function: anytype) type {
 /// * Wraps `fn (lua: *Lua, data: *anyopaque) ?[]const u8` as `CReaderFn`
 /// * Wraps `fn (data: *anyopaque) void` as `CUserdataDtorFn`
 /// * Wraps `fn (lua: *Lua, gc: i32) void` as `CInterruptCallbackFn`
-/// * Wraps `fn (str: []const u8) i16` as `CUserAtomCallbackFn`
+/// * Wraps `fn (lua: *Lua, str: []const u8) i16` as `CUserAtomCallbackFn`
 /// * Wraps `fn (data: ?*anyopaque, msg: []const u8, to_cont: bool) void` as `CWarnFn`
 /// * Wraps `fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool` as `CWriterFn`
 ///
@@ -5397,10 +5397,12 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
             }
         }.inner,
         CUserAtomCallbackFn => struct {
-            fn inner(str: [*c]const u8, len: usize) callconv(.c) i16 {
+            fn inner(state: ?*LuaState, str: [*c]const u8, len: usize) callconv(.c) i16 {
+                // This is called by Lua, state should never be null.
+                const lua: *Lua = @ptrCast(state.?);
                 if (str) |s| {
                     const buf = s[0..len];
-                    return @call(.always_inline, function, .{buf});
+                    return @call(.always_inline, function, .{lua, buf});
                 }
                 return -1;
             }
@@ -5474,6 +5476,13 @@ pub const CompileOptions = struct {
 
     /// null-terminated array of userdata types that will be included in the type information
     userdata_types: ?[*:null]const ?[*:0]const u8 = null,
+
+    // null-terminated array of globals which act as libraries and have members with known type and/or constant value
+    // when an import of one of these libraries is accessed, callbacks below will be called to receive that information
+    libraries_with_known_members: ?[*:null]const ?[*:0]const u8 = null,
+
+    // null-terminated array of library functions that should not be compiled into a built-in fastcall ("name" "lib.name")
+    disabled_builtins: ?[*:null]const ?[*:0]const u8 = null,
 };
 
 /// Compile luau source into bytecode, return callee owned buffer allocated through the given allocator.
@@ -5490,6 +5499,10 @@ pub fn compile(allocator: Allocator, source: []const u8, options: CompileOptions
         .vectorType = options.vector_type,
         .mutableGlobals = options.mutable_globals,
         .userdataTypes = options.userdata_types,
+        .librariesWithKnownMembers = options.libraries_with_known_members,
+        .libraryMemberTypeCb = null,
+        .libraryMemberConstantCb = null,
+        .disabledBuiltins = options.disabled_builtins,
     };
     const bytecode = c.luau_compile(source.ptr, source.len, &opts, &size);
     if (bytecode == null) return error.OutOfMemory;
