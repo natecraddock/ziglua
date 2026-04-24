@@ -4990,6 +4990,8 @@ pub const Lua = opaque {
                     @field(result, field.name) = default;
                 } else if (field_type_info != .optional) {
                     return error.LuaTableMissingValue;
+                } else {
+                    @field(result, field.name) = null;
                 }
             } else {
                 const stack_size_before_call = lua.getTop();
