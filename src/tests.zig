@@ -963,7 +963,7 @@ test "userdata and uservalues" {
     if (zlua.lang == .lua52 or zlua.lang == .lua53) {
         // assign the associated user value
         lua.pushNil();
-        try lua.setUserValue(1);
+        lua.setUserValue(1);
 
         _ = lua.getUserValue(1);
         try expectEqual(.nil, lua.typeOf(-1));
@@ -2715,7 +2715,7 @@ test "pushAny from struct with toLua" {
         foo: i32,
         tuple: std.meta.Tuple(&.{ i32, i32 }),
 
-        pub fn toLua(self: Self, l: *Lua) void {
+        pub fn toLua(self: Self, l: *Lua) !void {
             l.newTable();
 
             inline for (@typeInfo(Self).@"struct".fields) |f| {
