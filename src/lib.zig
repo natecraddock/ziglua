@@ -952,7 +952,7 @@ pub const Lua = opaque {
     /// containing `userdata`. In case of errors, `Lua.cProtectedCall()` returns the same error codes as `Lua.protectedCall()`, plus the error object on the
     /// top of the stack; otherwise, it returns zero, and does not change the stack. All values returned by `c_fn` are discarded.
     ///
-    /// Only implemented in Lua 5.1
+    /// Only implemented in Lua 5.1 and Luau.
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `(0|1)`
@@ -2260,7 +2260,7 @@ pub const Lua = opaque {
     /// Pushes onto the stack the value `t[k]`, where `t` is the table at the given `index` and `k` is the pointer `p` represented as a
     /// light userdata.
     ///
-    /// Not available in Lua 5.1, LuaJIT, or Luau
+    /// Not available in Lua 5.1 or LuaJIT
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `1`
@@ -2270,11 +2270,26 @@ pub const Lua = opaque {
     pub fn rawGetPtr(lua: *Lua, index: i32, p: *const anyopaque) LuaType {
         switch (lang) {
             .lua53, .lua54, .lua55 => return @enumFromInt(c.lua_rawgetp(@ptrCast(lua), index, p)),
+            .luau => return @enumFromInt(c.lua_rawgetp(@as(*LuaState, @ptrCast(lua)), index, @constCast(p))),
             else => {
                 c.lua_rawgetp(@ptrCast(lua), index, p);
                 return lua.typeOf(-1);
             },
         }
+    }
+
+    /// Pushes onto the stack the value `t[k]`, where `t` is the table at the given `index` and `k` is the pointer `p` represented as a
+    /// light userdata with the given `tag`.
+    ///
+    /// Only implemented in Luau.
+    ///
+    /// * Pops from Stack: `0`
+    /// * Pushes to Stack: `1`
+    /// * Lua Runtime Errors: `none`
+    ///
+    /// See https://sleitnick.github.io/luau-api/reference.html#lua_rawgetptagged
+    pub fn rawGetPtrTagged(lua: *Lua, index: i32, p: *const anyopaque, tag: i32) LuaType {
+        return @enumFromInt(c.lua_rawgetptagged(@as(*LuaState, @ptrCast(lua)), index, @constCast(p), tag));
     }
 
     /// Returns the raw "length" of the value at the given index:
@@ -2330,7 +2345,7 @@ pub const Lua = opaque {
     ///
     /// This function pops the value from the stack. The assignment is raw, that is, it does not use the `__newindex` metavalue.
     ///
-    /// Not available in Lua 5.1, LuaJIT or Luau
+    /// Not available in Lua 5.1 or LuaJIT
     ///
     /// * Pops from Stack: `1`
     /// * Pushes to Stack: `0`
@@ -2338,7 +2353,27 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawsetp
     pub fn rawSetPtr(lua: *Lua, index: i32, p: *const anyopaque) void {
-        c.lua_rawsetp(@ptrCast(lua), index, p);
+        switch (lang) {
+            .luau => c.lua_rawsetp(@as(*LuaState, @ptrCast(lua)), index, @constCast(p)),
+            else => c.lua_rawsetp(@ptrCast(lua), index, p),
+        }
+    }
+
+    /// Does the equivalent of `t[p] = v`, where `t` is the table at the given
+    /// `index`, `p` is encoded as a light userdata with the given `tag`, and
+    /// `v` is the value on the top of the stack.
+    ///
+    /// This function pops the value from the stack. The assignment is raw, that is, it does not use the `__newindex` metavalue.
+    ///
+    /// Only implemented in Luau.
+    ///
+    /// * Pops from Stack: `1`
+    /// * Pushes to Stack: `0`
+    /// * Lua Runtime Errors: `memory`
+    ///
+    /// See https://sleitnick.github.io/luau-api/reference.html#lua_rawsetptagged
+    pub fn rawSetPtrTagged(lua: *Lua, index: i32, p: *const anyopaque, tag: i32) void {
+        c.lua_rawsetptagged(@as(*LuaState, @ptrCast(lua)), index, @constCast(p), tag);
     }
 
     /// Sets the C function `f` as the new value of global `name`
@@ -2872,9 +2907,10 @@ pub const Lua = opaque {
     /// Only available in Luau
     pub fn toStringAtom(lua: *Lua, index: i32) error{ExpectedString}!struct { i32, [:0]const u8 } {
         if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        var length: usize = undefined;
         var atom: c_int = undefined;
-        if (c.lua_tostringatom(@ptrCast(lua), index, &atom)) |ptr| {
-            return .{ atom, std.mem.span(ptr) };
+        if (c.lua_tolstringatom(@ptrCast(lua), index, &length, &atom)) |ptr| {
+            return .{ atom, ptr[0..length :0] };
         }
         return error.ExpectedString;
     }

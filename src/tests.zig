@@ -449,7 +449,7 @@ test "calling a function" {
 }
 
 test "calling a function with cProtectedCall" {
-    if (zlua.lang != .lua51) return;
+    if (zlua.lang != .lua51 and zlua.lang != .luau) return;
 
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
@@ -1046,7 +1046,7 @@ test "table traversal" {
 }
 
 test "registry" {
-    if (langIn(.{ .lua51, .luajit, .luau })) return;
+    if (langIn(.{ .lua51, .luajit })) return;
 
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
@@ -1602,7 +1602,7 @@ test "args and errors" {
 }
 
 test "traceback" {
-    if (langIn(.{ .lua51, .luajit, .luau })) return;
+    if (langIn(.{ .lua51, .luajit })) return;
 
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
@@ -1619,7 +1619,11 @@ test "traceback" {
     try lua.doString("res = tracebackFn()");
 
     _ = try lua.getGlobal("res");
-    try expectEqualStrings("\nstack traceback:\n\t[string \"res = tracebackFn()\"]:1: in main chunk", try lua.toString(-1));
+    if (zlua.lang == .luau) {
+        try expectEqualStrings("\n[string \"...\"]:1\n", try lua.toString(-1));
+    } else {
+        try expectEqualStrings("\nstack traceback:\n\t[string \"res = tracebackFn()\"]:1: in main chunk", try lua.toString(-1));
+    }
 }
 
 test "getSubtable" {
@@ -2142,6 +2146,28 @@ test "tagged userdata" {
     // Integer is not userdata, so getUserdataTag should fail.
     lua.pushInteger(13);
     try expectError(error.ExpectedTaggedUserdata, lua.getUserdataTag(-1));
+}
+
+test "tagged raw get and set" {
+    if (zlua.lang != .luau) return;
+
+    var lua: *Lua = try .init(testing.allocator);
+    defer lua.deinit();
+
+    lua.newTable();
+
+    var value: usize = 42;
+    const tag = 5;
+
+    _ = lua.pushString("Some string");
+    lua.rawSetPtrTagged(1, &value, tag);
+
+    const lua_type = lua.rawGetPtrTagged(1, &value, tag);
+    try expectEqual(.string, lua_type);
+
+    // Wrong tag will return nil.
+    const fail = lua.rawGetPtrTagged(1, &value, 6);
+    try expectEqual(.nil, fail);
 }
 
 fn vectorCtor(l: *Lua) !i32 {
