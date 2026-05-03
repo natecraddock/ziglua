@@ -1,0 +1,14 @@
+.{
+    .name = .lpeg,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.16.0",
+    .paths = .{""},
+    .fingerprint = 0xcf1994ee10763830,
+    .dependencies = .{
+        .zlua = .{ .path = "../../" },
+        .lpeg = .{
+            .url = "https://www.inf.puc-rio.br/~roberto/lpeg/lpeg-1.1.0.tar.gz",
+            .hash = "N-V-__8AAMnaAwCEutreuREG3QayBVEZqUTDQFY1Nsrv2OIt",
+        },
+    },
+}

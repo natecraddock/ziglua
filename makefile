@@ -12,6 +12,7 @@ test:
 
 	zig build install-example-interpreter
 	zig build install-example-zig-function
+	zig build --build-file examples/lpeg/build.zig
 	zig build -Dlang=luau install-example-luau-bytecode
 
 docs:

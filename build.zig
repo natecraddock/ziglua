@@ -154,6 +154,22 @@ pub fn build(b: *Build) void {
         run_step.dependOn(&run_cmd.step);
     }
 
+    // definitions example
+    const def_exe = b.addExecutable(.{
+        .name = "define-zig-types",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/define-exe.zig"),
+            .target = target,
+        }),
+    });
+    def_exe.root_module.addImport("zlua", zlua);
+    var run_def_exe = b.addRunArtifact(def_exe);
+    run_def_exe.addFileArg(b.path("definitions.lua"));
+
+    const define_step = b.step("define", "Generate definitions.lua file");
+    define_step.dependOn(&run_def_exe.step);
+
+    // Documentation.
     const docs = b.addObject(.{
         .name = "zlua",
         .root_module = b.createModule(.{
@@ -171,19 +187,4 @@ pub fn build(b: *Build) void {
 
     const docs_step = b.step("docs", "Build and install the documentation");
     docs_step.dependOn(&install_docs.step);
-
-    // definitions example
-    const def_exe = b.addExecutable(.{
-        .name = "define-zig-types",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("examples/define-exe.zig"),
-            .target = target,
-        }),
-    });
-    def_exe.root_module.addImport("zlua", zlua);
-    var run_def_exe = b.addRunArtifact(def_exe);
-    run_def_exe.addFileArg(b.path("definitions.lua"));
-
-    const define_step = b.step("define", "Generate definitions.lua file");
-    define_step.dependOn(&run_def_exe.step);
 }

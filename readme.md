@@ -22,6 +22,8 @@ Example code is included in the [examples](https://github.com/natecraddock/ziglu
 * Run an example with `zig build run-example-<name>`
 * Install an example with `zig build install-example-<name>`
 
+An additional example (`examples/lpeg`) shows how to compile and link a Lua module written in C like LPeg.
+
 ## Why use Ziglua?
 Ziglua is a simple wrapper around the C API. Ziglua aims to mirror the [Lua C API](https://www.lua.org/manual/5.5/manual.html#4) as closely as possible, while improving ergonomics using Zig's features. For example:
 
@@ -60,6 +62,8 @@ pub fn build(b: *std.Build) void {
 ```
 
 This will compile the Lua C sources and link with your project.
+
+You can also use `lua_dep.artifact("lua")` to access the compiled lua library.
 
 There are currently three additional options that can be passed to `b.dependency()`:
 
