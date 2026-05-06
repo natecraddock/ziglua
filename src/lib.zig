@@ -1257,15 +1257,13 @@ pub const Lua = opaque {
 
     /// Pushes onto the stack the value of the global name. Returns the type of that value.
     ///
-    /// Returns an error if the global does not exist (is nil)
-    ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `1`
     /// * Lua Runtime Errors: `any`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getglobal
-    pub fn getGlobal(lua: *Lua, name: [:0]const u8) !LuaType {
-        const lua_type: LuaType = blk: {
+    pub fn getGlobal(lua: *Lua, name: [:0]const u8) LuaType {
+        return blk: {
             switch (lang) {
                 .lua53, .lua54, .lua55, .luau => break :blk @enumFromInt(c.lua_getglobal(@as(*LuaState, @ptrCast(lua)), name.ptr)),
                 else => {
@@ -1274,9 +1272,6 @@ pub const Lua = opaque {
                 },
             }
         };
-
-        if (lua_type == .nil) return error.LuaError;
-        return lua_type;
     }
 
     /// Pushes onto the stack the value `t[i]` where `t` is the value at the given `index`
@@ -1299,15 +1294,12 @@ pub const Lua = opaque {
         c.lua_getuservalue(@ptrCast(lua), index);
     }
 
-    // TODO: should all versions of getUserValue possibly fail?
     fn getUserValue53(lua: *Lua, index: i32) LuaType {
         return @enumFromInt(c.lua_getuservalue(@ptrCast(lua), index));
     }
 
-    fn getUserValue54(lua: *Lua, index: i32, n: i32) !LuaType {
-        const val_type: LuaType = @enumFromInt(c.lua_getiuservalue(@ptrCast(lua), index, n));
-        if (val_type == .none) return error.LuaError;
-        return val_type;
+    fn getUserValue54(lua: *Lua, index: i32, n: i32) LuaType {
+        return @enumFromInt(c.lua_getiuservalue(@ptrCast(lua), index, n));
     }
 
     /// Pushes onto the stack the nth user value associated with the full userdata at the given index
@@ -3773,12 +3765,9 @@ pub const Lua = opaque {
     /// * Pushes to Stack: `(0|1)`
     /// * Lua Runtime Errors: `memory`
     ///
-    /// TODO: possibly return an error if nil
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_getmetafield
-    pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) !LuaType {
-        const val_type: LuaType = @enumFromInt(c.luaL_getmetafield(@ptrCast(lua), obj, field.ptr));
-        if (val_type == .nil) return error.LuaError;
-        return val_type;
+    pub fn getMetaField(lua: *Lua, obj: i32, field: [:0]const u8) LuaType {
+        return @enumFromInt(c.luaL_getmetafield(@ptrCast(lua), obj, field.ptr));
     }
 
     /// Pushes onto the stack the metatable associated with the name tname in the
@@ -4839,12 +4828,15 @@ pub const Lua = opaque {
                 defer lua.pop(1);
 
                 for (0..arr_len) |i| {
-                    if (lua.getMetaField(-1, "__index")) |_| {
-                        lua.pushValue(-2);
-                        lua.pushInteger(@intCast(i + 1));
-                        lua.call(.{ .args = 1, .results = 1 });
-                    } else |_| {
-                        _ = lua.rawGetIndex(-1, @intCast(i + 1));
+                    switch (lua.getMetaField(-1, "__index")) {
+                        .nil => {
+                            _ = lua.rawGetIndex(-1, @intCast(i + 1));
+                        },
+                        else => {
+                            lua.pushValue(-2);
+                            lua.pushInteger(@intCast(i + 1));
+                            lua.call(.{ .args = 1, .results = 1 });
+                        },
                     }
                     defer lua.pop(1);
                     result[i] = try lua.toAny(child, -1);
@@ -4979,12 +4971,15 @@ pub const Lua = opaque {
             defer lua.pop(1);
 
             inline for (info.fields, 0..) |field, i| {
-                if (lua.getMetaField(-1, "__index")) |_| {
-                    lua.pushValue(-2);
-                    lua.pushInteger(@intCast(i + 1));
-                    lua.call(.{ .args = 1, .results = 1 });
-                } else |_| {
-                    _ = lua.rawGetIndex(-1, @intCast(i + 1));
+                switch (lua.getMetaField(-1, "__index")) {
+                    .nil => {
+                        _ = lua.rawGetIndex(-1, @intCast(i + 1));
+                    },
+                    else => {
+                        lua.pushValue(-2);
+                        lua.pushInteger(@intCast(i + 1));
+                        lua.call(.{ .args = 1, .results = 1 });
+                    },
                 }
                 defer lua.pop(1);
                 result[i] = try lua.toAnyInternal(field.type, a, allow_alloc, -1);
@@ -5047,7 +5042,7 @@ pub const Lua = opaque {
 
     /// Calls a function and pushes its return value to the top of the stack
     fn autoCallAndPush(lua: *Lua, comptime ReturnType: type, func_name: [:0]const u8, args: anytype) !void {
-        if (try lua.getGlobal(func_name) != LuaType.function) return error.LuaInvalidFunctionName;
+        if (lua.getGlobal(func_name) != .function) return error.LuaInvalidFunctionName;
 
         inline for (args) |arg| {
             try lua.pushAny(arg);
@@ -5132,14 +5127,14 @@ pub const Lua = opaque {
 
     ///get any lua global
     pub fn get(lua: *Lua, comptime ReturnType: type, name: [:0]const u8) !ReturnType {
-        _ = try lua.getGlobal(name);
+        _ = lua.getGlobal(name);
         return try lua.toAny(ReturnType, -1);
     }
 
     /// get any lua global
     /// can allocate memory
     pub fn getAlloc(lua: *Lua, comptime ReturnType: type, name: [:0]const u8) !Parsed(ReturnType) {
-        _ = try lua.getGlobal(name);
+        _ = lua.getGlobal(name);
         return try lua.toAnyAlloc(ReturnType, -1);
     }
 
