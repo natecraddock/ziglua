@@ -327,7 +327,7 @@ test "executing string contents" {
     try lua.loadString("a = f(2)");
     try lua.protectedCall(.{});
 
-    try expectEqual(.number, try lua.getGlobal("a"));
+    try expectEqual(.number, lua.getGlobal("a"));
     try expectEqual(12, try lua.toInteger(1));
 
     try expectError(if (zlua.lang == .luau) error.InvalidBytecode else error.LuaSyntax, lua.loadString("bad syntax"));
@@ -439,7 +439,7 @@ test "calling a function" {
 
     lua.register("zigadd", zlua.wrap(add));
 
-    _ = try lua.getGlobal("zigadd");
+    _ = lua.getGlobal("zigadd");
     lua.pushInteger(10);
     lua.pushInteger(32);
 
@@ -607,7 +607,7 @@ test "function registration" {
         lua.registerFns("testlib", &funcs);
 
         // testlib.add(1, 2)
-        _ = try lua.getGlobal("testlib");
+        _ = lua.getGlobal("testlib");
         _ = lua.getField(-1, "add");
         lua.pushInteger(1);
         lua.pushInteger(2);
@@ -757,7 +757,7 @@ test "table access" {
     defer lua.deinit();
 
     try lua.doString("a = { [1] = 'first', key = 'value', ['other one'] = 1234 }");
-    _ = try lua.getGlobal("a");
+    _ = lua.getGlobal("a");
 
     if (zlua.lang == .lua53 or zlua.lang == .lua54 or zlua.lang == .lua55) {
         try expectEqual(.string, lua.rawGetIndex(1, 1));
@@ -798,14 +798,14 @@ test "table access" {
     lua.setMetatable(1);
 
     try lua.getMetatable(1);
-    _ = try lua.getMetaField(1, "__len");
-    try expectError(error.LuaError, lua.getMetaField(1, "__index"));
+    _ = lua.getMetaField(1, "__len");
+    try expectEqual(.nil, lua.getMetaField(1, "__index"));
 
     lua.pushBoolean(true);
     lua.setField(1, "bool");
 
     try lua.doString("b = a.bool");
-    try expectEqual(.boolean, try lua.getGlobal("b"));
+    try expectEqual(.boolean, lua.getGlobal("b"));
     try expect(lua.toBoolean(-1));
 
     // create array [1, 2, 3, 4, 5]
@@ -871,7 +871,7 @@ test "dump and load" {
     // store a function in a global
     try lua.doString("f = function(x) return function(n) return n + x end end");
     // put the function on the stack
-    _ = try lua.getGlobal("f");
+    _ = lua.getGlobal("f");
 
     const writer = struct {
         fn inner(l: *Lua, buf: []const u8, data: *anyopaque) bool {
@@ -975,13 +975,13 @@ test "userdata and uservalues" {
         _ = lua.pushStringZ("test string");
         try lua.setUserValue(1, 2);
 
-        try expectEqual(.number, try lua.getUserValue(1, 1));
+        try expectEqual(.number, lua.getUserValue(1, 1));
         try expectEqual(1234.56, try lua.toNumber(-1));
-        try expectEqual(.string, try lua.getUserValue(1, 2));
+        try expectEqual(.string, lua.getUserValue(1, 2));
         try expectEqualStrings("test string", try lua.toString(-1));
 
         try expectError(error.OutOfBounds, lua.setUserValue(1, 3));
-        try expectError(error.LuaError, lua.getUserValue(1, 3));
+        try expectEqual(.none, lua.getUserValue(1, 3));
     }
 }
 
@@ -1009,7 +1009,7 @@ test "upvalues" {
     // call the function repeatedly, each time ensuring the result increases by one
     var expected: i32 = 1;
     while (expected <= 10) : (expected += 1) {
-        _ = try lua.getGlobal("counter");
+        _ = lua.getGlobal("counter");
         lua.call(.{ .results = 1 });
         try expectEqual(expected, try lua.toInteger(-1));
         lua.pop(1);
@@ -1021,7 +1021,7 @@ test "table traversal" {
     defer lua.deinit();
 
     try lua.doString("t = { key = 'value', second = true, third = 1 }");
-    _ = try lua.getGlobal("t");
+    _ = lua.getGlobal("t");
 
     lua.pushNil();
 
@@ -1077,21 +1077,21 @@ test "closing vars" {
     );
 
     lua.newTable();
-    _ = try lua.getGlobal("mt");
+    _ = lua.getGlobal("mt");
     lua.setMetatable(-2);
     lua.toClose(-1);
     lua.closeSlot(-1);
     lua.pop(1);
 
     lua.newTable();
-    _ = try lua.getGlobal("mt");
+    _ = lua.getGlobal("mt");
     lua.setMetatable(-2);
     lua.toClose(-1);
     lua.closeSlot(-1);
     lua.pop(1);
 
     // this should have incremented "closed_vars" to 2
-    _ = try lua.getGlobal("closed_vars");
+    _ = lua.getGlobal("closed_vars");
     try expectEqual(2, try lua.toNumber(-1));
 }
 
@@ -1252,7 +1252,7 @@ test "resuming" {
         \\  return "done"
         \\end
     );
-    _ = try thread.getGlobal("counter");
+    _ = thread.getGlobal("counter");
 
     var num_results: i32 = 0;
     var i: i32 = 1;
@@ -1442,7 +1442,7 @@ test "get global fail" {
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
-    try expectError(error.LuaError, lua.getGlobal("foo"));
+    try expectEqual(.nil, lua.getGlobal("foo"));
 }
 
 test "globalSub" {
@@ -1466,7 +1466,7 @@ test "loadBuffer" {
     } else _ = try lua.loadBuffer("global = 10", "chunkname", .text);
 
     try lua.protectedCall(.{ .args = 0, .results = zlua.mult_return });
-    _ = try lua.getGlobal("global");
+    _ = lua.getGlobal("global");
     try expectEqual(10, try lua.toInteger(-1));
 }
 
@@ -1489,7 +1489,7 @@ test "where" {
         \\ret = whereFn()
     );
 
-    _ = try lua.getGlobal("ret");
+    _ = lua.getGlobal("ret");
     try expectEqualStrings("[string \"...\"]:2: ", try lua.toString(-1));
 }
 
@@ -1548,7 +1548,7 @@ test "metatables" {
     }
 
     // set the len metamethod to the function f
-    _ = try lua.getGlobal("f");
+    _ = lua.getGlobal("f");
     lua.setField(1, "__len");
 
     lua.newTable();
@@ -1618,7 +1618,7 @@ test "traceback" {
     lua.setGlobal("tracebackFn");
     try lua.doString("res = tracebackFn()");
 
-    _ = try lua.getGlobal("res");
+    _ = lua.getGlobal("res");
     if (zlua.lang == .luau) {
         try expectEqualStrings("\n[string \"...\"]:1\n", try lua.toString(-1));
     } else {
@@ -1637,7 +1637,7 @@ test "getSubtable" {
         \\  b = {},
         \\}
     );
-    _ = try lua.getGlobal("a");
+    _ = lua.getGlobal("a");
 
     // get the subtable a.b
     _ = lua.getSubtable(-1, "b");
@@ -1771,13 +1771,13 @@ test "function environments" {
     lua.pushInteger(10);
     lua.setGlobal("x");
 
-    _ = try lua.getGlobal("test");
+    _ = lua.getGlobal("test");
     try lua.protectedCall(.{ .results = 1 });
     try testing.expectEqual(10, lua.toInteger(1));
     lua.pop(1);
 
     // now set the functions table to have a different value of x
-    _ = try lua.getGlobal("test");
+    _ = lua.getGlobal("test");
     lua.newTable();
     lua.pushInteger(20);
     lua.setField(2, "x");
@@ -1787,7 +1787,7 @@ test "function environments" {
     try testing.expectEqual(20, lua.toInteger(1));
     lua.pop(1);
 
-    _ = try lua.getGlobal("test");
+    _ = lua.getGlobal("test");
     lua.getFnEnvironment(1);
     _ = lua.getField(2, "x");
     try testing.expectEqual(20, lua.toInteger(3));
@@ -1818,7 +1818,7 @@ test "debug interface" {
         \\  return x + y
         \\end
     );
-    _ = try lua.getGlobal("f");
+    _ = lua.getGlobal("f");
 
     var info: DebugInfo = undefined;
     lua.getInfo(.{
@@ -1877,7 +1877,7 @@ test "debug interface" {
     try expectEqual(zlua.wrap(hook), lua.getHook());
     try expectEqual(zlua.HookMask{ .call = true, .line = true, .ret = true }, lua.getHookMask());
 
-    _ = try lua.getGlobal("f");
+    _ = lua.getGlobal("f");
     lua.pushNumber(3);
     try lua.protectedCall(.{ .args = 1, .results = 1 });
 }
@@ -1895,7 +1895,7 @@ test "debug interface Lua 5.1 and Luau" {
         \\  return x + y
         \\end
     );
-    _ = try lua.getGlobal("f");
+    _ = lua.getGlobal("f");
 
     var info: DebugInfo = undefined;
 
@@ -1967,7 +1967,7 @@ test "debug interface Lua 5.1 and Luau" {
     try expectEqual(@as(?zlua.CHookFn, zlua.wrap(hook)), lua.getHook());
     try expectEqual(zlua.HookMask{ .call = true, .line = true, .ret = true }, lua.getHookMask());
 
-    _ = try lua.getGlobal("f");
+    _ = lua.getGlobal("f");
     lua.pushNumber(3);
     try lua.protectedCall(.{ .args = 1, .results = 1 });
 }
@@ -1984,7 +1984,7 @@ test "debug upvalues" {
         \\end
         \\addone = f(1)
     );
-    _ = try lua.getGlobal("addone");
+    _ = lua.getGlobal("addone");
 
     // index doesn't exist
     try expectError(error.OutOfBounds, lua.getUpvalue(1, 2));
@@ -2014,8 +2014,8 @@ test "debug upvalues" {
         \\addthree = f(3)
     );
 
-    _ = try lua.getGlobal("addone");
-    _ = try lua.getGlobal("addthree");
+    _ = lua.getGlobal("addone");
+    _ = lua.getGlobal("addthree");
 
     // now addone and addthree share the same upvalue
     lua.upvalueJoin(-2, 1, -1, 1);
@@ -2199,7 +2199,7 @@ test "luau vectors" {
         \\  return vector(c.x, c.y, c.z)
         \\end
     );
-    _ = try lua.getGlobal("test");
+    _ = lua.getGlobal("test");
     try lua.protectedCall(.{ .results = 1 });
     var v = try lua.toVector(-1);
     try testing.expectEqualSlices(f32, &[3]f32{ 10, 14, 18 }, v[0..3]);
@@ -2403,9 +2403,9 @@ test "toAny" {
 
     //void
     try lua.doString("value = {}\nvalue_err = {a = 5}");
-    _ = try lua.getGlobal("value");
+    _ = lua.getGlobal("value");
     try testing.expectEqual(void{}, try lua.toAny(void, -1));
-    _ = try lua.getGlobal("value_err");
+    _ = lua.getGlobal("value_err");
     try testing.expectError(error.LuaVoidTableIsNotEmpty, lua.toAny(void, -1));
 }
 
@@ -2419,7 +2419,7 @@ test "toAny struct" {
         bizz: []const u8 = "hi",
     };
     try lua.doString("value = {[\"foo\"] = 10, [\"bar\"] = false}");
-    const lua_type = try lua.getGlobal("value");
+    const lua_type = lua.getGlobal("value");
     try testing.expect(lua_type == .table);
     const my_struct = try lua.toAny(MyType, 1);
     try testing.expect(std.meta.eql(
@@ -2469,7 +2469,7 @@ test "toAny tuple from struct" {
         \\ }
     );
 
-    const lua_type = try lua.getGlobal("value");
+    const lua_type = lua.getGlobal("value");
     try testing.expect(lua_type == .table);
     const my_struct = try lua.toAny(MyType, 1);
     try testing.expect(std.meta.eql(
@@ -2503,7 +2503,7 @@ test "toAny from struct with fromLua" {
         \\ }
     );
 
-    const lua_type = try lua.getGlobal("value");
+    const lua_type = lua.getGlobal("value");
     try testing.expect(lua_type == .table);
     const my_struct = try lua.toAny(MyType, 1);
     try testing.expect(std.meta.eql(
@@ -2536,7 +2536,7 @@ test "toAny mutable string in struct" {
         bar: bool,
     };
     try lua.doString("value = {[\"name\"] = \"hi\", [\"sentinel\"] = \"ss\", [\"bar\"] = false}");
-    const lua_type = try lua.getGlobal("value");
+    const lua_type = lua.getGlobal("value");
     try testing.expect(lua_type == .table);
     const parsed = try lua.toAnyAlloc(MyType, 1);
     defer parsed.deinit();
@@ -2574,7 +2574,7 @@ test "toAny struct recursive" {
         \\}
     );
 
-    _ = try lua.getGlobal("value");
+    _ = lua.getGlobal("value");
     const my_struct = try lua.toAny(MyType, -1);
     try testing.expectEqualDeep(MyType{}, my_struct);
 }
@@ -2602,15 +2602,15 @@ test "toAny tagged union" {
         \\}
     );
 
-    _ = try lua.getGlobal("value0");
+    _ = lua.getGlobal("value0");
     const my_struct0 = try lua.toAny(MyType, -1);
     try testing.expectEqualDeep(MyType{ .c = "Hello, world!" }, my_struct0);
 
-    _ = try lua.getGlobal("value1");
+    _ = lua.getGlobal("value1");
     const my_struct1 = try lua.toAny(MyType, -1);
     try testing.expectEqualDeep(MyType{ .d = .{ .t0 = 5.0, .t1 = -3.0 } }, my_struct1);
 
-    _ = try lua.getGlobal("value2");
+    _ = lua.getGlobal("value2");
     const my_struct2 = try lua.toAny(MyType, -1);
     try testing.expectEqualDeep(MyType{ .a = 1000 }, my_struct2);
 }
@@ -2623,7 +2623,7 @@ test "toAny slice" {
         \\list = {1, 2, 3, 4, 5}
     ;
     try lua.doString(program);
-    _ = try lua.getGlobal("list");
+    _ = lua.getGlobal("list");
     const sliced = try lua.toAnyAlloc([]u32, -1);
     defer sliced.deinit();
 
@@ -2641,7 +2641,7 @@ test "toAny array" {
         \\array= {1, 2, nil, 4, 5}
     ;
     try lua.doString(program);
-    _ = try lua.getGlobal("array");
+    _ = lua.getGlobal("array");
     const array = try lua.toAny([5]?u32, -1);
     try testing.expectEqual(arr, array);
 }
@@ -2655,7 +2655,7 @@ test "toAny vector" {
         \\vector= {true, false, false, true}
     ;
     try lua.doString(program);
-    _ = try lua.getGlobal("vector");
+    _ = lua.getGlobal("vector");
     const vector = try lua.toAny(@Vector(4, bool), -1);
     try testing.expectEqual(vec, vector);
 }
