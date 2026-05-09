@@ -622,7 +622,7 @@ pub const ResumeStatus = enum(u1) {
 
 /// Reference constants
 pub const ref_nil = c.LUA_REFNIL;
-pub const ref_no = c.LUA_NOREF;
+pub const no_ref = c.LUA_NOREF;
 
 /// Index of the registry in the stack (pseudo-index).
 ///
@@ -4105,7 +4105,7 @@ pub const Lua = opaque {
     /// `Lua.getIndexRaw(index, r)`. The function `Lua.unref()` frees a reference.
     ///
     /// If the object on the top of the stack is nil, `Lua.ref()` returns the constant
-    /// `ref_nil`. The constant `ref_no` is guaranteed to be different from any
+    /// `ref_nil`. The constant `no_ref` is guaranteed to be different from any
     /// reference returned by `Lua.ref()`.
     ///
     /// * Pops from Stack: `1`
@@ -4332,7 +4332,7 @@ pub const Lua = opaque {
     /// The entry is removed from the table, so that the referred object can be collected. The
     /// reference ref is also freed to be used again.
     ///
-    /// If ref is `ref_no` or `ref_nil`, `Lua.unref()` does nothing.
+    /// If ref is `no_ref` or `ref_nil`, `Lua.unref()` does nothing.
     ///
     /// Luau does not support the index parameter.
     ///
