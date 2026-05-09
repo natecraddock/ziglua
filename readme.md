@@ -13,10 +13,8 @@ In both cases, Ziglua will compile Lua from source and link against your Zig cod
 Ziglua `main` is kept up to date with Zig `master`. See the [`zig-0.15.2`](https://github.com/natecraddock/ziglua/tree/zig-0.15.2) branch for Zig 0.15.2 support.
 
 ## Documentation
-Docs are a work in progress and are automatically generated. Most functions and public declarations are documented:
+Docs are automatically generated and contain a guide on getting started with ziglua. Most functions and public declarations are documented:
 * [Ziglua Docs](https://natecraddock.github.io/ziglua/#zlua)
-
-See [docs.md](https://github.com/natecraddock/ziglua/blob/main/docs.md) for more general information on Ziglua and how it differs from the C API.
 
 Example code is included in the [examples](https://github.com/natecraddock/ziglua/tree/main/examples) directory.
 * Run an example with `zig build run-example-<name>`

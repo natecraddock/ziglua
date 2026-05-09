@@ -26,8 +26,6 @@ In general, most functions are named similarly to the original C functions. The 
 
 In the few cases when the [auxiliary library](https://www.lua.org/manual/5.4/manual.html#5) functions have the same name as a normal C API function, the auxlib function is given a more descriptive name.
 
-For example, the functions `lua_newstate` and `luaL_newstate` are translated to `Lua.newState` and `Lua.newStateLibc` respectively.
-
 Because Zig best practice is to communicate intent precisely, some abbreviations are expanded to make names more clear, like renaming `pcall` to `protectedCall`.
 
 ### Lua Initialization

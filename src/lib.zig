@@ -2,6 +2,66 @@
 //! documentation on the Lua C API. Please refer to the [Lua C API Documentation](https://www.lua.org/manual/5.5/manual.html#4)
 //! for full details.*
 //!
+//! ## Basics
+//!
+//! To create a Lua state, use the function `Lua.init()`.
+//!
+//! ```zig
+//! const std = @import("std");
+//! const zlua = @import("zlua");
+//!
+//! const Lua = zlua.Lua;
+//!
+//! pub fn main(init: std.process.Init) !void {
+//!     // Initialize the Lua vm
+//!     var lua: Lua = try .init(init.gpa);
+//!     defer lua.deinit();
+//!
+//!     // Load all Lua standard libraries (print, math, io, etc.).
+//!     lua.openLibs();
+//!
+//!     // Add an integer to the Lua stack and retrieve it
+//!     lua.pushInteger(42);
+//!     std.debug.print("{}\n", .{try lua.toInteger(1)});
+//! }
+//! ```
+//!
+//! To bind a Zig function to Lua, the function must accept a single `*Lua`
+//! parameter and must return `i32` (an error union is allowed). This is the
+//! Zig equivalent of `lua_CFunction typedef int (*lua_CFunction) (lua_State *L)` in the C API.
+//!
+//! ```zig
+//! fn adder(lua: *Lua) i32 {
+//!     // The arguments are on the stack at indexes 1 and 2.
+//!     const a = lua.toInteger(1) catch 0;
+//!     const b = lua.toInteger(2) catch 0;
+//!
+//!     // Push the result to the stack.
+//!     lua.pushInteger(a + b);
+//!
+//!     // Returns the number of results pushed to the stack.
+//!     return 1;
+//! }
+//! ```
+//!
+//! While there are many different ways to make the function accessible from Lua, one
+//! way is to save the function as a global variable.
+//!
+//! ```
+//! // zlua.wrap converts the Zig function into a `lua_CFunction` that the C API expects.
+//! // Pushes that function to the stack.
+//! lua.pushFunction(zlua.wrap(adder));
+//!
+//! // Sets the global "adder" to the value on the top of the stack.
+//! lua.setGlobal("adder");
+//!
+//! // Now the Zig function adder is accessible from Lua!
+//! try lua.doString(
+//!     \\local sum = adder(10, 32)
+//!     \\print(sum)
+//! );
+//! ```
+//!
 //! ## Error Handling
 //!
 //! Similar to the Lua C API documentation, each function has an indicator to describe how interacts with the stack and which errors it may raise.
