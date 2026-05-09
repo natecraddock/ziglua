@@ -1193,12 +1193,10 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.2/manual.html#lua_getctx
-    pub fn getContext(lua: *Lua) GetContextError!?i32 {
-        var ctx: i32 = undefined;
-        const ret = c.lua_getctx(@ptrCast(lua), &ctx);
+    pub fn getContext(lua: *Lua, ctx: *i32) GetContextError!void {
+        const ret = c.lua_getctx(@ptrCast(lua), ctx);
         switch (ret) {
-            StatusCode.ok => return null,
-            StatusCode.yield => return ctx,
+            StatusCode.ok, StatusCode.yield => return,
             StatusCode.err_runtime => return error.LuaRuntime,
             StatusCode.err_memory => return error.OutOfMemory,
             StatusCode.err_error => return error.LuaMsgHandler,

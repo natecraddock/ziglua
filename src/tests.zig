@@ -1172,8 +1172,12 @@ test "yielding" {
 }
 
 fn continuation52(l: *Lua) !i32 {
-    const ctxOrNull = try l.getContext();
-    const ctx = ctxOrNull orelse 0;
+    // When called in the continuation function, the original value of ctx will not
+    // be changed. When called from a continuation function, the value will be set
+    // to the context information passed to yield.
+    var ctx: i32 = 0;
+    try l.getContext(&ctx);
+
     if (ctx == 5) {
         _ = l.pushStringZ("done");
         return 1;
