@@ -3482,20 +3482,6 @@ pub const Lua = opaque {
         };
     }
 
-    /// Checks whether the function argument `arg` is a number and returns this number cast to an i32
-    ///
-    /// Not available in Lua 5.3 and 5.4
-    ///
-    /// * Pops from Stack: `0`
-    /// * Pushes to Stack: `0`
-    /// * Lua Runtime Errors: `see docs`
-    ///
-    /// See https://www.lua.org/manual/5.2/manual.html#luaL_checkint
-    /// TODO: is this ever useful?
-    pub fn checkInt(lua: *Lua, arg: i32) i32 {
-        return c.luaL_checkint(@ptrCast(lua), arg);
-    }
-
     /// Checks whether the function argument `arg` is an integer (or can be converted to an integer) and returns the integer
     ///
     /// * Pops from Stack: `0`
@@ -3982,24 +3968,6 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_newmetatable
     pub fn newMetatable(lua: *Lua, key: [:0]const u8) error{KeyInRegistry}!void {
         if (c.luaL_newmetatable(@ptrCast(lua), key.ptr) == 0) return error.KeyInRegistry;
-    }
-
-    // luaL_opt (a macro) really isn't that useful, so not going to implement for now
-
-    /// If the function argument `arg` is a number, returns this number cast to an i32.
-    /// If the argument is absent or nil returns null. Otherwise raises an error
-    ///
-    /// Not available in Lua 5.3 and 5.4
-    ///
-    /// * Pops from Stack: `0`
-    /// * Pushes to Stack: `0`
-    /// * Lua Runtime Errors: `see docs`
-    ///
-    /// See https://www.lua.org/manual/5.2/manual.html#luaL_optint
-    /// TODO: just like checkInt, is this ever useful?
-    pub fn optInt(lua: *Lua, arg: i32) ?i32 {
-        if (lua.isNoneOrNil(arg)) return null;
-        return lua.checkInt(arg);
     }
 
     /// If the function argument `arg` is an integer, (or it is convertible to an
