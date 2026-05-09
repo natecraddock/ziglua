@@ -2024,7 +2024,7 @@ pub const Lua = opaque {
             if (lang == .luau) c.lua_pushfstringL else c.lua_pushfstring,
             .{ @as(*LuaState, @ptrCast(lua)), fmt.ptr } ++ args,
         );
-        const l = lua.rawLen(-1);
+        const l = lua.lenRaw(-1);
         return ptr[0..l :0];
     }
 
@@ -2041,7 +2041,7 @@ pub const Lua = opaque {
         // lua_pushglobaltable is a macro and c-translate assumes it returns opaque
         // so just reimplement the macro here
         // c.lua_pushglobaltable(@ptrCast(lua));
-        _ = lua.rawGetIndex(registry_index, ridx_globals);
+        _ = lua.getIndexRaw(registry_index, ridx_globals);
     }
 
     /// Pushes an integer with value `n` onto the stack
@@ -2199,8 +2199,7 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawequal
-    /// TODO: should this be rename to equalRaw?
-    pub fn rawEqual(lua: *Lua, index1: i32, index2: i32) bool {
+    pub fn equalRaw(lua: *Lua, index1: i32, index2: i32) bool {
         return c.lua_rawequal(@ptrCast(lua), index1, index2) != 0;
     }
 
@@ -2213,8 +2212,7 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawget
-    /// TODO: should this be renamed to getTableRaw (seems more logical)?
-    pub fn rawGetTable(lua: *Lua, index: i32) LuaType {
+    pub fn getTableRaw(lua: *Lua, index: i32) LuaType {
         switch (lang) {
             .lua53, .lua54, .lua55, .luau => return @enumFromInt(c.lua_rawget(@ptrCast(lua), index)),
             else => {
@@ -2224,7 +2222,7 @@ pub const Lua = opaque {
         }
     }
 
-    const RawGetIndexNType = switch (lang) {
+    const RawTableIndex = switch (lang) {
         .lua51, .lua52, .luajit, .luau => i32,
         else => Integer,
     };
@@ -2239,11 +2237,11 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawgeti
-    pub fn rawGetIndex(lua: *Lua, index: i32, n: RawGetIndexNType) LuaType {
+    pub fn getIndexRaw(lua: *Lua, index: i32, table_index: RawTableIndex) LuaType {
         switch (lang) {
-            .lua53, .lua54, .lua55, .luau => return @enumFromInt(c.lua_rawgeti(@ptrCast(lua), index, n)),
+            .lua53, .lua54, .lua55, .luau => return @enumFromInt(c.lua_rawgeti(@ptrCast(lua), index, table_index)),
             else => {
-                c.lua_rawgeti(@ptrCast(lua), index, n);
+                c.lua_rawgeti(@ptrCast(lua), index, table_index);
                 return lua.typeOf(-1);
             },
         }
@@ -2259,7 +2257,7 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawgetp
-    pub fn rawGetPtr(lua: *Lua, index: i32, p: *const anyopaque) LuaType {
+    pub fn getPtrRaw(lua: *Lua, index: i32, p: *const anyopaque) LuaType {
         switch (lang) {
             .lua53, .lua54, .lua55 => return @enumFromInt(c.lua_rawgetp(@ptrCast(lua), index, p)),
             .luau => return @enumFromInt(c.lua_rawgetp(@as(*LuaState, @ptrCast(lua)), index, @constCast(p))),
@@ -2280,7 +2278,7 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://sleitnick.github.io/luau-api/reference.html#lua_rawgetptagged
-    pub fn rawGetPtrTagged(lua: *Lua, index: i32, p: *const anyopaque, tag: i32) LuaType {
+    pub fn getPtrRawTagged(lua: *Lua, index: i32, p: *const anyopaque, tag: i32) LuaType {
         return @enumFromInt(c.lua_rawgetptagged(@as(*LuaState, @ptrCast(lua)), index, @constCast(p), tag));
     }
 
@@ -2297,7 +2295,7 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawlen
-    pub fn rawLen(lua: *Lua, index: i32) usize {
+    pub fn lenRaw(lua: *Lua, index: i32) usize {
         switch (lang) {
             .lua51, .luau, .luajit => return @intCast(c.lua_objlen(@ptrCast(lua), index)),
             else => return @intCast(c.lua_rawlen(@ptrCast(lua), index)),
@@ -2311,14 +2309,9 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `memory`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawset
-    pub fn rawSetTable(lua: *Lua, index: i32) void {
+    pub fn setTableRaw(lua: *Lua, index: i32) void {
         c.lua_rawset(@ptrCast(lua), index);
     }
-
-    const RawSetIndexIType = switch (lang) {
-        .lua51, .lua52, .luajit, .luau => i32,
-        else => Integer,
-    };
 
     /// Does the equivalent of `t[i] = v`, where `t` is the table at the given `index` and `v` is the value on the top of the stack.
     /// This function pops the value from the stack. The assignment is raw, that is, it does not use the `__newindex` metavalue.
@@ -2328,8 +2321,8 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `memory`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawseti
-    pub fn rawSetIndex(lua: *Lua, index: i32, i: RawSetIndexIType) void {
-        c.lua_rawseti(@ptrCast(lua), index, i);
+    pub fn setIndexRaw(lua: *Lua, index: i32, table_index: RawTableIndex) void {
+        c.lua_rawseti(@ptrCast(lua), index, table_index);
     }
 
     /// Does the equivalent of `t[p] = v`, where `t` is the table at the given `index`, `p` is encoded as a light userdata, and `v` is
@@ -2344,7 +2337,7 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `memory`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawsetp
-    pub fn rawSetPtr(lua: *Lua, index: i32, p: *const anyopaque) void {
+    pub fn setPtrRaw(lua: *Lua, index: i32, p: *const anyopaque) void {
         switch (lang) {
             .luau => c.lua_rawsetp(@as(*LuaState, @ptrCast(lua)), index, @constCast(p)),
             else => c.lua_rawsetp(@ptrCast(lua), index, p),
@@ -2364,7 +2357,7 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `memory`
     ///
     /// See https://sleitnick.github.io/luau-api/reference.html#lua_rawsetptagged
-    pub fn rawSetPtrTagged(lua: *Lua, index: i32, p: *const anyopaque, tag: i32) void {
+    pub fn setPtrRawTagged(lua: *Lua, index: i32, p: *const anyopaque, tag: i32) void {
         c.lua_rawsetptagged(@as(*LuaState, @ptrCast(lua)), index, @constCast(p), tag);
     }
 
@@ -2862,7 +2855,7 @@ pub const Lua = opaque {
             const size = switch (lang) {
                 .lua51, .luajit => lua.objectLen(index) / @sizeOf(T),
                 .luau => @as(u32, @intCast(lua.objectLen(index))) / @sizeOf(T),
-                else => lua.rawLen(index) / @sizeOf(T),
+                else => lua.lenRaw(index) / @sizeOf(T),
             };
             return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
         }
@@ -3618,7 +3611,7 @@ pub const Lua = opaque {
         const size = switch (lang) {
             .lua51, .luajit => lua.objectLen(arg) / @sizeOf(T),
             .luau => @as(u32, @intCast(lua.objectLen(arg))) / @sizeOf(T),
-            else => lua.rawLen(arg) / @sizeOf(T),
+            else => lua.lenRaw(arg) / @sizeOf(T),
         };
         return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
     }
@@ -3778,7 +3771,6 @@ pub const Lua = opaque {
     /// * Pushes to Stack: `1`
     /// * Lua Runtime Errors: `memory`
     ///
-    /// TODO: return error when type is nil?
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_getmetatable
     pub fn getMetatableRegistry(lua: *Lua, table_name: [:0]const u8) LuaType {
         switch (lang) {
@@ -3817,7 +3809,7 @@ pub const Lua = opaque {
     pub fn globalSub(lua: *Lua, str: [:0]const u8, pat: [:0]const u8, rep: [:0]const u8) []const u8 {
         if (lang == .luau) @compileError(@src().fn_name ++ " is not available in Luau.");
         const s = c.luaL_gsub(@ptrCast(lua), str.ptr, pat.ptr, rep.ptr);
-        const l = lua.rawLen(-1);
+        const l = lua.lenRaw(-1);
         return s[0..l];
     }
 
@@ -4084,7 +4076,7 @@ pub const Lua = opaque {
     /// A reference is a unique integer key. As long as you do not manually add integer
     /// keys into the table t, `Lua.ref()` ensures the uniqueness of the key it returns.
     /// You can retrieve an object referred by the reference r by calling
-    /// `Lua.rawGetIndex(index, r)`. The function `Lua.unref()` frees a reference.
+    /// `Lua.getIndexRaw(index, r)`. The function `Lua.unref()` frees a reference.
     ///
     /// If the object on the top of the stack is nil, `Lua.ref()` returns the constant
     /// `ref_nil`. The constant `ref_no` is guaranteed to be different from any
@@ -4241,7 +4233,7 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkudata
     pub fn testUserdataSlice(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) error{ExpectedUserdata}![]T {
         if (c.luaL_testudata(@ptrCast(lua), arg, name.ptr)) |ptr| {
-            const size = lua.rawLen(arg) / @sizeOf(T);
+            const size = lua.lenRaw(arg) / @sizeOf(T);
             return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
         } else return error.ExpectedUserdata;
     }
@@ -4830,7 +4822,7 @@ pub const Lua = opaque {
                 for (0..arr_len) |i| {
                     switch (lua.getMetaField(-1, "__index")) {
                         .nil => {
-                            _ = lua.rawGetIndex(-1, @intCast(i + 1));
+                            _ = lua.getIndexRaw(-1, @intCast(i + 1));
                         },
                         else => {
                             lua.pushValue(-2);
@@ -4943,7 +4935,7 @@ pub const Lua = opaque {
             return error.LuaValueNotATable;
         }
 
-        const size = lua.rawLen(index);
+        const size = lua.lenRaw(index);
         var result = try a.alloc(ChildType, size);
 
         for (1..size + 1) |i| {
@@ -4973,7 +4965,7 @@ pub const Lua = opaque {
             inline for (info.fields, 0..) |field, i| {
                 switch (lua.getMetaField(-1, "__index")) {
                     .nil => {
-                        _ = lua.rawGetIndex(-1, @intCast(i + 1));
+                        _ = lua.getIndexRaw(-1, @intCast(i + 1));
                     },
                     else => {
                         lua.pushValue(-2);

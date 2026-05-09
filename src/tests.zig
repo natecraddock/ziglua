@@ -198,9 +198,9 @@ test "compare" {
         try expect(lua.compare(-2, -1, .le));
         try expect(lua.compare(-2, -1, .lt));
 
-        try expect(!lua.rawEqual(-1, -2));
+        try expect(!lua.equalRaw(-1, -2));
         lua.pushNumber(2);
-        try expect(lua.rawEqual(-1, -2));
+        try expect(lua.equalRaw(-1, -2));
     } else {
         try testing.expect(!lua.equal(1, 2));
         try testing.expect(lua.lessThan(1, 2));
@@ -760,13 +760,13 @@ test "table access" {
     _ = lua.getGlobal("a");
 
     if (zlua.lang == .lua53 or zlua.lang == .lua54 or zlua.lang == .lua55) {
-        try expectEqual(.string, lua.rawGetIndex(1, 1));
+        try expectEqual(.string, lua.getIndexRaw(1, 1));
         try expectEqualStrings("first", try lua.toString(-1));
     }
 
     try expectEqual(.string, switch (zlua.lang) {
         .lua53, .lua54, .lua55 => lua.getIndex(1, 1),
-        else => lua.rawGetIndex(1, 1),
+        else => lua.getIndexRaw(1, 1),
     });
     try expectEqualStrings("first", try lua.toString(-1));
 
@@ -775,7 +775,7 @@ test "table access" {
     try expectEqualStrings("value", try lua.toString(-1));
 
     _ = lua.pushStringZ("other one");
-    try expectEqual(.number, lua.rawGetTable(1));
+    try expectEqual(.number, lua.getTableRaw(1));
     try expectEqual(1234, try lua.toInteger(-1));
 
     // a.name = "ziglua"
@@ -786,7 +786,7 @@ test "table access" {
     // a.lang = "zig"
     _ = lua.pushStringZ("lang");
     _ = lua.pushStringZ("zig");
-    lua.rawSetTable(1);
+    lua.setTableRaw(1);
 
     try expectError(error.NoMetatable, lua.getMetatable(1));
 
@@ -813,18 +813,18 @@ test "table access" {
     var index: i32 = 1;
     while (index <= 5) : (index += 1) {
         lua.pushInteger(index);
-        if (zlua.lang == .lua53 or zlua.lang == .lua54 or zlua.lang == .lua55) lua.setIndex(-2, index) else lua.rawSetIndex(-2, index);
+        if (zlua.lang == .lua53 or zlua.lang == .lua54 or zlua.lang == .lua55) lua.setIndex(-2, index) else lua.setIndexRaw(-2, index);
     }
 
     if (!langIn(.{ .lua51, .luajit, .luau })) {
-        try expectEqual(5, lua.rawLen(-1));
+        try expectEqual(5, lua.lenRaw(-1));
         try expectEqual(5, lua.lenRaiseErr(-1));
     }
 
     // add a few more
     while (index <= 10) : (index += 1) {
         lua.pushInteger(index);
-        lua.rawSetIndex(-2, index);
+        lua.setIndexRaw(-2, index);
     }
 }
 
@@ -1055,10 +1055,10 @@ test "registry" {
 
     // store a string in the registry
     _ = lua.pushStringZ("hello there");
-    lua.rawSetPtr(zlua.registry_index, key);
+    lua.setPtrRaw(zlua.registry_index, key);
 
     // get key from the registry
-    _ = lua.rawGetPtr(zlua.registry_index, key);
+    _ = lua.getPtrRaw(zlua.registry_index, key);
     try expectEqualStrings("hello there", try lua.toString(-1));
 }
 
@@ -1506,7 +1506,7 @@ test "ref" {
     _ = lua.pushString("Hello there");
     const ref = lua.ref(zlua.registry_index);
 
-    _ = lua.rawGetIndex(zlua.registry_index, ref);
+    _ = lua.getIndexRaw(zlua.registry_index, ref);
     try expectEqualStrings("Hello there", try lua.toString(-1));
 
     lua.unref(zlua.registry_index, ref);
@@ -1527,7 +1527,7 @@ test "ref luau" {
     _ = lua.pushString("Hello there");
     const ref = lua.ref(2);
 
-    _ = lua.rawGetIndex(zlua.registry_index, ref);
+    _ = lua.getIndexRaw(zlua.registry_index, ref);
     try expectEqualStrings("Hello there", try lua.toString(-1));
 
     lua.unref(ref);
@@ -2160,13 +2160,13 @@ test "tagged raw get and set" {
     const tag = 5;
 
     _ = lua.pushString("Some string");
-    lua.rawSetPtrTagged(1, &value, tag);
+    lua.setPtrRawTagged(1, &value, tag);
 
-    const lua_type = lua.rawGetPtrTagged(1, &value, tag);
+    const lua_type = lua.getPtrRawTagged(1, &value, tag);
     try expectEqual(.string, lua_type);
 
     // Wrong tag will return nil.
-    const fail = lua.rawGetPtrTagged(1, &value, 6);
+    const fail = lua.getPtrRawTagged(1, &value, 6);
     try expectEqual(.nil, fail);
 }
 
