@@ -28,7 +28,7 @@ pub fn build(b: *Build) void {
         std.debug.panic("Luau does not support compiling or loading shared modules", .{});
     }
 
-    if (lua_user_h != null and (lang == .luajit or lang == .luau or lang == .lua55)) {
+    if (lua_user_h != null and (lang == .luajit or lang == .luau)) {
         std.debug.panic("Only basic lua supports a user provided header file", .{});
     }
 
