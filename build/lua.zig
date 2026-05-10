@@ -15,11 +15,14 @@ pub const Language = enum {
     luau,
 };
 
+const ApiCheck = @import("../build.zig").ApiCheck;
+
 pub const Options = struct {
     lang: Language,
     shared: bool,
     library_name: []const u8,
     lua_user_h: ?Build.LazyPath,
+    api_check: ApiCheck,
 };
 
 pub fn configure(
@@ -73,7 +76,7 @@ pub fn configure(
         },
 
         // Enable api check
-        if (optimize == .Debug) "-DLUA_USE_APICHECK" else "",
+        if (opts.api_check == .on or (opts.api_check == .debug and optimize == .Debug)) "-DLUA_USE_APICHECK" else "",
 
         // Build as DLL for windows if shared
         if (target.result.os.tag == .windows and shared) "-DLUA_BUILD_AS_DLL" else "",

@@ -9,6 +9,15 @@ const lua_setup = @import("build/lua.zig");
 const luau_setup = @import("build/luau.zig");
 const luajit_setup = @import("build/luajit.zig");
 
+pub const ApiCheck = enum {
+    /// Enables apicheck in debug builds.
+    debug,
+    /// Enables apicheck.
+    on,
+    /// Disables apicheck.
+    off,
+};
+
 pub fn build(b: *Build) void {
     // Remove the default install and uninstall steps
     b.top_level_steps = .{};
@@ -23,6 +32,7 @@ pub fn build(b: *Build) void {
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
     const lua_user_h = b.option(Build.LazyPath, "lua_user_h", "Lazy path to user supplied c header file") orelse null;
     const additional_system_headers = b.option(Build.LazyPath, "additional_system_headers", "Lazy path to additional system headers to include when building Lua") orelse null;
+    const api_check = b.option(ApiCheck, "apicheck", "Enable parameter checks in the Lua API") orelse .debug;
 
     if (lang == .luau and shared) {
         std.debug.panic("Luau does not support compiling or loading shared modules", .{});
@@ -93,6 +103,7 @@ pub fn build(b: *Build) void {
                 .shared = shared,
                 .library_name = library_name,
                 .lua_user_h = lua_user_h,
+                .api_check = api_check,
             }),
         };
 
