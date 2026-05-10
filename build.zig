@@ -1,13 +1,23 @@
 const std = @import("std");
 
 const Build = std.Build;
-pub const Language = lua_setup.Language;
 const Step = std.Build.Step;
 const Translator = @import("translate_c").Translator;
 
 const lua_setup = @import("build/lua.zig");
 const luau_setup = @import("build/luau.zig");
 const luajit_setup = @import("build/luajit.zig");
+
+/// The Lua version to compile and link.
+pub const Language = enum {
+    lua51,
+    lua52,
+    lua53,
+    lua54,
+    lua55,
+    luajit,
+    luau,
+};
 
 pub const ApiCheck = enum {
     /// Enables apicheck in debug builds.

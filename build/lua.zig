@@ -5,17 +5,10 @@ const Step = std.Build.Step;
 
 const applyPatchToFile = @import("utils.zig").applyPatchToFile;
 
-pub const Language = enum {
-    lua51,
-    lua52,
-    lua53,
-    lua54,
-    lua55,
-    luajit,
-    luau,
-};
+const build = @import("../build.zig");
 
-const ApiCheck = @import("../build.zig").ApiCheck;
+const ApiCheck = build.ApiCheck;
+const Language = build.Language;
 
 pub const Options = struct {
     lang: Language,
