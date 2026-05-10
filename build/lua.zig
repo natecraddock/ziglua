@@ -3,7 +3,9 @@ const std = @import("std");
 const Build = std.Build;
 const Step = std.Build.Step;
 
-const applyPatchToFile = @import("utils.zig").applyPatchToFile;
+const utils = @import("utils.zig");
+const applyPatchToFile = utils.applyPatchToFile;
+const concatenateFiles = utils.concatenateFiles;
 
 const build = @import("../build.zig");
 
@@ -56,6 +58,8 @@ pub fn configure(
 
     const user_header = "user.h";
 
+    const enable_apicheck = opts.api_check == .on or (opts.api_check == .debug and optimize == .Debug);
+
     const flags = [_][]const u8{
         // Standard version used in Lua Makefile
         "-std=gnu99",
@@ -69,12 +73,12 @@ pub fn configure(
         },
 
         // Enable api check
-        if (opts.api_check == .on or (opts.api_check == .debug and optimize == .Debug)) "-DLUA_USE_APICHECK" else "",
+        if (lang == .lua55 and enable_apicheck) "-DLUA_USE_APICHECK" else "",
 
         // Build as DLL for windows if shared
         if (target.result.os.tag == .windows and shared) "-DLUA_BUILD_AS_DLL" else "",
 
-        if (lua_user_h) |_| b.fmt("-DLUA_USER_H=\"{s}\"", .{user_header}) else "",
+        if (enable_apicheck or lua_user_h != null) b.fmt("-DLUA_USER_H=\"{s}\"", .{user_header}) else "",
     };
 
     const lua_source_files = switch (lang) {
@@ -110,8 +114,19 @@ pub fn configure(
     library.installHeader(upstream.path("src/luaconf.h"), "luaconf.h");
 
     if (lua_user_h) |user_h| {
-        library.root_module.addIncludePath(user_h.dirname());
-        library.installHeader(user_h, user_header);
+        if (enable_apicheck) {
+            const concat = concatenateFiles(b, b.graph.host, user_h, b.path("src/user.h"), user_header);
+            library.step.dependOn(&concat.run.step);
+
+            library.root_module.addIncludePath(concat.output.dirname());
+            library.installHeader(concat.output, user_header);
+        } else {
+            library.root_module.addIncludePath(user_h.dirname());
+            library.installHeader(user_h, user_header);
+        }
+    } else if (enable_apicheck) {
+        library.root_module.addIncludePath(b.path("src"));
+        library.installHeader(b.path("src/user.h"), user_header);
     }
 
     return library;
