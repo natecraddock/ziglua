@@ -3,9 +3,18 @@ const std = @import("std");
 const Build = std.Build;
 const Step = std.Build.Step;
 
+const ApiCheck = @import("../build.zig").ApiCheck;
+
 const applyPatchToFile = @import("utils.zig").applyPatchToFile;
 
-pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, shared: bool) *Step.Compile {
+pub fn configure(
+    b: *Build,
+    target: Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    upstream: *Build.Dependency,
+    shared: bool,
+    api_check: ApiCheck,
+) *Step.Compile {
     // TODO: extract this to the main build function because it is shared between all specialized build functions
 
     const lib = b.createModule(.{
@@ -216,12 +225,18 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     library.root_module.addIncludePath(recdef_header.dirname());
     library.root_module.addIncludePath(folddef_header.dirname());
 
+    const flags = [_][]const u8{
+        // Enable api check
+        if (api_check == .on or (api_check == .debug and optimize == .Debug)) "-DLUA_USE_APICHECK" else "",
+    };
+
     lib.addCSourceFiles(.{
         .root = .{ .dependency = .{
             .dependency = upstream,
             .sub_path = "",
         } },
         .files = &luajit_vm,
+        .flags = &flags,
     });
 
     lib.sanitize_c = .off;

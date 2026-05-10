@@ -106,7 +106,7 @@ pub fn build(b: *Build) void {
         }
     } else if (b.lazyDependency(@tagName(lang), .{})) |upstream| {
         const lib = switch (lang) {
-            .luajit => luajit_setup.configure(b, target, optimize, upstream, shared),
+            .luajit => luajit_setup.configure(b, target, optimize, upstream, shared, api_check),
             .luau => luau_setup.configure(b, target, optimize, upstream, luau_use_4_vector),
             else => lua_setup.configure(b, target, optimize, upstream, .{
                 .lang = lang,
