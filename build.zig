@@ -28,6 +28,13 @@ pub const ApiCheck = enum {
     off,
 };
 
+pub const ApiCheckType = enum {
+    /// Apicheck with Zig stack traces for supported Lua verions.
+    stack_trace,
+    /// Default Lua api checks.
+    basic,
+};
+
 pub fn build(b: *Build) void {
     // Remove the default install and uninstall steps
     b.top_level_steps = .{};
@@ -42,7 +49,9 @@ pub fn build(b: *Build) void {
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
     const lua_user_h = b.option(Build.LazyPath, "lua_user_h", "Lazy path to user supplied c header file") orelse null;
     const additional_system_headers = b.option([]Build.LazyPath, "additional_system_headers", "Slice of Lazy paths to additional system headers to include when building Lua") orelse null;
-    const api_check = b.option(ApiCheck, "apicheck", "Enable parameter checks in the Lua API") orelse .debug;
+    const api_check = b.option(ApiCheck, "apicheck", "Enable parameter check assertions in the Lua API") orelse .debug;
+    // TODO: if the stack traces go well and don't error, maybe remove this. Why would someone not want the stack trace?
+    const api_check_type = b.option(ApiCheckType, "apicheck_type", "Whether apicheck should show stack traces or only abort") orelse .stack_trace;
 
     if (lang == .luau and shared) {
         std.debug.panic("Luau does not support compiling or loading shared modules", .{});
@@ -108,7 +117,7 @@ pub fn build(b: *Build) void {
         t.mod.linkSystemLibrary(system_library_name, .{ .preferred_link_mode = link_mode });
     } else if (b.lazyDependency(@tagName(lang), .{})) |upstream| {
         const lib = switch (lang) {
-            .luajit => luajit_setup.configure(b, target, optimize, upstream, shared),
+            .luajit => luajit_setup.configure(b, target, optimize, upstream, shared, api_check),
             .luau => luau_setup.configure(b, target, optimize, upstream, luau_use_4_vector),
             else => lua_setup.configure(b, target, optimize, upstream, .{
                 .lang = lang,
@@ -116,6 +125,7 @@ pub fn build(b: *Build) void {
                 .library_name = library_name,
                 .lua_user_h = lua_user_h,
                 .api_check = api_check,
+                .api_check_type = api_check_type,
             }),
         };
 

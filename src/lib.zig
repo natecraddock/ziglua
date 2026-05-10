@@ -111,6 +111,12 @@ extern "c" fn zig_registerAssertionHandler() void;
 /// This function is defined in luau.cpp and ensures Zig uses the correct free when compiling luau code
 extern "c" fn zig_luau_free(ptr: *anyopaque) void;
 
+/// Called from C for Lua function parameter check assertions when LUA_USE_APICHECK is defined.
+/// Essentially, this is used in place of C's assert so stack traces are shown.
+export fn zlua_assert(ok: bool) void {
+    std.debug.assert(ok);
+}
+
 const Allocator = std.mem.Allocator;
 
 // Types
