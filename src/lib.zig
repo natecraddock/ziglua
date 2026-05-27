@@ -205,7 +205,7 @@ pub const DebugInfo51 = struct {
         L: bool = false,
 
         fn toString(options: Options) [10:0]u8 {
-            var str = [_:0]u8{0} ** 10;
+            var str: [10:0]u8 = @splat(0);
             var index: u8 = 0;
 
             inline for (std.meta.fields(Options)) |field| {
@@ -257,7 +257,7 @@ const DebugInfo52 = struct {
         L: bool = false,
 
         fn toString(options: Options) [10:0]u8 {
-            var str = [_:0]u8{0} ** 10;
+            var str: [10:0]u8 = @splat(0);
             var index: u8 = 0;
 
             inline for (std.meta.fields(Options)) |field| {
@@ -314,7 +314,7 @@ const DebugInfo54 = struct {
         L: bool = false,
 
         fn toString(options: Options) [10:0]u8 {
-            var str = [_:0]u8{0} ** 10;
+            var str: [10:0]u8 = @splat(0);
             var index: u8 = 0;
 
             inline for (std.meta.fields(Options)) |field| {
@@ -371,7 +371,7 @@ const DebugInfo55 = struct {
         L: bool = false,
 
         fn toString(options: Options) [10:0]u8 {
-            var str = [_:0]u8{0} ** 10;
+            var str: [10:0]u8 = @splat(0);
             var index: u8 = 0;
 
             inline for (std.meta.fields(Options)) |field| {
@@ -413,7 +413,7 @@ pub const DebugInfoLuau = struct {
         L: bool = false,
 
         fn toString(options: Options) [10:0]u8 {
-            var str = [_:0]u8{0} ** 10;
+            var str: [10:0]u8 = @splat(0);
             var index: u8 = 0;
 
             inline for (std.meta.fields(Options)) |field| {
@@ -5451,7 +5451,7 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
                 const lua: *Lua = @ptrCast(state.?);
                 if (str) |s| {
                     const buf = s[0..len];
-                    return @call(.always_inline, function, .{lua, buf});
+                    return @call(.always_inline, function, .{ lua, buf });
                 }
                 return -1;
             }
