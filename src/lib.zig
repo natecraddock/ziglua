@@ -4496,7 +4496,8 @@ pub const Lua = opaque {
             .luajit => lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit, true),
             else => @compileError(@src().fn_name ++ " is only available in Lua 5.2 and LuaJIT."),
         }
-        lua.pop(1);
+        // For some reason Lua 5.2 leaves a value on the stack.
+        if (lang == .lua52) lua.pop(1);
     }
     pub const openBit = openBit32;
 
@@ -4508,9 +4509,8 @@ pub const Lua = opaque {
     /// * Pushes to Stack: `0`
     /// * Lua Runtime Errors: `any`
     pub fn openVector(lua: *Lua) void {
-        if (lang == .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         lua.requireF(c.LUA_VECLIBNAME, c.luaopen_vector, true);
-        if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
 
     /// Returns if given typeinfo is a string type
