@@ -449,7 +449,7 @@ test "calling a function" {
 }
 
 test "calling a function with cProtectedCall" {
-    if (zlua.lang != .lua51 and zlua.lang != .luau) return;
+    if (zlua.lang != .lua51 and zlua.lang != .luau and zlua.lang != .luajit) return;
 
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
@@ -670,7 +670,7 @@ test "panic fn" {
 }
 
 test "warn fn" {
-    if (zlua.lang != .lua54) return;
+    if (zlua.lang != .lua54 and zlua.lang != .lua55) return;
 
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
@@ -720,7 +720,7 @@ test "garbage collector" {
 
     if (zlua.lang != .lua51 and zlua.lang != .luajit) _ = lua.gcIsRunning();
 
-    if (langIn(.{ .lua51, .lua52, .lua53 })) {
+    if (langIn(.{ .lua51, .lua52, .lua53, .luajit })) {
         _ = lua.gcSetPause(2);
         _ = lua.gcSetStepMul(2);
     }
@@ -1063,7 +1063,7 @@ test "registry" {
 }
 
 test "closing vars" {
-    if (zlua.lang != .lua54) return;
+    if (zlua.lang != .lua54 and zlua.lang != .lua55) return;
 
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
@@ -1798,7 +1798,7 @@ test "function environments" {
 }
 
 test "objectLen" {
-    if (zlua.lang != .lua51 and zlua.lang != .luau) return;
+    if (zlua.lang != .lua51 and zlua.lang != .luau and zlua.lang != .luajit) return;
 
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();

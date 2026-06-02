@@ -839,6 +839,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_arith
     pub fn arith(lua: *Lua, op: ArithOperator) void {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         c.lua_arith(@ptrCast(lua), @intFromEnum(op));
     }
 
@@ -852,8 +853,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_atpanic
     pub fn atPanic(lua: *Lua, panic_fn: CFn) ?CFn {
-        if (lang == .luau) @compileError(@src().fn_name ++ " is not implemented in Luau.");
-
+        comptime checkSupport(.{ .lua51, .lua52, .lua53, .lua54, .lua55, .luajit }, @src().fn_name);
         return c.lua_atpanic(@ptrCast(lua), panic_fn);
     }
 
@@ -924,6 +924,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_callk
     pub fn callCont(lua: *Lua, args: CallContArgs) void {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55, }, @src().fn_name);
         c.lua_callk(@ptrCast(lua), args.args, args.results, args.ctx, args.k);
     }
 
@@ -947,7 +948,7 @@ pub const Lua = opaque {
     /// marked to be closed (see `Lua.toClose()`) that is still active (that is, not closed yet).
     /// A `__close` metamethod cannot yield when called through this function.
     ///
-    /// Only implemented in Lua 5.4
+    /// Only implemented in Lua 5.4 and 5.5
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `0`
@@ -955,6 +956,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_closeslot
     pub fn closeSlot(lua: *Lua, index: i32) void {
+        comptime checkSupport(.{ .lua54, .lua55 }, @src().fn_name);
         c.lua_closeslot(@ptrCast(lua), index);
     }
 
@@ -973,6 +975,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_closethread
     pub fn closeThread(lua: *Lua, from: ?*Lua) error{CallError}!void {
+        comptime checkSupport(.{ .lua54, .lua55 }, @src().fn_name);
         if (c.lua_closethread(@ptrCast(lua), if (from) |f| @ptrCast(f) else null) != StatusCode.ok) return error.CallError;
     }
 
@@ -990,6 +993,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_compare
     pub fn compare(lua: *Lua, index1: i32, index2: i32, op: CompareOperator) bool {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         return c.lua_compare(@ptrCast(lua), index1, index2, @intFromEnum(op)) != 0;
     }
 
@@ -1012,7 +1016,7 @@ pub const Lua = opaque {
     /// containing `userdata`. In case of errors, `Lua.cProtectedCall()` returns the same error codes as `Lua.protectedCall()`, plus the error object on the
     /// top of the stack; otherwise, it returns zero, and does not change the stack. All values returned by `c_fn` are discarded.
     ///
-    /// Only implemented in Lua 5.1 and Luau.
+    /// Only implemented in Lua 5.1, Luau, and LuaJIT
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `(0|1)`
@@ -1020,6 +1024,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.1/manual.html#lua_cpcall
     pub fn cProtectedCall(lua: *Lua, c_fn: CFn, userdata: *anyopaque) CProtectedCallError!void {
+        comptime checkSupport(.{ .lua51, .luau, .luajit }, @src().fn_name);
         const ret = c.lua_cpcall(@ptrCast(lua), c_fn, userdata);
         switch (ret) {
             StatusCode.ok => return,
@@ -1041,6 +1046,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_copy
     pub fn copy(lua: *Lua, from_index: i32, to_index: i32) void {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         c.lua_copy(@ptrCast(lua), from_index, to_index);
     }
 
@@ -1094,13 +1100,13 @@ pub const Lua = opaque {
     pub const dump = switch (lang) {
         .lua53, .lua54, .lua55 => dump53,
         else => dump51,
-        .luau => @compileError("Not implemented in Luau."),
+        .luau => @compileError("Lua.dump() is not supported in Luau"),
     };
 
     /// Returns `true` if the two values in acceptable indices `index1` and `index2` are equal, following the semantics of the Lua `==`
     /// operator (that is, may call metamethods). Otherwise returns `false`. Also returns `false` if any of the indices is non valid.
     ///
-    /// Not implemented in Lua 5.2, 5.3, or 5.4
+    /// Not implemented in Lua 5.2, 5.3, 5.4, or 5.5
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `0`
@@ -1108,10 +1114,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.1/manual.html#lua_equal
     pub fn equal(lua: *Lua, index1: i32, index2: i32) bool {
-        switch (lang) {
-            .lua52, .lua53, .lua54, .lua55 => @compileError("lua_equal is deprecated, use Lua.compare with .eq instead"),
-            else => {},
-        }
+        comptime checkSupport(.{ .lua51, .luau, .luajit }, @src().fn_name);
         return c.lua_equal(@ptrCast(lua), index1, index2) == 1;
     }
 
@@ -1182,6 +1185,7 @@ pub const Lua = opaque {
     /// Returns a boolean that tells whether the garbage collector is running
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcIsRunning(lua: *Lua) bool {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55, .luau }, @src().fn_name);
         return switch (lang) {
             .lua54, .lua55 => c.lua_gc(@ptrCast(lua), c.LUA_GCISRUNNING) != 0,
             else => c.lua_gc(@ptrCast(lua), c.LUA_GCISRUNNING, 0) != 0,
@@ -1192,6 +1196,7 @@ pub const Lua = opaque {
     /// Returns true if the previous mode was generational
     /// See https://www.lua.org/manual/5.4/manual.html#lua_gc
     pub fn gcSetIncremental(lua: *Lua, pause: i32, step_mul: i32, step_size: i32) bool {
+        comptime checkSupport(.{ .lua54, .lua55 }, @src().fn_name);
         return c.lua_gc(@ptrCast(lua), c.LUA_GCINC, pause, step_mul, step_size) == c.LUA_GCGEN;
     }
 
@@ -1204,10 +1209,12 @@ pub const Lua = opaque {
     }
 
     pub fn gcSetGoal(lua: *Lua, goal: i32) i32 {
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         return c.lua_gc(@ptrCast(lua), c.LUA_GCSETGOAL, goal);
     }
 
     pub fn gcSetStepSize(lua: *Lua, size: i32) i32 {
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         return c.lua_gc(@ptrCast(lua), c.LUA_GCSETSTEPSIZE, size);
     }
 
@@ -1217,13 +1224,14 @@ pub const Lua = opaque {
     pub const gcSetGenerational = switch (lang) {
         .lua52 => gcSetGenerational52,
         .lua54, .lua55 => gcSetGenerational54,
-        else => @compileError("gcSetGenerational() not available"),
+        else => @compileError("Lua.gcSetGenerational() is not supported in " ++ @tagName(lang)),
     };
 
     /// Sets `pause` as the new value for the pause of the collector
     /// Returns the previous value of the pause
     /// See https://www.lua.org/manual/5.3/manual.html#lua_gc
     pub fn gcSetPause(lua: *Lua, pause: i32) i32 {
+        comptime checkSupport(.{ .lua51, .lua52, .lua53, .luajit }, @src().fn_name);
         return c.lua_gc(@ptrCast(lua), c.LUA_GCSETPAUSE, pause);
     }
 
@@ -1231,6 +1239,7 @@ pub const Lua = opaque {
     /// Returns the previous value of the step multiplier
     /// See https://www.lua.org/manual/5.3/manual.html#lua_gc
     pub fn gcSetStepMul(lua: *Lua, multiplier: i32) i32 {
+        comptime checkSupport(.{ .lua51, .lua52, .lua53, .luajit, .luau }, @src().fn_name);
         return c.lua_gc(@ptrCast(lua), c.LUA_GCSETSTEPMUL, multiplier);
     }
 
@@ -1254,6 +1263,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.2/manual.html#lua_getctx
     pub fn getContext(lua: *Lua, ctx: *i32) GetContextError!void {
+        comptime checkSupport(.{ .lua52 }, @src().fn_name);
         const ret = c.lua_getctx(@ptrCast(lua), ctx);
         switch (ret) {
             StatusCode.ok, StatusCode.yield => return,
@@ -1269,7 +1279,7 @@ pub const Lua = opaque {
     ///
     /// This area has a size of a pointer to void
     ///
-    /// Only implemented in Lua 5.3 and 5.4
+    /// Only implemented in Lua 5.3, 5.4, and 5.5
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `0`
@@ -1277,12 +1287,13 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_getextraspace
     pub fn getExtraSpace(lua: *Lua) []u8 {
+        comptime checkSupport(.{ .lua53, .lua54, .lua55 }, @src().fn_name);
         return @as([*]u8, @ptrCast(c.lua_getextraspace(@as(*LuaState, @ptrCast(lua))).?))[0..@sizeOf(isize)];
     }
 
     /// Pushes onto the stack the environment table of the value at the given index.
     ///
-    /// Only implemented in Lua 5.1 and Luau
+    /// Only implemented in Lua 5.1, Luau, and LuaJIT
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `1`
@@ -1290,6 +1301,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.1/manual.html#lua_getfenv
     pub fn getFnEnvironment(lua: *Lua, index: i32) void {
+        comptime checkSupport(.{ .lua51, .luau, .luajit }, @src().fn_name);
         c.lua_getfenv(@ptrCast(lua), index);
     }
 
@@ -1337,7 +1349,7 @@ pub const Lua = opaque {
     ///
     /// Returns the type of the pushed value
     ///
-    /// Only implemented in Lua 5.3 and 5.4
+    /// Only implemented in Lua 5.3, 5.4, and 5.5
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `1`
@@ -1345,6 +1357,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_geti
     pub fn getIndex(lua: *Lua, index: i32, i: Integer) LuaType {
+        comptime checkSupport(.{ .lua53, .lua54, .lua55 }, @src().fn_name);
         return @enumFromInt(c.lua_geti(@ptrCast(lua), index, i));
     }
 
@@ -1369,7 +1382,8 @@ pub const Lua = opaque {
     pub const getUserValue = switch (lang) {
         .lua53 => getUserValue53,
         .lua54, .lua55 => getUserValue54,
-        else => getUserValue52,
+        .lua52 => getUserValue52,
+        else => @compileError("Lua.getUserValue() is not supported in " ++ @tagName(lang)),
     };
 
     /// If the value at the given index has a metatable, the function pushes that metatable onto the stack.
@@ -1419,12 +1433,14 @@ pub const Lua = opaque {
 
     /// Only available in Luau
     pub fn setReadonly(lua: *Lua, idx: i32, enabled: bool) void {
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         c.lua_setreadonly(@ptrCast(lua), idx, @intFromBool(enabled));
     }
 
     /// Only available in Luau
     pub fn getReadonly(lua: *Lua, idx: i32) bool {
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         return c.lua_getreadonly(@ptrCast(lua), idx) != 0;
     }
@@ -1476,7 +1492,7 @@ pub const Lua = opaque {
 
     /// Returns true if the value at the given `index` is an integer
     ///
-    /// Only available in Lua 5.3 and 5.4
+    /// Only available in Lua 5.3, 5.4, and 5.5
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `0`
@@ -1484,6 +1500,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_isinteger
     pub fn isInteger(lua: *Lua, index: i32) bool {
+        comptime checkSupport(.{ .lua53, .lua54, .lua55 }, @src().fn_name);
         return c.lua_isinteger(@ptrCast(lua), index) != 0;
     }
 
@@ -1595,13 +1612,13 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     pub fn isVector(lua: *Lua, index: i32) bool {
-        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         return c.lua_isvector(@as(*LuaState, @ptrCast(lua)), index);
     }
 
     /// Returns true if the given coroutine can yield
     ///
-    /// Only available in Lua 5.3 and 5.4
+    /// Only available in Lua 5.3, 5.4, and 5.5
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `0`
@@ -1609,6 +1626,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_isyieldable
     pub fn isYieldable(lua: *Lua) bool {
+        comptime checkSupport(.{ .lua53, .lua54, .lua55 }, @src().fn_name);
         return c.lua_isyieldable(@ptrCast(lua)) != 0;
     }
 
@@ -1616,7 +1634,7 @@ pub const Lua = opaque {
     /// Equivalent to the # operator in Lua and may
     /// trigger a metamethod for the "length" event. The result is pushed on the stack.
     ///
-    /// Only implemented in Lua 5.2, 5.3, and 5.4
+    /// Only implemented in Lua 5.2, 5.3, 5.4, and 5.5
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `1`
@@ -1624,6 +1642,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_len
     pub fn len(lua: *Lua, index: i32) void {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         c.lua_len(@ptrCast(lua), index);
     }
 
@@ -1639,6 +1658,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_lessthan
     pub fn lessThan(lua: *Lua, index1: i32, index2: i32) bool {
+        comptime checkSupport(.{ .lua51, .luau, .luajit }, @src().fn_name);
         return c.lua_lessthan(@ptrCast(lua), index1, index2) == 1;
     }
 
@@ -1646,7 +1666,7 @@ pub const Lua = opaque {
         .lua51, .luajit => error{ LuaSyntax, OutOfMemory },
         .lua52, .lua53 => error{ LuaSyntax, OutOfMemory, LuaRuntime, LuaMsgHandler, LuaGCMetaMethod },
         .lua54, .lua55 => error{ LuaSyntax, OutOfMemory, LuaRuntime, LuaMsgHandler },
-        else => @compileError("Load not implemented in Luau"),
+        else => @compileError("Lua.load() is not supported in Luau"),
     };
 
     fn load51(lua: *Lua, reader: CReaderFn, data: *anyopaque, chunk_name: [:0]const u8) LoadError!void {
@@ -1773,6 +1793,7 @@ pub const Lua = opaque {
     };
 
     pub fn newUserdataTagged(lua: *Lua, comptime T: type, tag: i32) *T {
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         const UTAG_PROXY = c.LUA_UTAG_LIMIT + 1; // not exposed in headers
         std.debug.assert((tag >= 0 and tag < c.LUA_UTAG_LIMIT) or tag == UTAG_PROXY); // Luau will do the same assert, this is easier to debug
         // safe to .? because this function throws a Lua error on out of memory
@@ -1786,6 +1807,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau.
     pub fn getUserdataTag(lua: *Lua, index: i32) error{ExpectedTaggedUserdata}!i32 {
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         const tag = c.lua_userdatatag(@ptrCast(lua), index);
         if (tag == -1) return error.ExpectedTaggedUserdata;
         return tag;
@@ -1798,6 +1820,7 @@ pub const Lua = opaque {
     ///
     /// Note: Luau doesn't support the usual Lua __gc metatable destructor.  Use this instead.
     pub fn newUserdataDtor(lua: *Lua, comptime T: type, dtor_fn: CUserdataDtorFn) *T {
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         // safe to .? because this function throws a Lua error on out of memory
         // so the returned pointer should never be null
         const ptr = c.lua_newuserdatadtor(@ptrCast(lua), @sizeOf(T), @ptrCast(dtor_fn)).?;
@@ -1826,10 +1849,11 @@ pub const Lua = opaque {
     /// it is converted to an integer and returned. If the integer is not in range,
     /// error.Overflow is returned.
     ///
-    /// Only available in Lua 5.4 and Lua 5.5.
+    /// Only available in Lua 5.3, 5.4, and 5.5.
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_numbertointeger
     pub fn numberToInteger(n: Number) error{Overflow}!Integer {
+        comptime checkSupport(.{ .lua53, .lua54, .lua55 }, @src().fn_name);
         // translate-c failure
         // return c.lua_numbertointeger(n, i) != 0;
         const min_float: Number = @floatFromInt(min_integer);
@@ -1855,6 +1879,7 @@ pub const Lua = opaque {
         .luau => i32,
         else => usize,
     } {
+        comptime checkSupport(.{ .lua51, .luau, .luajit }, @src().fn_name);
         return c.lua_objlen(@ptrCast(lua), index);
     }
 
@@ -1996,7 +2021,6 @@ pub const Lua = opaque {
     ///
     /// Any function to be callable by Lua must follow the correct protocol to receive its parameters and return its results.
     ///
-    ///
     /// When a C function is created, it is possible to associate some values with it, the so called upvalues; these upvalues
     /// are then accessible to the function whenever it is called. This association is called a C closure. To create
     /// a C closure, first the initial values for its upvalues must be pushed onto the stack. (When there are multiple
@@ -2027,7 +2051,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushcclosure
     pub fn pushClosureNamed(lua: *Lua, c_fn: CFn, debugname: [:0]const u8, n: i32) void {
-        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         c.lua_pushcclosurek(@ptrCast(lua), c_fn, debugname, n, null);
     }
 
@@ -2051,7 +2075,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushcfunction
     pub fn pushFunctionNamed(lua: *Lua, c_fn: CFn, debugname: [:0]const u8) void {
-        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         c.lua_pushcclosurek(@ptrCast(lua), c_fn, debugname, 0, null);
     }
 
@@ -2088,7 +2112,7 @@ pub const Lua = opaque {
 
     /// Pushes the global environment onto the stack
     ///
-    /// Only implemented in Lua 5.2, 5.3 and 5.4
+    /// Only implemented in Lua 5.2, 5.3, 5.4, and 5.5
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `1`
@@ -2096,6 +2120,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushglobaltable
     pub fn pushGlobalTable(lua: *Lua) void {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         // lua_pushglobaltable is a macro and c-translate assumes it returns opaque
         // so just reimplement the macro here
         // c.lua_pushglobaltable(@ptrCast(lua));
@@ -2218,6 +2243,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.2/manual.html#lua_pushunsigned
     pub fn pushUnsigned(lua: *Lua, n: Unsigned) void {
+        comptime checkSupport(.{ .lua52 }, @src().fn_name);
         return c.lua_pushunsigned(@ptrCast(lua), n);
     }
 
@@ -2245,7 +2271,7 @@ pub const Lua = opaque {
     /// Only available in Luau
     pub const pushVector = switch (lang) {
         .luau => if (luau_vector_size == 3) pushVector3 else pushVector4,
-        else => @compileError("pushVector is only available in Luau."),
+        else => @compileError("Lua.pushVector() is only available in Luau"),
     };
 
     /// Returns true if the two values in indices `index1` and `index2` are primitively equal
@@ -2316,6 +2342,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawgetp
     pub fn getPtrRaw(lua: *Lua, index: i32, p: *const anyopaque) LuaType {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55, .luau }, @src().fn_name);
         switch (lang) {
             .lua53, .lua54, .lua55 => return @enumFromInt(c.lua_rawgetp(@ptrCast(lua), index, p)),
             .luau => return @enumFromInt(c.lua_rawgetp(@as(*LuaState, @ptrCast(lua)), index, @constCast(p))),
@@ -2337,6 +2364,7 @@ pub const Lua = opaque {
     ///
     /// See https://sleitnick.github.io/luau-api/reference.html#lua_rawgetptagged
     pub fn getPtrRawTagged(lua: *Lua, index: i32, p: *const anyopaque, tag: i32) LuaType {
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         return @enumFromInt(c.lua_rawgetptagged(@as(*LuaState, @ptrCast(lua)), index, @constCast(p), tag));
     }
 
@@ -2345,8 +2373,6 @@ pub const Lua = opaque {
     /// * for tables, this is the result of the length operator ('#') with no metamethods
     /// * for userdata, this is the size of the block of memory allocated for the userdata
     /// * For other values, this call returns 0.
-    ///
-    /// Not available in Lua 5.1, LuaJIT or Luau
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `0`
@@ -2396,6 +2422,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rawsetp
     pub fn setPtrRaw(lua: *Lua, index: i32, p: *const anyopaque) void {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55, .luau }, @src().fn_name);
         switch (lang) {
             .luau => c.lua_rawsetp(@as(*LuaState, @ptrCast(lua)), index, @constCast(p)),
             else => c.lua_rawsetp(@ptrCast(lua), index, p),
@@ -2416,6 +2443,7 @@ pub const Lua = opaque {
     ///
     /// See https://sleitnick.github.io/luau-api/reference.html#lua_rawsetptagged
     pub fn setPtrRawTagged(lua: *Lua, index: i32, p: *const anyopaque, tag: i32) void {
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         c.lua_rawsetptagged(@as(*LuaState, @ptrCast(lua)), index, @constCast(p), tag);
     }
 
@@ -2520,7 +2548,7 @@ pub const Lua = opaque {
     /// absolute value of `n` must not be greater than the size of the slice being rotated. This function cannot be called with a
     /// pseudo-index, because a pseudo-index is not an actual stack position.
     ///
-    /// Only available in Lua 5.3 and 5.4
+    /// Only available in Lua 5.3, 5.4, and 5.5
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `0`
@@ -2528,6 +2556,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_rotate
     pub fn rotate(lua: *Lua, index: i32, n: i32) void {
+        comptime checkSupport(.{ .lua53, .lua54, .lua55 }, @src().fn_name);
         c.lua_rotate(@ptrCast(lua), index, n);
     }
 
@@ -2542,6 +2571,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.1/manual.html#lua_setfenv
     pub fn setFnEnvironment(lua: *Lua, index: i32) error{InvalidValue}!void {
+        comptime checkSupport(.{ .lua51, .luau, .luajit }, @src().fn_name);
         if (c.lua_setfenv(@ptrCast(lua), index) == 0) return error.InvalidValue;
     }
 
@@ -2654,7 +2684,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn setUserdataTag(lua: *Lua, index: i32, tag: i32) void {
-        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         std.debug.assert((tag >= 0 and tag < c.LUA_UTAG_LIMIT)); // Luau will do the same assert, this is easier to debug
         c.lua_setuserdatatag(@ptrCast(lua), index, tag);
     }
@@ -2670,6 +2700,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_setwarnf
     pub fn setWarnF(lua: *Lua, warn_fn: CWarnFn, data: ?*anyopaque) void {
+        comptime checkSupport(.{ .lua54, .lua55 }, @src().fn_name);
         c.lua_setwarnf(@ptrCast(lua), warn_fn, data);
     }
 
@@ -2696,6 +2727,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_stringtonumber
     pub fn stringToNumber(lua: *Lua, str: [:0]const u8) error{InvalidNumber}!void {
+        comptime checkSupport(.{ .lua53, .lua54, .lua55 }, @src().fn_name);
         const size = c.lua_stringtonumber(@ptrCast(lua), str.ptr);
         if (size == 0) return error.InvalidNumber;
     }
@@ -2740,7 +2772,7 @@ pub const Lua = opaque {
     /// already unwound, so that any automatic C variable declared in the calling function (e.g., a buffer) will be out of
     /// scope.
     ///
-    /// Only available in Lua 5.4
+    /// Only available in Lua 5.4 and 5.5
     ///
     /// * Pops from Stack: `0`
     /// * Pushes to Stack: `0`
@@ -2748,6 +2780,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_toclose
     pub fn toClose(lua: *Lua, index: i32) void {
+        comptime checkSupport(.{ .lua54, .lua55 }, @src().fn_name);
         c.lua_toclose(@ptrCast(lua), index);
     }
 
@@ -2880,6 +2913,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.2/manual.html#lua_tounsignedx
     pub fn toUnsigned(lua: *Lua, index: i32) error{ExpectedNumber}!Unsigned {
+        comptime checkSupport(.{ .lua52 }, @src().fn_name);
         var success: c_int = undefined;
         const result = c.lua_tounsignedx(@ptrCast(lua), index, &success);
         if (success == 0) return error.ExpectedNumber;
@@ -2922,7 +2956,7 @@ pub const Lua = opaque {
 
     /// Only available in Luau
     pub fn toUserdataTagged(lua: *Lua, comptime T: type, index: i32, tag: i32) error{ExpectedTaggedUserdata}!*T {
-        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         if (c.lua_touserdatatagged(@ptrCast(lua), index, tag)) |ptr| return @ptrCast(@alignCast(ptr));
         return error.ExpectedTaggedUserdata;
     }
@@ -2932,7 +2966,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn toVector(lua: *Lua, index: i32) error{ExpectedVector}![luau_vector_size]f32 {
-        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         const res = c.lua_tovector(@ptrCast(lua), index);
         if (res) |r| {
             switch (luau_vector_size) {
@@ -2949,7 +2983,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn toStringAtom(lua: *Lua, index: i32) error{ExpectedString}!struct { i32, [:0]const u8 } {
-        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         var length: usize = undefined;
         var atom: c_int = undefined;
         if (c.lua_tolstringatom(@ptrCast(lua), index, &length, &atom)) |ptr| {
@@ -2963,7 +2997,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn namecallAtom(lua: *Lua) error{ExpectedNamecall}!struct { i32, [:0]const u8 } {
-        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         var atom: c_int = undefined;
         if (c.lua_namecallatom(@ptrCast(lua), &atom)) |ptr| {
             return .{ atom, std.mem.span(ptr) };
@@ -3031,7 +3065,8 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#lua_version
     pub const version = switch (lang) {
         .lua54, .lua55 => version54,
-        else => version52,
+        .lua52, .lua53 => version52,
+        else => @compileError("Lua.version() is not supported in " ++ @tagName(lang)),
     };
 
     /// Emits a warning with the given `message`
@@ -3045,6 +3080,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_warning
     pub fn warning(lua: *Lua, message: [:0]const u8, to_cont: bool) void {
+        comptime checkSupport(.{ .lua54, .lua55 }, @src().fn_name);
         c.lua_warning(@ptrCast(lua), message.ptr, @intFromBool(to_cont));
     }
 
@@ -3393,7 +3429,7 @@ pub const Lua = opaque {
 
     /// Only available in Luau
     pub fn setInterruptCallbackFn(lua: *Lua, cb: ?CInterruptCallbackFn) void {
-        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         if (c.lua_callbacks(@ptrCast(lua))) |cb_struct| {
             cb_struct.*.interrupt = cb;
         }
@@ -3401,7 +3437,7 @@ pub const Lua = opaque {
 
     /// Only available in Luau
     pub fn setUserAtomCallbackFn(lua: *Lua, cb: CUserAtomCallbackFn) void {
-        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         if (c.lua_callbacks(@ptrCast(lua))) |cb_struct| {
             cb_struct.*.useratom = cb;
         }
@@ -3422,6 +3458,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_upvalueid
     pub fn upvalueId(lua: *Lua, func_index: i32, n: i32) ?*anyopaque {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         return c.lua_upvalueid(@ptrCast(lua), func_index, n);
     }
 
@@ -3436,6 +3473,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_upvaluejoin
     pub fn upvalueJoin(lua: *Lua, func_index1: i32, n1: i32, func_index2: i32, n2: i32) void {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         c.lua_upvaluejoin(@ptrCast(lua), func_index1, n1, func_index2, n2);
     }
 
@@ -3677,7 +3715,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn checkVector(lua: *Lua, arg: i32) [luau_vector_size]f32 {
-        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         const vec = lua.toVector(arg) catch {
             lua.typeError(arg, lua.typeName(LuaType.vector));
         };
@@ -3704,7 +3742,8 @@ pub const Lua = opaque {
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkversion
     pub const checkVersion = switch (lang) {
         .lua53, .lua54, .lua55 => checkVersion53,
-        else => checkVersion52,
+        .lua52 => checkVersion52,
+        else => @compileError("Lua.checkVersion() is not supported in " ++ @tagName(lang)),
     };
 
     const DoFileError = LoadFileError || CallError;
@@ -3717,6 +3756,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_dofile
     pub fn doFile(lua: *Lua, file_name: [:0]const u8) DoFileError!void {
+        comptime checkSupport(.{ .lua51, .lua52, .lua53, .lua54, .lua55, .luajit }, @src().fn_name);
         // translate-c failure
         switch (lang) {
             .luajit, .lua51 => try lua.loadFile(file_name),
@@ -3761,7 +3801,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn raiseInterruptErrorStr(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
-        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         c.lua_rawcheckstack(@ptrCast(lua), 1);
         lua.raiseErrorStr(fmt, args);
         unreachable;
@@ -3777,6 +3817,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_execresult
     pub fn execResult(lua: *Lua, stat: i32) i32 {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         return c.luaL_execresult(@ptrCast(lua), stat);
     }
 
@@ -3791,6 +3832,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_fileresult
     pub fn fileResult(lua: *Lua, stat: i32, file_name: [:0]const u8) i32 {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         return c.luaL_fileresult(@ptrCast(lua), stat, file_name.ptr);
     }
 
@@ -3837,6 +3879,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_getsubtable
     pub fn getSubtable(lua: *Lua, index: i32, field: [:0]const u8) bool {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         return c.luaL_getsubtable(@ptrCast(lua), index, field.ptr) != 0;
     }
 
@@ -3851,7 +3894,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_gsub
     pub fn globalSub(lua: *Lua, str: [:0]const u8, pat: [:0]const u8, rep: [:0]const u8) []const u8 {
-        if (lang == .luau) @compileError(@src().fn_name ++ " is not available in Luau.");
+        comptime checkSupport(.{ .lua51, .lua52, .lua53, .lua54, .lua55, .luajit }, @src().fn_name);
         const s = c.luaL_gsub(@ptrCast(lua), str.ptr, pat.ptr, rep.ptr);
         const l = lua.lenRaw(-1);
         return s[0..l];
@@ -3991,6 +4034,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_newlib
     pub fn newLib(lua: *Lua, list: []const FnReg) void {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         // translate-c failure
         lua.checkVersion();
         lua.newLibTable(list);
@@ -4008,6 +4052,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_newlibtable
     pub fn newLibTable(lua: *Lua, list: []const FnReg) void {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         // translate-c failure
         lua.createTable(0, @intCast(list.len));
     }
@@ -4079,6 +4124,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_optunsigned
     pub fn optUnsigned(lua: *Lua, arg: i32) ?Unsigned {
+        comptime checkSupport(.{ .lua52 }, @src().fn_name);
         if (lua.isNoneOrNil(arg)) return null;
         return lua.checkUnsigned(arg);
     }
@@ -4093,6 +4139,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_pushfail
     pub fn pushFail(lua: *Lua) void {
+        comptime checkSupport(.{ .lua54, .lua55 }, @src().fn_name);
         c.luaL_pushfail(@as(*LuaState, @ptrCast(lua)));
     }
 
@@ -4139,6 +4186,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.1/manual.html#luaL_register
     pub fn registerFns(lua: *Lua, libname: ?[:0]const u8, funcs: []const FnReg) void {
+        comptime checkSupport(.{ .lua51, .luau, .luajit }, @src().fn_name);
         // translated from the implementation of luaI_openlib so we can use a slice of
         // FnReg without requiring a sentinel end value
         if (libname) |name| {
@@ -4206,6 +4254,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_setfuncs
     pub fn setFuncs(lua: *Lua, funcs: []const FnReg, num_upvalues: i32) void {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         lua.checkStackErr(num_upvalues, "too many upvalues");
         for (funcs) |f| {
             if (f.func) |func| {
@@ -4230,6 +4279,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_setmetatable
     pub fn setMetatableRegistry(lua: *Lua, table_name: [:0]const u8) void {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         c.luaL_setmetatable(@ptrCast(lua), table_name.ptr);
     }
 
@@ -4243,6 +4293,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_testudata
     pub fn testUserdata(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) error{ExpectedUserdata}!*T {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         if (c.luaL_testudata(@ptrCast(lua), arg, name.ptr)) |ptr| {
             return @ptrCast(@alignCast(ptr));
         } else return error.ExpectedUserdata;
@@ -4258,6 +4309,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_checkudata
     pub fn testUserdataSlice(lua: *Lua, comptime T: type, arg: i32, name: [:0]const u8) error{ExpectedUserdata}![]T {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         if (c.luaL_testudata(@ptrCast(lua), arg, name.ptr)) |ptr| {
             const size = lua.lenRaw(arg) / @sizeOf(T);
             return @as([*]T, @ptrCast(@alignCast(ptr)))[0..size];
@@ -4275,6 +4327,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_tolstring
     pub fn toStringEx(lua: *Lua, index: i32) [:0]const u8 {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55 }, @src().fn_name);
         var length: usize = undefined;
         const ptr = c.luaL_tolstring(@ptrCast(lua), index, &length);
         return ptr[0..length :0];
@@ -4304,6 +4357,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#luaL_typeerror
     pub fn typeError(lua: *Lua, arg: i32, type_name: [:0]const u8) noreturn {
+        comptime checkSupport(.{ .lua54, .lua55, .luau }, @src().fn_name);
         _ = c.luaL_typeerror(@as(*LuaState, @ptrCast(lua)), arg, type_name.ptr);
         unreachable;
     }
@@ -4391,6 +4445,7 @@ pub const Lua = opaque {
     /// * Pushes to Stack: `0`
     /// * Lua Runtime Errors: `any`
     pub fn openCoroutine(lua: *Lua) void {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55, .luau }, @src().fn_name);
         lua.requireF(c.LUA_COLIBNAME, c.luaopen_coroutine, true);
         if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
@@ -4403,7 +4458,7 @@ pub const Lua = opaque {
     /// * Pushes to Stack: `0`
     /// * Lua Runtime Errors: `any`
     pub fn openPackage(lua: *Lua) void {
-        if (lang == .luau) @compileError(@src().fn_name ++ " is not available in Luau.");
+        comptime checkSupport(.{ .lua51, .lua52, .lua53, .lua54, .lua55, .luajit }, @src().fn_name);
         lua.requireF(c.LUA_LOADLIBNAME, c.luaopen_package, true);
         if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
@@ -4426,6 +4481,7 @@ pub const Lua = opaque {
     /// * Pushes to Stack: `0`
     /// * Lua Runtime Errors: `any`
     pub fn openUtf8(lua: *Lua) void {
+        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55, .luau }, @src().fn_name);
         lua.requireF(c.LUA_UTF8LIBNAME, c.luaopen_utf8, true);
         if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
@@ -4458,7 +4514,7 @@ pub const Lua = opaque {
     /// * Pushes to Stack: `0`
     /// * Lua Runtime Errors: `any`
     pub fn openIO(lua: *Lua) void {
-        if (lang == .luau) @compileError(@src().fn_name ++ " is not available in Luau.");
+        comptime checkSupport(.{ .lua51, .lua52, .lua53, .lua54, .lua55, .luajit }, @src().fn_name);
         lua.requireF(c.LUA_IOLIBNAME, c.luaopen_io, true);
         if (lang == .lua52 or lang == .lua53 or lang == .lua54 or lang == .lua55) lua.pop(1);
     }
@@ -4491,12 +4547,13 @@ pub const Lua = opaque {
     /// * Pushes to Stack: `0`
     /// * Lua Runtime Errors: `any`
     pub fn openBit32(lua: *Lua) void {
+        comptime checkSupport(.{ .lua52, .luajit }, @src().fn_name);
         switch (lang) {
-            .lua52, .lua53 => lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit32, true),
+            .lua52 => lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit32, true),
             .luajit => lua.requireF(c.LUA_BITLIBNAME, c.luaopen_bit, true),
-            else => @compileError(@src().fn_name ++ " is only available in Lua 5.2 and LuaJIT."),
+            else => unreachable,
         }
-        // For some reason Lua 5.2 leaves a value on the stack.
+        // For some reason only Lua 5.2 leaves a value on the stack.
         if (lang == .lua52) lua.pop(1);
     }
     pub const openBit = openBit32;
@@ -4509,7 +4566,7 @@ pub const Lua = opaque {
     /// * Pushes to Stack: `0`
     /// * Lua Runtime Errors: `any`
     pub fn openVector(lua: *Lua) void {
-        if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
+        comptime checkSupport(.{ .luau }, @src().fn_name);
         lua.requireF(c.LUA_VECLIBNAME, c.luaopen_vector, true);
     }
 
@@ -5456,7 +5513,7 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
                 return -1;
             }
         }.inner,
-        CWarnFn => if (lang != .lua54) @compileError("CWarnFn is only valid in Lua >= 5.4") else struct {
+        CWarnFn => if (lang != .lua54 and lang != .lua55) @compileError("CWarnFn is only valid in Lua >= 5.4") else struct {
             fn inner(data: ?*anyopaque, msg: [*c]const u8, to_cont: c_int) callconv(.c) void {
                 // warning messages emitted from Lua should be null-terminated for display
                 const message = std.mem.span(@as([*:0]const u8, @ptrCast(msg)));
@@ -5612,4 +5669,23 @@ pub fn fnRegsFromType(comptime T: type) []const FnReg {
     }
     const final = funcs;
     return final;
+}
+
+fn checkSupport(versions: anytype, fn_name: []const u8) void {
+    const supported = blk: {
+        inline for (versions) |version| if (lang == version) break :blk true;
+        break :blk false;
+    };
+    if (!supported) {
+        const name = switch (lang) {
+            .lua51 => "Lua 5.1",
+            .lua52 => "Lua 5.2",
+            .lua53 => "Lua 5.3",
+            .lua54 => "Lua 5.4",
+            .lua55 => "Lua 5.5",
+            .luau => "Luau",
+            .luajit => "LuaJIT",
+        };
+        @compileError("Lua." ++ fn_name ++ "() is not supported in " ++ name);
+    }
 }
