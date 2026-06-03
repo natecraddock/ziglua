@@ -3,7 +3,7 @@ const std = @import("std");
 const Build = std.Build;
 const Step = std.Build.Step;
 
-const PatchFile = struct {
+const RunOutput = struct {
     run: *Step.Run,
     output: Build.LazyPath,
 };
@@ -14,7 +14,7 @@ pub fn applyPatchToFile(
     file: Build.LazyPath,
     patch_file: Build.LazyPath,
     output_file: []const u8,
-) PatchFile {
+) RunOutput {
     const patch = b.addExecutable(.{
         .name = "patch",
         .root_module = b.createModule(.{
@@ -31,6 +31,33 @@ pub fn applyPatchToFile(
 
     return .{
         .run = patch_run,
+        .output = out,
+    };
+}
+
+pub fn concatenateFiles(
+    b: *Build,
+    target: Build.ResolvedTarget,
+    file1: Build.LazyPath,
+    file2: Build.LazyPath,
+    output_file: []const u8,
+) RunOutput {
+    const concatenate = b.addExecutable(.{
+        .name = "concat",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("build/header_gen.zig"),
+            .target = target,
+        }),
+    });
+
+    const concatenate_run = b.addRunArtifact(concatenate);
+    concatenate_run.addFileArg(file1);
+    concatenate_run.addFileArg(file2);
+
+    const out = concatenate_run.addOutputFileArg(output_file);
+
+    return .{
+        .run = concatenate_run,
         .output = out,
     };
 }

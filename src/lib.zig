@@ -111,6 +111,10 @@ extern "c" fn zig_registerAssertionHandler() void;
 /// This function is defined in luau.cpp and ensures Zig uses the correct free when compiling luau code
 extern "c" fn zig_luau_free(ptr: *anyopaque) void;
 
+export fn zlua_assert(ok: bool) void {
+    std.debug.assert(ok);
+}
+
 const Allocator = std.mem.Allocator;
 
 // Types
@@ -731,12 +735,8 @@ pub const Lua = opaque {
         } else if (nsize == 0) {
             return null;
         } else {
-            const builtin = @import("builtin"); // FIXME: remove when zig-0.15 is released and 0.14 can be dropped
             // ptr is null, allocate a new block of memory
-            const new_ptr = (if (builtin.zig_version.major == 0 and builtin.zig_version.minor < 15)
-                allocator_ptr.alignedAlloc(u8, alignment, nsize)
-            else
-                allocator_ptr.alignedAlloc(u8, .fromByteUnits(alignment), nsize)) catch return null;
+            const new_ptr = allocator_ptr.alignedAlloc(u8, .fromByteUnits(alignment), nsize) catch return null;
             return new_ptr.ptr;
         }
     }
