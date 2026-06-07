@@ -2,7 +2,6 @@ const std = @import("std");
 
 const Build = std.Build;
 const Step = std.Build.Step;
-const Translator = @import("translate_c").Translator;
 
 const lua_setup = @import("build/lua.zig");
 const luau_setup = @import("build/luau.zig");
@@ -72,15 +71,13 @@ pub fn build(b: *Build) void {
     }
 
     // Translate the Lua C headers in to Zig code.
-    const translate_c = b.dependency("translate_c", .{});
-
     const c_header_path = switch (lang) {
         .luajit => b.path("build/include/luajit_all.h"),
         .luau => b.path("build/include/luau_all.h"),
         else => b.path("build/include/lua_all.h"),
     };
-    const t: Translator = .init(translate_c, .{
-        .c_source_file = c_header_path,
+    const t = b.addTranslateC(.{
+        .root_source_file = c_header_path,
         .target = target,
         .optimize = optimize,
     });
@@ -91,7 +88,7 @@ pub fn build(b: *Build) void {
         t.addSystemIncludePath(headers);
     }
 
-    zlua.addImport("c", t.mod);
+    zlua.addImport("c", t.createModule());
 
     if (system_lua) {
         const link_mode: std.builtin.LinkMode = if (shared) .dynamic else .static;
