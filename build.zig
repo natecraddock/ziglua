@@ -41,7 +41,7 @@ pub fn build(b: *Build) void {
     const system_lua = b.option(bool, "system_lua", "Use system lua") orelse false;
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
     const lua_user_h = b.option(Build.LazyPath, "lua_user_h", "Lazy path to user supplied c header file") orelse null;
-    const additional_system_headers = b.option(Build.LazyPath, "additional_system_headers", "Lazy path to additional system headers to include when building Lua") orelse null;
+    const additional_system_headers = b.option([]Build.LazyPath, "additional_system_headers", "Slice of Lazy paths to additional system headers to include when building Lua") orelse null;
     const api_check = b.option(ApiCheck, "apicheck", "Enable parameter checks in the Lua API") orelse .debug;
 
     if (lang == .luau and shared) {
@@ -87,9 +87,9 @@ pub fn build(b: *Build) void {
 
     // If we've been given additional system headers, add them now.
     // Useful for things like linking Emscripten headers by including a new sysroot
-    if (additional_system_headers) |headers| {
-        t.addSystemIncludePath(headers);
-    }
+    if (additional_system_headers) |include_paths| for (include_paths) |include_path| {
+        t.addSystemIncludePath(include_path);
+    };
 
     zlua.addImport("c", t.mod);
 
