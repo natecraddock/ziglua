@@ -75,6 +75,7 @@ pub fn configure(
         if (target.result.os.tag == .windows and shared) "-DLUA_BUILD_AS_DLL" else "",
 
         if (lua_user_h) |_| b.fmt("-DLUA_USER_H=\"{s}\"", .{user_header}) else "",
+        if (target.result.cpu.arch == .wasm32) "-flto" else "",
     };
 
     const lua_source_files = switch (lang) {
