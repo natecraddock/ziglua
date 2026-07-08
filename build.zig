@@ -95,15 +95,17 @@ pub fn build(b: *Build) void {
 
     if (system_lua) {
         const link_mode: std.builtin.LinkMode = if (shared) .dynamic else .static;
-        switch (lang) {
-            .lua51 => zlua.linkSystemLibrary("lua5.1", .{ .preferred_link_mode = link_mode }),
-            .lua52 => zlua.linkSystemLibrary("lua5.2", .{ .preferred_link_mode = link_mode }),
-            .lua53 => zlua.linkSystemLibrary("lua5.3", .{ .preferred_link_mode = link_mode }),
-            .lua54 => zlua.linkSystemLibrary("lua5.4", .{ .preferred_link_mode = link_mode }),
-            .lua55 => zlua.linkSystemLibrary("lua5.5", .{ .preferred_link_mode = link_mode }),
-            .luajit => zlua.linkSystemLibrary("luajit", .{ .preferred_link_mode = link_mode }),
+        const system_library_name = switch (lang) {
+            .lua51 => "lua5.1",
+            .lua52 => "lua5.2",
+            .lua53 => "lua5.3",
+            .lua54 => "lua5.4",
+            .lua55 => "lua5.5",
+            .luajit => "luajit",
             .luau => @panic("luau not supported for system lua"),
-        }
+        };
+        zlua.linkSystemLibrary(system_library_name, .{ .preferred_link_mode = link_mode });
+        t.linkSystemLibrary(system_library_name, .{ .preferred_link_mode = link_mode });
     } else if (b.lazyDependency(@tagName(lang), .{})) |upstream| {
         const lib = switch (lang) {
             .luajit => luajit_setup.configure(b, target, optimize, upstream, shared),
