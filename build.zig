@@ -105,7 +105,7 @@ pub fn build(b: *Build) void {
             .luau => @panic("luau not supported for system lua"),
         };
         zlua.linkSystemLibrary(system_library_name, .{ .preferred_link_mode = link_mode });
-        t.linkSystemLibrary(system_library_name, .{ .preferred_link_mode = link_mode });
+        t.mod.linkSystemLibrary(system_library_name, .{ .preferred_link_mode = link_mode });
     } else if (b.lazyDependency(@tagName(lang), .{})) |upstream| {
         const lib = switch (lang) {
             .luajit => luajit_setup.configure(b, target, optimize, upstream, shared),
@@ -171,7 +171,7 @@ pub fn build(b: *Build) void {
 
         const run_cmd = b.addRunArtifact(exe);
         run_cmd.step.dependOn(b.getInstallStep());
-        if (b.args) |args| run_cmd.addArgs(args);
+        run_cmd.addPassthruArgs();
 
         const run_step = b.step(b.fmt("run-example-{s}", .{example[0]}), b.fmt("Run {s} example", .{example[0]}));
         run_step.dependOn(&run_cmd.step);
