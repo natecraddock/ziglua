@@ -5009,7 +5009,7 @@ pub const Lua = opaque {
                     lua.pop(2);
                     return error.LuaVoidTableIsNotEmpty;
                 }
-                return void{};
+                return {};
             },
             else => {
                 @compileError("Invalid parameter type");
