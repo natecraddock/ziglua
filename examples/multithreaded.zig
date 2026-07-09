@@ -5,17 +5,16 @@
 const std = @import("std");
 const zlua = @import("zlua");
 
-var mutex = std.Io.Mutex.init;
-var io: std.Io = undefined;
+var mutex = std.Thread.Mutex{};
 
 export fn lua_zlock(L: *zlua.LuaState) callconv(.c) void {
     _ = L;
-    mutex.lock(io) catch {};
+    mutex.lock();
 }
 
 export fn lua_zunlock(L: *zlua.LuaState) callconv(.c) void {
     _ = L;
-    mutex.unlock(io);
+    mutex.unlock();
 }
 
 fn add_to_x(lua: *zlua.Lua, num: usize) void {
@@ -26,7 +25,7 @@ fn add_to_x(lua: *zlua.Lua, num: usize) void {
     }
 
     const size = 256;
-    var buf = std.mem.zeroes([size:0]u8);
+    var buf = [_:0]u8{0} ** size;
     _ = std.fmt.bufPrint(&buf, "print(\"{}: \", x)", .{std.Thread.getCurrentId()}) catch return;
 
     // The printing from different threads does not always work nicely
@@ -37,7 +36,6 @@ fn add_to_x(lua: *zlua.Lua, num: usize) void {
 
 pub fn main(init: std.process.Init) anyerror!void {
     const gpa = init.gpa;
-    io = init.io;
 
     // Initialize The Lua vm and get a reference to the main thread
     var lua = try zlua.Lua.init(gpa);
@@ -54,18 +52,22 @@ pub fn main(init: std.process.Init) anyerror!void {
     const n_jobs = 5;
     var subs: [n_jobs]*zlua.Lua = undefined;
 
-    // create a wait group to run all the functions
-    var wg = std.Io.Group.init;
+    // create a thread pool to run all the functions
+    var pool: std.Thread.Pool = undefined;
+    try pool.init(.{ .allocator = gpa, .n_jobs = n_jobs });
+    defer pool.deinit();
+
+    var wg: std.Thread.WaitGroup = .{};
 
     for (0..n_jobs) |i| {
         subs[i] = lua.newThread();
-        wg.async(io, add_to_x, .{ subs[i], num });
+        pool.spawnWg(&wg, add_to_x, .{ subs[i], num });
     }
 
     // also do the thing from the main thread
     add_to_x(lua, num);
 
-    try wg.await(io);
+    wg.wait();
 
     for (subs) |sub| {
         try lua.closeThread(sub);

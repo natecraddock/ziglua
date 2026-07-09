@@ -48,8 +48,8 @@
         },
 
         .translate_c = .{
-            .url = "git+https://codeberg.org/ziglang/translate-c?ref=master#ba4288f6c0e8054d7894266949d4fa08bfc0212a",
-            .hash = "translate_c-0.0.0-Q_BUWvI3BwAFZWG2aNKspzHT7uv3yKuNMC5sP4C0hoYl",
+            .url = "git+https://codeberg.org/ziglang/translate-c#46b5609b5ac4c0a896217d1d984f3ae50e4810b5",
+            .hash = "translate_c-0.0.0-Q_BUWpf0BgAwrh5AM-acJcslN_YPEhcoCVKbbNjwuUTJ",
         },
     },
 }
