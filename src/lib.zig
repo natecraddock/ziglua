@@ -208,9 +208,9 @@ pub const DebugInfo51 = struct {
             var str: [10:0]u8 = @splat(0);
             var index: u8 = 0;
 
-            inline for (std.meta.fields(Options)) |field| {
-                if (@field(options, field.name)) {
-                    str[index] = field.name[0];
+            inline for (comptime std.meta.fieldNames(Options)) |name| {
+                if (@field(options, name)) {
+                    str[index] = name[0];
                     index += 1;
                 }
             }
@@ -260,9 +260,9 @@ const DebugInfo52 = struct {
             var str: [10:0]u8 = @splat(0);
             var index: u8 = 0;
 
-            inline for (std.meta.fields(Options)) |field| {
-                if (@field(options, field.name)) {
-                    str[index] = field.name[0];
+            inline for (comptime std.meta.fieldNames(Options)) |name| {
+                if (@field(options, name)) {
+                    str[index] = name[0];
                     index += 1;
                 }
             }
@@ -317,9 +317,9 @@ const DebugInfo54 = struct {
             var str: [10:0]u8 = @splat(0);
             var index: u8 = 0;
 
-            inline for (std.meta.fields(Options)) |field| {
-                if (@field(options, field.name)) {
-                    str[index] = field.name[0];
+            inline for (comptime std.meta.fieldNames(Options)) |name| {
+                if (@field(options, name)) {
+                    str[index] = name[0];
                     index += 1;
                 }
             }
@@ -374,9 +374,9 @@ const DebugInfo55 = struct {
             var str: [10:0]u8 = @splat(0);
             var index: u8 = 0;
 
-            inline for (std.meta.fields(Options)) |field| {
-                if (@field(options, field.name)) {
-                    str[index] = field.name[0];
+            inline for (comptime std.meta.fieldNames(Options)) |name| {
+                if (@field(options, name)) {
+                    str[index] = name[0];
                     index += 1;
                 }
             }
@@ -416,9 +416,9 @@ pub const DebugInfoLuau = struct {
             var str: [10:0]u8 = @splat(0);
             var index: u8 = 0;
 
-            inline for (std.meta.fields(Options)) |field| {
-                if (@field(options, field.name)) {
-                    str[index] = field.name[0];
+            inline for (comptime std.meta.fieldNames(Options)) |name| {
+                if (@field(options, name)) {
+                    str[index] = name[0];
                     index += 1;
                 }
             }
@@ -924,7 +924,12 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_callk
     pub fn callCont(lua: *Lua, args: CallContArgs) void {
-        comptime checkSupport(.{ .lua52, .lua53, .lua54, .lua55, }, @src().fn_name);
+        comptime checkSupport(.{
+            .lua52,
+            .lua53,
+            .lua54,
+            .lua55,
+        }, @src().fn_name);
         c.lua_callk(@ptrCast(lua), args.args, args.results, args.ctx, args.k);
     }
 
@@ -1209,12 +1214,12 @@ pub const Lua = opaque {
     }
 
     pub fn gcSetGoal(lua: *Lua, goal: i32) i32 {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         return c.lua_gc(@ptrCast(lua), c.LUA_GCSETGOAL, goal);
     }
 
     pub fn gcSetStepSize(lua: *Lua, size: i32) i32 {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         return c.lua_gc(@ptrCast(lua), c.LUA_GCSETSTEPSIZE, size);
     }
 
@@ -1263,7 +1268,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.2/manual.html#lua_getctx
     pub fn getContext(lua: *Lua, ctx: *i32) GetContextError!void {
-        comptime checkSupport(.{ .lua52 }, @src().fn_name);
+        comptime checkSupport(.{.lua52}, @src().fn_name);
         const ret = c.lua_getctx(@ptrCast(lua), ctx);
         switch (ret) {
             StatusCode.ok, StatusCode.yield => return,
@@ -1433,14 +1438,14 @@ pub const Lua = opaque {
 
     /// Only available in Luau
     pub fn setReadonly(lua: *Lua, idx: i32, enabled: bool) void {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         c.lua_setreadonly(@ptrCast(lua), idx, @intFromBool(enabled));
     }
 
     /// Only available in Luau
     pub fn getReadonly(lua: *Lua, idx: i32) bool {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         if (lang != .luau) @compileError(@src().fn_name ++ " is only available in Luau.");
         return c.lua_getreadonly(@ptrCast(lua), idx) != 0;
     }
@@ -1612,7 +1617,7 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     pub fn isVector(lua: *Lua, index: i32) bool {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         return c.lua_isvector(@as(*LuaState, @ptrCast(lua)), index);
     }
 
@@ -1793,7 +1798,7 @@ pub const Lua = opaque {
     };
 
     pub fn newUserdataTagged(lua: *Lua, comptime T: type, tag: i32) *T {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         const UTAG_PROXY = c.LUA_UTAG_LIMIT + 1; // not exposed in headers
         std.debug.assert((tag >= 0 and tag < c.LUA_UTAG_LIMIT) or tag == UTAG_PROXY); // Luau will do the same assert, this is easier to debug
         // safe to .? because this function throws a Lua error on out of memory
@@ -1807,7 +1812,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau.
     pub fn getUserdataTag(lua: *Lua, index: i32) error{ExpectedTaggedUserdata}!i32 {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         const tag = c.lua_userdatatag(@ptrCast(lua), index);
         if (tag == -1) return error.ExpectedTaggedUserdata;
         return tag;
@@ -1820,7 +1825,7 @@ pub const Lua = opaque {
     ///
     /// Note: Luau doesn't support the usual Lua __gc metatable destructor.  Use this instead.
     pub fn newUserdataDtor(lua: *Lua, comptime T: type, dtor_fn: CUserdataDtorFn) *T {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         // safe to .? because this function throws a Lua error on out of memory
         // so the returned pointer should never be null
         const ptr = c.lua_newuserdatadtor(@ptrCast(lua), @sizeOf(T), @ptrCast(dtor_fn)).?;
@@ -2051,7 +2056,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushcclosure
     pub fn pushClosureNamed(lua: *Lua, c_fn: CFn, debugname: [:0]const u8, n: i32) void {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         c.lua_pushcclosurek(@ptrCast(lua), c_fn, debugname, n, null);
     }
 
@@ -2075,7 +2080,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_pushcfunction
     pub fn pushFunctionNamed(lua: *Lua, c_fn: CFn, debugname: [:0]const u8) void {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         c.lua_pushcclosurek(@ptrCast(lua), c_fn, debugname, 0, null);
     }
 
@@ -2243,7 +2248,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.2/manual.html#lua_pushunsigned
     pub fn pushUnsigned(lua: *Lua, n: Unsigned) void {
-        comptime checkSupport(.{ .lua52 }, @src().fn_name);
+        comptime checkSupport(.{.lua52}, @src().fn_name);
         return c.lua_pushunsigned(@ptrCast(lua), n);
     }
 
@@ -2364,7 +2369,7 @@ pub const Lua = opaque {
     ///
     /// See https://sleitnick.github.io/luau-api/reference.html#lua_rawgetptagged
     pub fn getPtrRawTagged(lua: *Lua, index: i32, p: *const anyopaque, tag: i32) LuaType {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         return @enumFromInt(c.lua_rawgetptagged(@as(*LuaState, @ptrCast(lua)), index, @constCast(p), tag));
     }
 
@@ -2443,7 +2448,7 @@ pub const Lua = opaque {
     ///
     /// See https://sleitnick.github.io/luau-api/reference.html#lua_rawsetptagged
     pub fn setPtrRawTagged(lua: *Lua, index: i32, p: *const anyopaque, tag: i32) void {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         c.lua_rawsetptagged(@as(*LuaState, @ptrCast(lua)), index, @constCast(p), tag);
     }
 
@@ -2684,7 +2689,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn setUserdataTag(lua: *Lua, index: i32, tag: i32) void {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         std.debug.assert((tag >= 0 and tag < c.LUA_UTAG_LIMIT)); // Luau will do the same assert, this is easier to debug
         c.lua_setuserdatatag(@ptrCast(lua), index, tag);
     }
@@ -2913,7 +2918,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.2/manual.html#lua_tounsignedx
     pub fn toUnsigned(lua: *Lua, index: i32) error{ExpectedNumber}!Unsigned {
-        comptime checkSupport(.{ .lua52 }, @src().fn_name);
+        comptime checkSupport(.{.lua52}, @src().fn_name);
         var success: c_int = undefined;
         const result = c.lua_tounsignedx(@ptrCast(lua), index, &success);
         if (success == 0) return error.ExpectedNumber;
@@ -2956,7 +2961,7 @@ pub const Lua = opaque {
 
     /// Only available in Luau
     pub fn toUserdataTagged(lua: *Lua, comptime T: type, index: i32, tag: i32) error{ExpectedTaggedUserdata}!*T {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         if (c.lua_touserdatatagged(@ptrCast(lua), index, tag)) |ptr| return @ptrCast(@alignCast(ptr));
         return error.ExpectedTaggedUserdata;
     }
@@ -2966,7 +2971,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn toVector(lua: *Lua, index: i32) error{ExpectedVector}![luau_vector_size]f32 {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         const res = c.lua_tovector(@ptrCast(lua), index);
         if (res) |r| {
             switch (luau_vector_size) {
@@ -2983,7 +2988,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn toStringAtom(lua: *Lua, index: i32) error{ExpectedString}!struct { i32, [:0]const u8 } {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         var length: usize = undefined;
         var atom: c_int = undefined;
         if (c.lua_tolstringatom(@ptrCast(lua), index, &length, &atom)) |ptr| {
@@ -2997,7 +3002,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn namecallAtom(lua: *Lua) error{ExpectedNamecall}!struct { i32, [:0]const u8 } {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         var atom: c_int = undefined;
         if (c.lua_namecallatom(@ptrCast(lua), &atom)) |ptr| {
             return .{ atom, std.mem.span(ptr) };
@@ -3429,7 +3434,7 @@ pub const Lua = opaque {
 
     /// Only available in Luau
     pub fn setInterruptCallbackFn(lua: *Lua, cb: ?CInterruptCallbackFn) void {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         if (c.lua_callbacks(@ptrCast(lua))) |cb_struct| {
             cb_struct.*.interrupt = cb;
         }
@@ -3437,7 +3442,7 @@ pub const Lua = opaque {
 
     /// Only available in Luau
     pub fn setUserAtomCallbackFn(lua: *Lua, cb: CUserAtomCallbackFn) void {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         if (c.lua_callbacks(@ptrCast(lua))) |cb_struct| {
             cb_struct.*.useratom = cb;
         }
@@ -3569,9 +3574,9 @@ pub const Lua = opaque {
                     .unsigned => "u",
                     .signed => "i",
                 };
-                const output = std.fmt.bufPrintZ(&buf, "integer argument doesn't fit inside {s}{d} range [{d}, {d}]", .{
+                const output = std.fmt.bufPrintSentinel(&buf, "integer argument doesn't fit inside {s}{d} range [{d}, {d}]", .{
                     signedness, info.bits, std.math.minInt(T), std.math.maxInt(T),
-                }) catch unreachable;
+                }, 0) catch unreachable;
                 break :msg output[0..output.len :0].*;
             };
             lua.argError(arg, &error_msg);
@@ -3618,9 +3623,11 @@ pub const Lua = opaque {
             }
         };
 
-        inline for (std.meta.fields(T)) |field| {
-            if (std.mem.eql(u8, field.name, name)) {
-                return @enumFromInt(field.value);
+        const enm = @typeInfo(T).@"enum";
+
+        inline for (enm.field_names, enm.field_values) |fname, value| {
+            if (std.mem.eql(u8, fname, name)) {
+                return @enumFromInt(value);
             }
         }
 
@@ -3715,7 +3722,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn checkVector(lua: *Lua, arg: i32) [luau_vector_size]f32 {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         const vec = lua.toVector(arg) catch {
             lua.typeError(arg, lua.typeName(LuaType.vector));
         };
@@ -3801,7 +3808,7 @@ pub const Lua = opaque {
     ///
     /// Only available in Luau
     pub fn raiseInterruptErrorStr(lua: *Lua, fmt: [:0]const u8, args: anytype) noreturn {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         c.lua_rawcheckstack(@ptrCast(lua), 1);
         lua.raiseErrorStr(fmt, args);
         unreachable;
@@ -4124,7 +4131,7 @@ pub const Lua = opaque {
     ///
     /// See https://www.lua.org/manual/5.2/manual.html#luaL_optunsigned
     pub fn optUnsigned(lua: *Lua, arg: i32) ?Unsigned {
-        comptime checkSupport(.{ .lua52 }, @src().fn_name);
+        comptime checkSupport(.{.lua52}, @src().fn_name);
         if (lua.isNoneOrNil(arg)) return null;
         return lua.checkUnsigned(arg);
     }
@@ -4566,7 +4573,7 @@ pub const Lua = opaque {
     /// * Pushes to Stack: `0`
     /// * Lua Runtime Errors: `any`
     pub fn openVector(lua: *Lua) void {
-        comptime checkSupport(.{ .luau }, @src().fn_name);
+        comptime checkSupport(.{.luau}, @src().fn_name);
         lua.requireF(c.LUA_VECLIBNAME, c.luaopen_vector, true);
     }
 
@@ -4605,7 +4612,7 @@ pub const Lua = opaque {
                     }
                     _ = lua.pushStringZ(value);
                 } else {
-                    const null_terminated = try lua.allocator().dupeZ(u8, value);
+                    const null_terminated = try lua.allocator().dupeSentinel(u8, value, 0);
                     defer lua.allocator().free(null_terminated);
                     _ = lua.pushStringZ(null_terminated);
                 }
@@ -4641,12 +4648,12 @@ pub const Lua = opaque {
                 switch (fli) {
                     .@"fn" => |f| {
                         const args_ok = comptime args_ok: {
-                            const f_params = f.params;
+                            const f_param_types = f.param_types;
 
-                            if (f_params.len != toLuaArgs.len) break :args_ok false;
+                            if (f_param_types.len != toLuaArgs.len) break :args_ok false;
 
                             for (0..toLuaArgs.len) |i| {
-                                if (f_params[i].type != @TypeOf(toLuaArgs[i])) break :args_ok false;
+                                if (f_param_types[i] != @TypeOf(toLuaArgs[i])) break :args_ok false;
                             }
 
                             break :args_ok true;
@@ -4696,7 +4703,7 @@ pub const Lua = opaque {
                     try lua.pushAnyString(value);
                 } else switch (info.size) {
                     .one => {
-                        if (info.is_const) {
+                        if (info.attrs.@"const") {
                             @compileLog(value);
                             @compileLog("Lua cannot guarantee that references will not be modified");
                             @compileError("Pointer must not be const");
@@ -4740,15 +4747,15 @@ pub const Lua = opaque {
             .@"struct" => |info| {
                 lua.createTable(0, 0);
                 if (info.is_tuple) {
-                    inline for (0..info.fields.len) |i| {
+                    inline for (0..info.field_names.len) |i| {
                         try lua.pushAny(i + 1);
                         try lua.pushAny(value[i]);
                         lua.setTable(-3);
                     }
                 } else {
-                    inline for (info.fields) |field| {
-                        try lua.pushAny(field.name);
-                        try lua.pushAny(@field(value, field.name));
+                    inline for (info.field_names) |name| {
+                        try lua.pushAny(name);
+                        try lua.pushAny(@field(value, name));
                         lua.setTable(-3);
                     }
                 }
@@ -4759,9 +4766,9 @@ pub const Lua = opaque {
                 errdefer lua.pop(1);
                 try lua.pushAnyString(@tagName(value));
 
-                inline for (info.fields) |field| {
-                    if (std.mem.eql(u8, field.name, @tagName(value))) {
-                        try lua.pushAny(@field(value, field.name));
+                inline for (info.field_names) |name| {
+                    if (std.mem.eql(u8, name, @tagName(value))) {
+                        try lua.pushAny(@field(value, name));
                     }
                 }
                 lua.setTable(-3);
@@ -4840,12 +4847,12 @@ pub const Lua = opaque {
                 switch (fli) {
                     .@"fn" => |f| {
                         const args_ok = comptime args_ok: {
-                            const f_params = f.params;
+                            const f_param_types = f.param_types;
 
-                            if (f_params.len != fromLuaArgs.len) break :args_ok false;
+                            if (f_param_types.len != fromLuaArgs.len) break :args_ok false;
 
                             for (0..fromLuaArgs.len) |i| {
-                                if (f_params[i].type != @TypeOf(fromLuaArgs[i])) break :args_ok false;
+                                if (f_param_types[i] != @TypeOf(fromLuaArgs[i])) break :args_ok false;
                             }
 
                             break :args_ok true;
@@ -4923,13 +4930,13 @@ pub const Lua = opaque {
                     const string: [*:0]const u8 = try lua.toString(index);
                     const end = std.mem.indexOfSentinel(u8, 0, string);
 
-                    if (!info.is_const) {
+                    if (!info.attrs.@"const") {
                         if (!allow_alloc) {
                             @compileError("toAny cannot allocate memory, try using toAnyAlloc");
                         }
 
                         if (info.sentinel() != null) {
-                            return try a.?.dupeZ(u8, string[0..end]);
+                            return try a.?.dupeSentinel(u8, string[0..end], 0);
                         } else {
                             return try a.?.dupe(u8, string[0..end]);
                         }
@@ -4953,9 +4960,9 @@ pub const Lua = opaque {
             },
             .@"enum" => |info| {
                 const string = try lua.toAnyInternal([]const u8, a, allow_alloc, index);
-                inline for (info.fields) |enum_member| {
-                    if (std.mem.eql(u8, string, enum_member.name)) {
-                        return @field(T, enum_member.name);
+                inline for (info.field_names) |enum_name| {
+                    if (std.mem.eql(u8, string, enum_name)) {
+                        return @field(T, enum_name);
                     }
                 }
                 return error.LuaInvalidEnumTagName;
@@ -4977,9 +4984,9 @@ pub const Lua = opaque {
                 if (lua.next(-2)) {
                     defer lua.pop(2);
                     const key = try lua.toAny([]const u8, -2);
-                    inline for (u.fields) |field| {
-                        if (std.mem.eql(u8, key, field.name)) {
-                            return @unionInit(T, field.name, try lua.toAny(field.type, -1));
+                    inline for (u.field_names, u.field_types) |name, ftype| {
+                        if (std.mem.eql(u8, key, name)) {
+                            return @unionInit(T, name, try lua.toAny(ftype, -1));
                         }
                     }
                     return error.LuaInvalidTagName;
@@ -5045,7 +5052,7 @@ pub const Lua = opaque {
             lua.pushValue(index);
             defer lua.pop(1);
 
-            inline for (info.fields, 0..) |field, i| {
+            inline for (info.field_types, 0..) |ftype, i| {
                 switch (lua.getMetaField(-1, "__index")) {
                     .nil => {
                         _ = lua.getIndexRaw(-1, @intCast(i + 1));
@@ -5057,16 +5064,16 @@ pub const Lua = opaque {
                     },
                 }
                 defer lua.pop(1);
-                result[i] = try lua.toAnyInternal(field.type, a, allow_alloc, -1);
+                result[i] = try lua.toAnyInternal(ftype, a, allow_alloc, -1);
             }
         } else {
             // taking it as vararg
-            const in_range = if (raw_index < 0) (index - @as(i32, info.fields.len)) >= 0 else ((index + @as(i32, info.fields.len)) - 1) <= stack_size_on_entry;
+            const in_range = if (raw_index < 0) (index - @as(i32, info.field_names.len)) >= 0 else ((index + @as(i32, info.field_names.len)) - 1) <= stack_size_on_entry;
             if (in_range) {
-                inline for (info.fields, 0..) |field, i| {
+                inline for (info.field_types, 0..) |ftype, i| {
                     const stack_size_before_call = lua.getTop();
                     const idx = if (raw_index < 0) index - @as(i32, @intCast(i)) else index + @as(i32, @intCast(i));
-                    result[i] = try lua.toAnyInternal(field.type, a, allow_alloc, idx);
+                    result[i] = try lua.toAnyInternal(ftype, a, allow_alloc, idx);
                     std.debug.assert(stack_size_before_call == lua.getTop());
                 }
             } else {
@@ -5089,25 +5096,26 @@ pub const Lua = opaque {
         }
 
         var result: T = undefined;
+        const str = @typeInfo(T).@"struct";
 
-        inline for (@typeInfo(T).@"struct".fields) |field| {
-            const field_type_info = comptime @typeInfo(field.type);
-            const field_name = comptime field.name ++ "";
+        inline for (str.field_names, str.field_types, str.field_attrs) |name, ftype, attr| {
+            const field_type_info = comptime @typeInfo(ftype);
+            const field_name = comptime name ++ "";
             _ = lua.pushStringZ(field_name);
 
             const lua_field_type = lua.getTable(index);
             defer lua.pop(1);
             if (lua_field_type == .nil) {
-                if (field.defaultValue()) |default| {
-                    @field(result, field.name) = default;
+                if (attr.defaultValue(ftype)) |default| {
+                    @field(result, name) = default;
                 } else if (field_type_info != .optional) {
                     return error.LuaTableMissingValue;
                 } else {
-                    @field(result, field.name) = null;
+                    @field(result, name) = null;
                 }
             } else {
                 const stack_size_before_call = lua.getTop();
-                @field(result, field.name) = try lua.toAnyInternal(field.type, a, allow_alloc, -1);
+                @field(result, name) = try lua.toAnyInternal(ftype, a, allow_alloc, -1);
                 std.debug.assert(stack_size_before_call == lua.getTop());
             }
         }
@@ -5155,11 +5163,11 @@ pub const Lua = opaque {
             pub fn interface(lua: *Lua) i32 {
                 var parameters: std.meta.ArgsTuple(@TypeOf(function)) = undefined;
 
-                inline for (info.@"fn".params, 0..) |param, i| {
-                    const param_info = @typeInfo(param.type.?);
+                inline for (info.@"fn".param_types, 0..) |ptype, i| {
+                    const param_info = @typeInfo(ptype.?);
                     //only use the overhead of creating the arena allocator if needed
                     if (comptime param_info == .pointer and param_info.pointer.size != .one) {
-                        const parsed = lua.toAnyAlloc(param.type.?, (i + 1)) catch |err| {
+                        const parsed = lua.toAnyAlloc(ptype.?, (i + 1)) catch |err| {
                             lua.raiseErrorStr(@errorName(err), .{});
                         };
 
@@ -5167,7 +5175,7 @@ pub const Lua = opaque {
 
                         parameters[i] = parsed.value;
                     } else {
-                        const parsed = lua.toAny(param.type.?, (i + 1)) catch |err| {
+                        const parsed = lua.toAny(ptype.?, (i + 1)) catch |err| {
                             lua.raiseErrorStr(@errorName(err), .{});
                         };
 
@@ -5365,24 +5373,24 @@ pub const Buffer = struct {
 // Helper functions to make the zlua API easier to use
 
 fn TypeOfWrap(comptime function: anytype) type {
-    const params = @typeInfo(@TypeOf(function)).@"fn".params;
+    const params = @typeInfo(@TypeOf(function)).@"fn".param_types;
     if (params.len == 1) {
-        if (params[0].type.? == *Lua) return CFn;
-        if (params[0].type.? == *anyopaque) return CUserdataDtorFn;
+        if (params[0].? == *Lua) return CFn;
+        if (params[0].? == *anyopaque) return CUserdataDtorFn;
     }
     if (params.len == 2) {
-        if (params[0].type.? == *Lua) {
-            if (params[1].type.? == i32) return CInterruptCallbackFn;
-            if (params[1].type.? == []const u8) return CUserAtomCallbackFn;
-            if (params[1].type.? == *anyopaque) return CReaderFn;
+        if (params[0].? == *Lua) {
+            if (params[1].? == i32) return CInterruptCallbackFn;
+            if (params[1].? == []const u8) return CUserAtomCallbackFn;
+            if (params[1].? == *anyopaque) return CReaderFn;
         }
     }
     if (params.len == 3) {
-        if (params[0].type.? == ?*anyopaque and params[1].type.? == []const u8 and params[2].type.? == bool) return CWarnFn;
-        if (params[0].type.? == *Lua) {
-            if (params[1].type.? == Event and params[2].type.? == *DebugInfo) return CHookFn;
-            if (params[1].type.? == Status and params[2].type.? == Context) return CContFn;
-            if (params[1].type.? == []const u8 and params[2].type.? == *anyopaque) return CWriterFn;
+        if (params[0].? == ?*anyopaque and params[1].? == []const u8 and params[2].? == bool) return CWarnFn;
+        if (params[0].? == *Lua) {
+            if (params[1].? == Event and params[2].? == *DebugInfo) return CHookFn;
+            if (params[1].? == Status and params[2].? == Context) return CContFn;
+            if (params[1].? == []const u8 and params[2].? == *anyopaque) return CWriterFn;
         }
     }
     return {
@@ -5653,16 +5661,16 @@ pub fn exportFn(comptime name: []const u8, comptime func: anytype) CFn {
 /// lua.setGlobal("mylib"); // mylib.foo, mylib.bar now visible
 /// ```
 pub fn fnRegsFromType(comptime T: type) []const FnReg {
-    const decls = switch (@typeInfo(T)) {
-        inline .@"struct", .@"enum", .@"union", .@"opaque" => |info| info.decls,
+    const decl_names = switch (@typeInfo(T)) {
+        inline .@"struct", .@"enum", .@"union", .@"opaque" => |info| info.decl_names,
         else => @compileError("Type " ++ @typeName(T) ++ "does not allow declarations"),
     };
     comptime var funcs: []const FnReg = &.{};
-    inline for (decls) |d| {
-        if (@typeInfo(@TypeOf(@field(T, d.name))) == .@"fn") {
+    inline for (decl_names) |name| {
+        if (@typeInfo(@TypeOf(@field(T, name))) == .@"fn") {
             const reg: []const FnReg = &.{.{
-                .name = d.name,
-                .func = comptime wrap(@field(T, d.name)),
+                .name = name,
+                .func = comptime wrap(@field(T, name)),
             }};
             funcs = funcs ++ reg;
         }
