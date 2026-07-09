@@ -535,17 +535,17 @@ test "string buffers" {
 
     // TODO: maybe implement this for all langs?
     b = buffer.initSize(lua, 20);
-    @memcpy(b[0..20], "a" ** 20);
+    @memcpy(b[0..20], "aaaaaaaaaaaaaaaaaaaa");
     buffer.pushResultSize(20);
 
     if (zlua.lang != .lua54) return;
     try expectEqual(20, buffer.len());
     buffer.sub(10);
     try expectEqual(10, buffer.len());
-    try expectEqualStrings("a" ** 10, buffer.addr());
+    try expectEqualStrings("aaaaaaaaaa", buffer.addr());
 
     buffer.addGSub(" append", "append", "appended");
-    try expectEqualStrings("a" ** 10 ++ " appended", buffer.addr());
+    try expectEqualStrings("aaaaaaaaaa appended", buffer.addr());
 }
 
 test "global table" {
@@ -2408,7 +2408,7 @@ test "toAny" {
     //void
     try lua.doString("value = {}\nvalue_err = {a = 5}");
     _ = lua.getGlobal("value");
-    try testing.expectEqual(void{}, try lua.toAny(void, -1));
+    try testing.expectEqual({}, try lua.toAny(void, -1));
     _ = lua.getGlobal("value_err");
     try testing.expectError(error.LuaVoidTableIsNotEmpty, lua.toAny(void, -1));
 }
@@ -2436,7 +2436,7 @@ test "toAny tuple from vararg" {
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
-    const Tuple = std.meta.Tuple(&.{ i32, bool, i32 });
+    const Tuple = @Tuple(&.{ i32, bool, i32 });
 
     lua.pushInteger(100);
     lua.pushBoolean(true);
@@ -2462,7 +2462,7 @@ test "toAny tuple from struct" {
     const MyType = struct {
         foo: i32,
         bar: bool,
-        tuple: std.meta.Tuple(&.{ i32, bool, struct { foo: bool } }),
+        tuple: @Tuple(&.{ i32, bool, struct { foo: bool } }),
     };
 
     try lua.doString(
@@ -2705,8 +2705,8 @@ test "pushAny" {
     try testing.expect(my_enum == MyEnumType.goodbye);
 
     //void
-    try lua.pushAny(void{});
-    try testing.expectEqual(void{}, try lua.toAny(void, -1));
+    try lua.pushAny({});
+    try testing.expectEqual({}, try lua.toAny(void, -1));
 }
 
 test "pushAny struct" {
@@ -2729,7 +2729,7 @@ test "pushAny tuple" {
     const lua: *Lua = try .init(testing.allocator);
     defer lua.deinit();
 
-    const Tuple = std.meta.Tuple(&.{ i32, bool, i32 });
+    const Tuple = @Tuple(&.{ i32, bool, i32 });
     const value: Tuple = .{ 500, false, 600 };
 
     try lua.pushAny(value);
@@ -2745,14 +2745,14 @@ test "pushAny from struct with toLua" {
     const MyType = struct {
         const Self = @This();
         foo: i32,
-        tuple: std.meta.Tuple(&.{ i32, i32 }),
+        tuple: @Tuple(&.{ i32, i32 }),
 
         pub fn toLua(self: Self, l: *Lua) !void {
             l.newTable();
 
-            inline for (@typeInfo(Self).@"struct".fields) |f| {
-                try l.pushAny(f.name);
-                try l.pushAny(@field(self, f.name));
+            inline for (@typeInfo(Self).@"struct".field_names) |name| {
+                try l.pushAny(name);
+                try l.pushAny(@field(self, name));
                 l.setTable(-3);
             }
         }
