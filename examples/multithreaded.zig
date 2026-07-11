@@ -36,7 +36,7 @@ fn add_to_x(lua: *zlua.Lua, num: usize) void {
 }
 
 pub fn main(init: std.process.Init) anyerror!void {
-    const gpa = init.gpa;
+    const gpa = std.heap.smp_allocator;
     io = init.io;
 
     // Initialize The Lua vm and get a reference to the main thread
