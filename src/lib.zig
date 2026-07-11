@@ -4887,7 +4887,7 @@ pub const Lua = opaque {
         switch (type_info) {
             .int => {
                 const result = try lua.toInteger(index);
-                return @as(T, @intCast(result));
+                return std.math.cast(T, result) orelse error.LuaIntegerOutOfRange;
             },
             .float => {
                 const result = try lua.toNumber(index);
