@@ -69,7 +69,7 @@ pub fn configure(
         },
 
         // Enable api check
-        if (opts.api_check == .on or (opts.api_check == .debug and optimize == .Debug)) "-DLUA_USE_APICHECK" else "",
+        if (opts.api_check == .on or (opts.api_check == .debug and optimize == .debug)) "-DLUA_USE_APICHECK" else "",
 
         // Build as DLL for windows if shared
         if (target.result.os.tag == .windows and shared) "-DLUA_BUILD_AS_DLL" else "",
