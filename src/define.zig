@@ -75,9 +75,9 @@ fn addEnum(
         try item.appendSlice(gpa, name(T));
         try item.appendSlice(gpa, "\n");
 
-        inline for (@typeInfo(T).@"enum".fields) |field| {
+        inline for (@typeInfo(T).@"enum".field_names) |fname| {
             try item.appendSlice(gpa, "---|\' \"");
-            try item.appendSlice(gpa, field.name);
+            try item.appendSlice(gpa, fname);
             try item.appendSlice(gpa, "\" \'\n");
         }
     }
@@ -98,15 +98,17 @@ pub fn addClass(
         try item.appendSlice(gpa, name(T));
         try item.appendSlice(gpa, "\n");
 
-        inline for (@typeInfo(T).@"struct".fields) |field| {
-            try item.appendSlice(gpa, "---@field ");
-            try item.appendSlice(gpa, field.name);
+        const str = @typeInfo(T).@"struct";
 
-            if (field.defaultValue() != null) {
+        inline for (str.field_names, str.field_types, str.field_attrs) |fname, ftype, attr| {
+            try item.appendSlice(gpa, "---@field ");
+            try item.appendSlice(gpa, fname);
+
+            if (attr.defaultValue(ftype) != null) {
                 try item.appendSlice(gpa, "?");
             }
             try item.appendSlice(gpa, " ");
-            try luaTypeName(state, gpa, idx, field.type);
+            try luaTypeName(state, gpa, idx, ftype);
             try state.definitions.items[idx].appendSlice(gpa, "\n");
         }
     }

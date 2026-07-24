@@ -2,9 +2,9 @@ name: tests
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   test_zig:
@@ -15,14 +15,13 @@ jobs:
     runs-on: ${{matrix.os}}
 
     steps:
-    - name: Clone Ziglua
-      uses: actions/checkout@v3
+      - name: Clone Ziglua
+        uses: actions/checkout@v3
 
-    - name: Setup Zig
-      uses: mlugg/setup-zig@v2
-      with:
-        version: "0.16.0"
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: "master"
 
-    - name: Run tests
-      run: make test
-
+      - name: Run tests
+        run: make test
