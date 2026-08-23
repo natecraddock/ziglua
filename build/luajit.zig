@@ -211,7 +211,7 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     library.step.dependOn(&buildvm_folddef.step);
     library.step.dependOn(&buildvm_ljvm.step);
 
-    library.is_linking_libc = true;
+    library.root_module.link_libc = true;
 
     lib.addCMacro("LUAJIT_UNWIND_EXTERNAL", "");
     lib.linkSystemLibrary("unwind", .{});
