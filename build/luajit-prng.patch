@@ -1,0 +1,24 @@
+--- lj_prng.c	2026-08-23 19:02:07.137486000 +0100
++++ lj_prng.c.patch	2026-08-23 19:07:14.481771000 +0100
+@@ -128,6 +128,10 @@
+ #elif (LJ_TARGET_BSD && !defined(__NetBSD__)) || LJ_TARGET_SOLARIS || LJ_TARGET_CYGWIN || LJ_TARGET_QNX || LJ_TARGET_HURD
+ #define LJ_TARGET_HAS_GETENTROPY	1
+ #endif
++
++/* For the /dev/urandom fallback. */
++#include <fcntl.h>
++#include <unistd.h>
+ 
+ #if LJ_TARGET_HAS_GETENTROPY
+ extern int getentropy(void *buf, size_t len)
+@@ -139,10 +143,6 @@
+ 
+ #endif
+ 
+-/* For the /dev/urandom fallback. */
+-#include <fcntl.h>
+-#include <unistd.h>
+-
+ #endif
+ 
+ #if LUAJIT_SECURITY_PRNG == 0
