@@ -58,6 +58,14 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
         dynasm_run.addFileArg(upstream.path("dynasm/dynasm.lua"));
     }
 
+    // Patch lj_prng.c for FreeBSD SSP
+    if (b.graph.host.result.os.tag == .freebsd) {
+        const prng_patch = applyPatchToFile(b, b.graph.host, upstream.path("src/lj_prng.c"), b.path("build/luajit-prng.patch"), "src/lj_prng.c");
+        prng_patch.run.addFileArg(prng_patch.output);
+    } else {
+        lib.addCSourceFile(.{ .file = upstream.path("src/lj_prng.c") });
+    }
+
     // TODO: Many more flags to figure out
     if (target.result.cpu.arch.endian() == .little) {
         dynasm_run.addArgs(&.{ "-D", "ENDIAN_LE" });
@@ -264,7 +272,6 @@ const luajit_vm = luajit_lib ++ [_][]const u8{
     "src/lj_udata.c",
     "src/lj_meta.c",
     "src/lj_debug.c",
-    "src/lj_prng.c",
     "src/lj_state.c",
     "src/lj_dispatch.c",
     "src/lj_vmevent.c",
