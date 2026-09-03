@@ -2,6 +2,7 @@
 
 # A subset of tests that are expected to work also on stable builds of zig
 test:
+	zig build --fetch=all
 	zig build test --summary failures -Dlang=lua51
 	zig build test --summary failures -Dlang=lua52
 	zig build test --summary failures -Dlang=lua53
