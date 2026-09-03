@@ -24,8 +24,8 @@
         },
 
         .lua54 = .{
-            .url = "https://www.lua.org/ftp/lua-5.4.8.tar.gz",
-            .hash = "N-V-__8AAKEzFAAA695b9LXBhUSVK5MAV_VKSm1mEj3Acbze",
+            .url = "https://www.lua.org/ftp/lua-5.4.9.tar.gz",
+            .hash = "N-V-__8AAEQ_FAAnte7Oq7KSLG9FZh_9mjvQimoekgYqkKSK",
             .lazy = true,
         },
 
