@@ -4589,34 +4589,27 @@ pub const Lua = opaque {
     }
 
     /// Pushes any string type
-    fn pushAnyString(lua: *Lua, value: anytype) error{OutOfMemory}!void {
+    fn pushAnyString(lua: *Lua, value: anytype) void {
         const info = @typeInfo(@TypeOf(value)).pointer;
         switch (info.size) {
+            .slice => {
+                std.debug.assert(info.child == u8);
+                _ = lua.pushString(value);
+            },
             .one => {
                 const childinfo = @typeInfo(info.child).array;
                 std.debug.assert(childinfo.child == u8);
-                std.debug.assert(childinfo.sentinel() != null);
 
-                if (childinfo.sentinel()) |sentinel| {
-                    if (sentinel != 0) {
-                        @compileError("Sentinel of slice must be a null terminator");
-                    }
-                }
-                _ = lua.pushStringZ(value);
+                _ = lua.pushString(value);
             },
-            .c, .many, .slice => {
+            .many => {
                 std.debug.assert(info.child == u8);
-                if (info.sentinel()) |sentinel| {
-                    if (sentinel != 0) {
-                        @compileError("Sentinel of slice must be a null terminator");
-                    }
-                    _ = lua.pushStringZ(value);
-                } else {
-                    const null_terminated = try lua.allocator().dupeSentinel(u8, value, 0);
-                    defer lua.allocator().free(null_terminated);
-                    _ = lua.pushStringZ(null_terminated);
+                if (info.sentinel() != 0) {
+                    @compileError("Sentinel of string pointer must be a null terminator");
                 }
+                _ = lua.pushStringZ(std.mem.span(value));
             },
+            .c => @compileError("C pointer length cannot be determined; pass a slice instead"),
         }
     }
 
@@ -4700,7 +4693,7 @@ pub const Lua = opaque {
             },
             .pointer => |info| {
                 if (comptime isTypeString(info)) {
-                    try lua.pushAnyString(value);
+                    lua.pushAnyString(value);
                 } else switch (info.size) {
                     .one => {
                         if (info.attrs.@"const") {
@@ -4764,7 +4757,7 @@ pub const Lua = opaque {
                 if (info.tag_type == null) @compileError("Parameter type is not a tagged union");
                 lua.createTable(0, 0);
                 errdefer lua.pop(1);
-                try lua.pushAnyString(@tagName(value));
+                lua.pushAnyString(@tagName(value));
 
                 inline for (info.field_names) |name| {
                     if (std.mem.eql(u8, name, @tagName(value))) {

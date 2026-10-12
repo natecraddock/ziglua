@@ -2684,10 +2684,13 @@ test "pushAny" {
     try testing.expect(my_bool);
 
     //string literal
-    try lua.pushAny("hello world");
-    const value = try lua.toString(-1);
-    const end = std.mem.indexOfSentinel(u8, 0, value);
-    try testing.expect(std.mem.eql(u8, value[0..end], "hello world"));
+    try lua.pushAny("hello\x00world");
+    try testing.expectEqualStrings("hello\x00world", try lua.toString(-1));
+
+    //null-terminated string pointer
+    const pointer: [*:0]const u8 = "hello world";
+    try lua.pushAny(pointer);
+    try testing.expectEqualStrings("hello world", try lua.toString(-1));
 
     //null
     try lua.pushAny(null);
