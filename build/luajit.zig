@@ -61,7 +61,10 @@ pub fn configure(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.
     // Patch lj_prng.c for FreeBSD SSP
     if (b.graph.host.result.os.tag == .freebsd) {
         const prng_patch = applyPatchToFile(b, b.graph.host, upstream.path("src/lj_prng.c"), b.path("build/luajit-prng.patch"), "src/lj_prng.c");
-        prng_patch.run.addFileArg(prng_patch.output);
+
+        library.step.dependOn(&prng_patch.run.step);
+
+        lib.addCSourceFile(.{ .file = prng_patch.output });
     } else {
         lib.addCSourceFile(.{ .file = upstream.path("src/lj_prng.c") });
     }
