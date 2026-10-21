@@ -1,6 +1,6 @@
 const std = @import("std");
-const ArrayList = std.ArrayListUnmanaged; // this should be deleted when zig 0.14 support is no longer necessary
-const StringHashMap = std.StringHashMapUnmanaged; // this should be deleted when zig 0.14 support is no longer necessary
+const ArrayList = std.ArrayList;
+const StringHashMap = std.StringHashMapUnmanaged;
 
 const String = ArrayList(u8);
 const Database = StringHashMap(void);
