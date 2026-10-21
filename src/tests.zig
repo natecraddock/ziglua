@@ -1,6 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
-const ArrayList = std.ArrayListUnmanaged; // delete this once 0.14 support is no longer necessary
+const ArrayList = std.ArrayList;
 
 const zlua = @import("zlua");
 
