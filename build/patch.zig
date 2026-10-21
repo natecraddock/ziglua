@@ -106,7 +106,7 @@ const Chunk = struct {
                 const src = getLineNumber(details[0..space_index]);
                 const dst = getLineNumber(details[space_index + 1 ..]);
 
-                var lines: std.ArrayListUnmanaged(Line) = .empty;
+                var lines: std.ArrayList(Line) = .empty;
                 while (true) {
                     const diff_line = it.next() orelse break;
                     if (std.mem.startsWith(u8, diff_line, "@@")) break;
