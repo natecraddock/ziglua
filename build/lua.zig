@@ -3,11 +3,13 @@ const std = @import("std");
 const Build = std.Build;
 const Step = std.Build.Step;
 
-const applyPatchToFile = @import("utils.zig").applyPatchToFile;
+const utils = @import("utils.zig");
+const applyPatchToFile = utils.applyPatchToFile;
 
 const build = @import("../build.zig");
 
 const ApiCheck = build.ApiCheck;
+const ApiCheckType = build.ApiCheckType;
 const Language = build.Language;
 
 pub const Options = struct {
@@ -16,6 +18,7 @@ pub const Options = struct {
     library_name: []const u8,
     lua_user_h: ?Build.LazyPath,
     api_check: ApiCheck,
+    api_check_type: ApiCheckType,
 };
 
 pub fn configure(
@@ -56,6 +59,8 @@ pub fn configure(
 
     const user_header = "user.h";
 
+    const apicheck_enabled = opts.api_check == .on or (opts.api_check == .debug and optimize == .debug);
+
     const flags = [_][]const u8{
         // Standard version used in Lua Makefile
         "-std=gnu99",
@@ -69,12 +74,12 @@ pub fn configure(
         },
 
         // Enable api check
-        if (opts.api_check == .on or (opts.api_check == .debug and optimize == .debug)) "-DLUA_USE_APICHECK" else "",
+        if (apicheck_enabled) "-DLUA_USE_APICHECK" else "",
 
         // Build as DLL for windows if shared
         if (target.result.os.tag == .windows and shared) "-DLUA_BUILD_AS_DLL" else "",
 
-        if (lua_user_h) |_| b.fmt("-DLUA_USER_H=\"{s}\"", .{user_header}) else "",
+        if (lua_user_h != null) b.fmt("-DLUA_USER_H=\"{s}\"", .{user_header}) else "",
         if (target.result.cpu.arch == .wasm32) "-flto" else "",
     };
 
@@ -109,6 +114,9 @@ pub fn configure(
     library.installHeader(upstream.path("src/lualib.h"), "lualib.h");
     library.installHeader(upstream.path("src/lauxlib.h"), "lauxlib.h");
     library.installHeader(upstream.path("src/luaconf.h"), "luaconf.h");
+
+    // This adds build/include/assert.h to the include path so Lua finds it before the system <assert.h>.
+    if (apicheck_enabled and opts.api_check_type == .stack_trace) library.root_module.addIncludePath(b.path("build/include"));
 
     if (lua_user_h) |user_h| {
         library.root_module.addIncludePath(user_h.dirname());
