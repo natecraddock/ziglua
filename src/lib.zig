@@ -3099,7 +3099,7 @@ pub const Lua = opaque {
     /// * Lua Runtime Errors: `none`
     ///
     /// See https://www.lua.org/manual/5.4/manual.html#lua_xmove
-    pub fn xMove(lua: *Lua, to: *Lua, num: i32) void {
+    pub fn moveToThread(lua: *Lua, to: *Lua, num: i32) void {
         c.lua_xmove(@ptrCast(lua), @ptrCast(to), num);
     }
 
