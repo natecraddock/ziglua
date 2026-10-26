@@ -1148,14 +1148,15 @@ test "yielding" {
     if (zlua.lang == .lua54 or zlua.lang == .lua55) {
         try expect(thread.isYieldable());
 
-        var results: i32 = undefined;
         while (i < 5) : (i += 1) {
-            try expectEqual(.yield, try thread.resumeThread(lua, 0, &results));
+            const status, const num_results = try thread.resumeThread(lua, 0);
+            try expectEqual(.yield, status);
+            try expectEqual(1, num_results);
             try expectEqual(i, try thread.toInteger(-1));
-            thread.pop(results);
+            thread.pop(num_results);
         }
 
-        try expectEqual(.ok, try thread.resumeThread(lua, 0, &results));
+        try expectEqual(.ok, (try thread.resumeThread(lua, 0))[0]);
     } else {
         // Lua 5.3
         try expect(!thread.isYieldable());
@@ -1258,12 +1259,11 @@ test "resuming" {
     );
     _ = thread.getGlobal("counter");
 
-    var num_results: i32 = 0;
     var i: i32 = 1;
     while (i <= 5) : (i += 1) {
         try expectEqual(.yield, switch (zlua.lang) {
             .lua51, .luajit => thread.resumeThread(0),
-            .lua54, .lua55 => thread.resumeThread(lua, 0, &num_results),
+            .lua54, .lua55 => (try thread.resumeThread(lua, 0))[0],
             else => thread.resumeThread(lua, 0),
         });
 
@@ -1273,7 +1273,7 @@ test "resuming" {
 
     try expectEqual(.ok, switch (zlua.lang) {
         .lua51, .luajit => thread.resumeThread(0),
-        .lua54, .lua55 => thread.resumeThread(lua, 0, &num_results),
+        .lua54, .lua55 => (try thread.resumeThread(lua, 0))[0],
         else => thread.resumeThread(lua, 0),
     });
 

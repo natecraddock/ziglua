@@ -2521,14 +2521,15 @@ pub const Lua = opaque {
 
     /// Starts and resumes a coroutine in the given thread
     /// See https://www.lua.org/manual/5.4/manual.html#lua_resume
-    fn resumeThread54(lua: *Lua, from: ?*Lua, num_args: i32, num_results: *i32) CallError!ResumeStatus {
+    fn resumeThread54(lua: *Lua, from: ?*Lua, num_args: i32) CallError!struct { ResumeStatus, i32 } {
+        var num_results: i32 = undefined;
         const from_state: ?*LuaState = if (from) |from_val| @ptrCast(from_val) else null;
-        const thread_status = c.lua_resume(@ptrCast(lua), from_state, num_args, num_results);
+        const thread_status = c.lua_resume(@ptrCast(lua), from_state, num_args, &num_results);
         switch (thread_status) {
             StatusCode.err_runtime => return error.LuaRuntime,
             StatusCode.err_memory => return error.OutOfMemory,
             StatusCode.err_error => return error.LuaMsgHandler,
-            else => return @enumFromInt(thread_status),
+            else => return .{ @enumFromInt(thread_status), num_results },
         }
     }
 
