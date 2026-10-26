@@ -939,7 +939,7 @@ test "threads" {
     lua.pushInteger(10);
     lua.pushNil();
 
-    lua.xMove(new_thread, 2);
+    lua.moveToThread(new_thread, 2);
     try expectEqual(2, new_thread.getTop());
 }
 
