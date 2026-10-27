@@ -709,6 +709,9 @@ pub const loaded_table = if (@hasDecl(c, "LUA_LOADED_TABLE")) c.LUA_LOADED_TABLE
 /// The key in the registry that holds a table of preloaded loaders. The `package.preload` table in Lua.
 pub const preload_table = if (@hasDecl(c, "LUA_PRELOAD_TABLE")) c.LUA_PRELOAD_TABLE else "_PRELOAD";
 
+/// The type of function used for memory allocation in Lua states.
+pub const CAllocFn = *const fn (data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.c) ?*align(@alignOf(std.c.max_align_t)) anyopaque;
+
 /// A Zig wrapper around the Lua C API
 /// Represents a Lua state or thread and contains the entire state of the Lua interpreter
 pub const Lua = opaque {
@@ -2182,6 +2185,24 @@ pub const Lua = opaque {
             },
             else => return c.lua_pushlstring(@ptrCast(lua), str.ptr, str.len)[0..str.len :0],
         }
+    }
+
+    /// Creates an external string, that is, a string that uses memory not managed by Lua.
+    ///
+    /// If alloc_fn is not null, that function will be called by Lua when the
+    /// external buffer is no longer needed. The contents of the buffer should
+    /// not change before this call. The function will be called with the given
+    /// data pointer, the string as the block, the length plus one (to account
+    /// for the ending zero) as the old size, and 0 as the new size.
+    ///
+    /// * Pops from Stack: `0`
+    /// * Pushes to Stack: `1`
+    /// * Lua Runtime Errors: `memory`
+    ///
+    /// See https://www.lua.org/manual/5.5/manual.html#lua_pushexternalstring
+    pub fn pushExternalString(lua: *Lua, str: [:0]const u8, allocFn: ?CAllocFn, data: ?*anyopaque) void {
+        comptime checkSupport(.{.lua55}, @src().fn_name);
+        _ = c.lua_pushexternalstring(@ptrCast(lua), str.ptr, str.len, allocFn, data);
     }
 
     /// Pushes a nil value onto the stack
@@ -5380,6 +5401,7 @@ fn TypeOfWrap(comptime function: anytype) type {
             if (params[1].? == []const u8) return CUserAtomCallbackFn;
             if (params[1].? == *anyopaque) return CReaderFn;
         }
+        if (params[0].? == [:0]const u8) return CAllocFn;
     }
     if (params.len == 3) {
         if (params[0].? == ?*anyopaque and params[1].? == []const u8 and params[2].? == bool) return CWarnFn;
@@ -5406,6 +5428,7 @@ fn TypeOfWrap(comptime function: anytype) type {
 /// * Wraps `fn (lua: *Lua, str: []const u8) i16` as `CUserAtomCallbackFn`
 /// * Wraps `fn (data: ?*anyopaque, msg: []const u8, to_cont: bool) void` as `CWarnFn`
 /// * Wraps `fn (lua: *Lua, buf: []const u8, data: *anyopaque) bool` as `CWriterFn`
+/// * Wraps `fn (str: [:0]const u8, data: ?*anyopaque) void` as `CAllocFn`
 ///
 /// Functions that accept a `*Lua` pointer also support returning error unions. For example,
 /// wrap also supports `fn (lua: *Lua) !i32` for a `CFn`.
@@ -5543,6 +5566,15 @@ pub fn wrap(comptime function: anytype) TypeOfWrap(function) {
                 // it makes more sense for the inner writer function to return false for failure,
                 // so negate the result here
                 return @intFromBool(!result);
+            }
+        }.inner,
+        CAllocFn => struct {
+            fn inner(data: ?*anyopaque, ptr: ?*anyopaque, osize: usize, nsize: usize) callconv(.c) ?*align(@alignOf(std.c.max_align_t)) anyopaque {
+                _ = osize;
+                _ = nsize;
+                const str = @as(?[*:0]align(1) u8, @ptrCast(@alignCast(ptr))).?;
+                @call(.always_inline, function, .{ std.mem.span(str), data });
+                return null;
             }
         }.inner,
         else => unreachable,
