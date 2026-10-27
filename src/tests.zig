@@ -3178,3 +3178,38 @@ test "function registration with fnRegsFromType" {
     try lua.doString("res = fnregs.add(100, fnregs.neg(25))");
     try expectEqual(75, lua.get(i32, "res"));
 }
+
+test "pushExternalString" {
+    if (zlua.lang != .lua55) return;
+
+    const lua: *Lua = try .init(testing.allocator);
+    defer lua.deinit();
+
+    const str = "This string is owned by Zig";
+    _ = lua.pushExternalString(str, null, null);
+
+    const from_lua = lua.toString(-1) catch unreachable;
+    try expectEqual(str.ptr, from_lua.ptr);
+}
+
+test "pushExternalString with alloc function" {
+    if (zlua.lang != .lua55) return;
+
+    // When lua.deinit() is called, the string in Lua will be garbage collected
+    // which will call this function.
+    const freeFn = struct {
+        fn inner(str: [:0]const u8, data: ?*anyopaque) void {
+            const allocator_ptr: *std.mem.Allocator = @ptrCast(@alignCast(data.?));
+            allocator_ptr.free(str);
+        }
+    }.inner;
+
+    const lua: *Lua = try .init(testing.allocator);
+    defer lua.deinit();
+
+    const str = try testing.allocator.dupeSentinel(u8, "This string is owned by Zig", 0);
+    _ = lua.pushExternalString(str, zlua.wrap(freeFn), @constCast(&testing.allocator));
+
+    const from_lua = lua.toString(-1) catch unreachable;
+    try expectEqual(str.ptr, from_lua.ptr);
+}
