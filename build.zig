@@ -42,24 +42,17 @@ pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const system_lua = b.systemIntegrationOption("system_lua", .{ .default = false });
+
     const lang = b.option(Language, "lang", "Lua language version to build") orelse .lua55;
     const library_name = b.option([]const u8, "library_name", "Library name for lua linking, default is `lua`") orelse "lua";
-    const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
-    const system_lua = b.option(bool, "system_lua", "Use system lua") orelse false;
+    const shared = b.option(bool, "shared", "Build shared library instead of static") orelse system_lua;
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
     const lua_user_h = b.option(Build.LazyPath, "lua_user_h", "Lazy path to user supplied c header file") orelse null;
     const additional_system_headers = b.option([]Build.LazyPath, "additional_system_headers", "Slice of Lazy paths to additional system headers to include when building Lua") orelse null;
     const api_check = b.option(ApiCheck, "apicheck", "Enable parameter check assertions in the Lua API") orelse .debug;
     // TODO: if the stack traces go well and don't error, maybe remove this. Why would someone not want the stack trace?
     const api_check_type = b.option(ApiCheckType, "apicheck_type", "Whether apicheck should show stack traces or only abort") orelse .stack_trace;
-
-    if (lang == .luau and shared) {
-        std.debug.panic("Luau does not support compiling or loading shared modules", .{});
-    }
-
-    if (lua_user_h != null and (lang == .luajit or lang == .luau)) {
-        std.debug.panic("Only basic lua supports a user provided header file", .{});
-    }
 
     // Zig module
     const zlua = if (system_lua) b.addModule("zlua", .{
@@ -88,10 +81,24 @@ pub fn build(b: *Build) void {
         .luau => b.path("build/include/luau_all.h"),
         else => b.path("build/include/lua_all.h"),
     };
+    const link_mode: std.builtin.LinkMode = if (shared) .dynamic else .static;
+    const system_library_name = switch (lang) {
+        .lua51 => "lua5.1",
+        .lua52 => "lua5.2",
+        .lua53 => "lua5.3",
+        .lua54 => "lua5.4",
+        .lua55 => "lua5.5",
+        .luajit => "luajit",
+        .luau => "luau",
+    };
     const t: Translator = .init(translate_c, .{
         .c_source_file = c_header_path,
         .target = target,
         .optimize = optimize,
+        .link_system_libs = if (system_lua)
+            &.{.{ .name = system_library_name, .options = .{ .preferred_link_mode = link_mode } }}
+        else
+            &.{},
     });
 
     // If we've been given additional system headers, add them now.
@@ -103,18 +110,8 @@ pub fn build(b: *Build) void {
     zlua.addImport("c", t.mod);
 
     if (system_lua) {
-        const link_mode: std.builtin.LinkMode = if (shared) .dynamic else .static;
-        const system_library_name = switch (lang) {
-            .lua51 => "lua5.1",
-            .lua52 => "lua5.2",
-            .lua53 => "lua5.3",
-            .lua54 => "lua5.4",
-            .lua55 => "lua5.5",
-            .luajit => "luajit",
-            .luau => @panic("luau not supported for system lua"),
-        };
+        if (lang == .luau) b.getInstallStep().dependOn(&b.addFail("luau not supported for system lua").step);
         zlua.linkSystemLibrary(system_library_name, .{ .preferred_link_mode = link_mode });
-        t.mod.linkSystemLibrary(system_library_name, .{ .preferred_link_mode = link_mode });
     } else if (b.lazyDependency(@tagName(lang), .{})) |upstream| {
         const lib = switch (lang) {
             .luajit => luajit_setup.configure(b, target, optimize, upstream, shared, api_check),
@@ -129,6 +126,13 @@ pub fn build(b: *Build) void {
             }),
         };
 
+        if (lang == .luau and shared) {
+            lib.step.dependOn(&b.addFail("Luau does not support compiling or loading shared modules").step);
+        }
+
+        if (lua_user_h != null and (lang == .luajit or lang == .luau)) {
+            lib.step.dependOn(&b.addFail("Only basic lua supports a user provided header file").step);
+        }
         // Expose the Lua artifact.
         const install_lib = b.addInstallArtifact(lib, .{});
         b.getInstallStep().dependOn(&install_lib.step);
