@@ -42,7 +42,7 @@ pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const system_lua = b.systemIntegrationOption("system_lua", .{ .default = false });
+    const system_lua = b.systemIntegrationOption("lua", .{ .default = false });
 
     const lang = b.option(Language, "lang", "Lua language version to build") orelse .lua55;
     const library_name = b.option([]const u8, "library_name", "Library name for lua linking, default is `lua`") orelse "lua";
@@ -131,7 +131,7 @@ pub fn build(b: *Build) void {
         }
 
         if (lua_user_h != null and (lang == .luajit or lang == .luau)) {
-            lib.step.dependOn(&b.addFail("Only basic lua supports a user provided header file").step);
+            lib.step.dependOn(&b.addFail("Only standard lua supports a user provided header file").step);
         }
         // Expose the Lua artifact.
         const install_lib = b.addInstallArtifact(lib, .{});
