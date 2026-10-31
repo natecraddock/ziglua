@@ -63,7 +63,7 @@ This will compile the Lua C sources and link with your project.
 
 You can also use `lua_dep.artifact("lua")` to access the compiled lua library.
 
-There are currently three additional options that can be passed to `b.dependency()`:
+There are additional options that can be passed to `b.dependency()`:
 
 * `.lang`: Set the Lua language to build and embed. Defaults to `.lua55`. Possible values are `.lua51`, `.lua52`, `.lua53`, `.lua54`, `.lua55`, and `luau`.
 * `.shared`: Defaults to `false` for embedding in a Zig program. Set to `true` to dynamically link the Lua source code (useful for creating shared modules).
@@ -102,6 +102,22 @@ pub fn main(init: std.process.Init) anyerror!void {
     std.debug.print("{}\n", .{try lua.toInteger(1)});
 }
 ```
+
+## Using System Lua
+
+Although Ziglua defaults to compiling the Lua C library with Zig,
+you can optionally link against a system Lua instead with the `-fsys=lua` option.
+On systems where `pkg-config` can find Lua, this might be all that is necessary.
+
+If not, two useful commands to `zig build` to be aware of are `--search-prefix`
+and `-Dadditional_system_headers`.
+The former should be used with a directory containing `lib` and/or `include` as a child directory,
+for example `/usr/local` on most Unix-like systems as `--search-prefix /usr/local`.
+(Note that `/usr/local` itself is usually found without needing `--search-prefix`.)
+Many system distributions put `lua.h` in a folder other than `include`,
+for example `/opt/homebrew/include/lua/lua.h` on macOS with Homebrew.
+The command `-Dadditional_system_headers=/opt/homebrew/include/lua` helps the `translate_c` module find
+`lua.h` in cases where `--search-prefix` alone is not enough.
 
 ## Contributing
 Please make suggestions, report bugs, and create pull requests. Anyone is welcome to contribute!
