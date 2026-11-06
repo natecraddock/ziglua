@@ -95,6 +95,7 @@ pub fn build(b: *Build) void {
         .c_source_file = c_header_path,
         .target = target,
         .optimize = optimize,
+        .char_signedness = .unsigned,
         .link_system_libs = if (system_lua)
             &.{.{ .name = system_library_name, .options = .{ .preferred_link_mode = link_mode } }}
         else
